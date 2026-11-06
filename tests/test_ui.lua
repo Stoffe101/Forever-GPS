@@ -339,6 +339,60 @@ function tests.aQuestWithNoPlace_offersNoDirections()
     T.has(found.target.reason, "No reliable location", "and it says so")
 end
 
+-- Every control the page lists is a real size, on the page and clear of the rest.
+function tests.settings_everyControlIsThereToUse()
+    for _, screen in ipairs(SCREENS) do
+        local c = Start(screen)
+        local FG = c.FG
+        FG.Window.Show("settings")
+        c:Advance(0.3)
+        local page = FG.Window.Frame().settingsPage
+        local box = Rect(page)
+        local seen = 0
+        for _, item in ipairs(page.items) do
+            local r = Rect(item.widget)
+            T.ok(r, screen[1] .. ": a settings row resolves")
+            if item.sizing ~= "own" then
+                T.ok(r.r - r.l >= 100, ("%s: a settings row is %d wide"):format(screen[1], r.r - r.l))
+            end
+            T.ok(r.t - r.b >= 8, screen[1] .. ": and has height")
+            T.ok(Inside(r, box), screen[1] .. ": on the page")
+            seen = seen + 1
+        end
+        T.eq(seen, #page.items)
+        T.ok(seen >= 12, "the page has its controls")
+    end
+end
+
+function tests.settings_switchesDoWhatTheySay()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Window.Show("settings")
+    c:Advance(0.3)
+    local page = FG.Window.Frame().settingsPage
+    local hud
+    for _, item in ipairs(page.items) do
+        if item.widget.label and item.widget.label._text == FG.L["SET_HUD"] then hud = item.widget end
+    end
+    T.ok(hud, "the HUD switch is on the page")
+    hud:Click()
+    T.no(FG.db.hud.enabled, "off")
+    hud:Click()
+    T.ok(FG.db.hud.enabled, "and on")
+end
+
+function tests.homeTiles_fitTheirLabels()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Window.Show("search")
+    c:Advance(0.3)
+    Visible(FG.Window.Frame().searchPage, function(obj)
+        if obj._kind == "FontString" and (obj._text or "") ~= "" and obj.IsTruncated then
+            T.no(obj:IsTruncated(), "a home label is cut off: " .. obj._text)
+        end
+    end)
+end
+
 function tests.themes_repaintEverything()
     local c = Start(SCREENS[3])
     local FG = c.FG

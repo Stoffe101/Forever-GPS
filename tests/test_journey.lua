@@ -107,10 +107,11 @@ function tests.wanderingOff_rebuildsTheRouteWithoutFlapping()
         rebuilt = rebuilt + 1
         return real(...)
     end
+    -- Four frames a second here, so planning takes game time it would not.
     c:SetPlayer(1429, 0.2, 0.8)
-    c:Advance(35, 0.25)
+    c:Advance(60, 0.25)
     T.ok(rebuilt >= 1, "a new route from here")
-    T.ok(rebuilt <= 4, "and not constantly: " .. rebuilt .. " in 35 seconds")
+    T.ok(rebuilt <= 2, "and once, not constantly: " .. rebuilt .. " in a minute")
     local now = c.FG.Bridge.ActiveRoute()
     T.eq(now.dest.name, "Auberdine", "to the same place")
     T.eq(now.active, 1, "from the start of the new way")
@@ -122,9 +123,8 @@ end
 function tests.afterTheOtherWays_theGridIsBackOnTheRoutesSettings()
     local c = Start()
     local route = Go(c, nil)
-    c:Advance(12, 0.25)
-    T.no(c.FG.Bridge.IsPlanning(), "the other ways are done")
-    T.ok(route.others ~= nil, "they were worked out")
+    T.ok(Stack.Until(c, function() return route.others ~= nil end, 60), "the other ways are worked out")
+    T.no(c.FG.Bridge.IsPlanning(), "and done")
     T.eq(c.ns.GPSNav.epoch % 3, 1, "the character's own drop limit, not unlimited")
     local Follow, Engine = c.ns.GPSFollow, c.ns.GPSRoute
     local sci, sx, sy = Follow.StartOf(route, 1)
@@ -156,8 +156,9 @@ function tests.aRerouteInProgress_keepsTheModeChosen()
     P.Select(P.Current().options[2])
     P.Start()
     c:Advance(1)
+    local route = c.FG.Bridge.ActiveRoute()
     c:SetPlayer(1429, 0.2, 0.8)
-    c:Advance(16, 0.25)
+    T.ok(Stack.Until(c, function() return c.FG.Bridge.ActiveRoute() ~= route end, 90), "a new route from here")
     T.ok(c.FG.Bridge.ActiveRoute().wayAvoid.danger, "still the safer way")
 end
 

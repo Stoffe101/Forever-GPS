@@ -20,27 +20,28 @@ local function Build(parent)
     f.back = Kit.Shape(f, 8, "BACKGROUND", 1)
     Theme.Paint(function(c) f.back:SetColor(c.raised) end)
     f.items = {}
-    local function Add(widget, height, wide)
-        f.items[#f.items + 1] = { widget = widget, height = height, wide = wide }
+    -- sizing: "fill" takes the column, "flow" lays itself out to it, "own" keeps its size.
+    local function Add(widget, height, sizing)
+        f.items[#f.items + 1] = { widget = widget, height = height, sizing = sizing or "fill" }
         return widget
     end
     local function HudChanged() FG.Emit("settings:changed") end
 
-    Add(Heading(f, L["SET_ARROW"]), 16)
+    Add(Heading(f, L["SET_ARROW"]), 16, "own")
     local choices = { { "hud", L["SET_ARROW_HUD"] }, { "character", L["SET_ARROW_CHARACTER"] } }
     if FG.TomTom.Available() then choices[#choices + 1] = { "tomtom", L["SET_ARROW_TOMTOM"] } end
     choices[#choices + 1] = { "off", L["SET_ARROW_OFF"] }
     f.arrow = Add(Kit.Choice(f, choices, function() return FG.db.arrow end, function(value)
         FG.db.arrow = value
         FG.Journey.ApplyArrow()
-    end), 30, true)
+    end), 30, "flow")
 
-    Add(Heading(f, L["SET_THEME"]), 16)
+    Add(Heading(f, L["SET_THEME"]), 16, "own")
     f.theme = Add(Kit.Choice(f, { { "obsidian", L["THEME_OBSIDIAN"] }, { "glacier", L["THEME_GLACIER"] }, { "parchment", L["THEME_PARCHMENT"] } },
         function() return FG.db.theme end, function(value)
             FG.db.theme = value
             Theme.Apply(value)
-        end), 30, true)
+        end), 30, "flow")
 
     Add(Kit.Check(f, L["SET_HUD"], function() return FG.db.hud.enabled end, function(on)
         FG.db.hud.enabled = on
@@ -59,19 +60,19 @@ local function Build(parent)
     end), 26)
     Add(Kit.Check(f, L["SET_EASYFIND_BAR"], Bridge.EasyFindBar, Bridge.SetEasyFindBar), 30)
 
-    Add(Heading(f, L["SET_HUD_SCALE"]), 16)
+    Add(Heading(f, L["SET_HUD_SCALE"]), 16, "own")
     Add(Kit.Scale(f, 0.7, 1.5, 0.05, function() return FG.db.hud.scale end, function(value)
         FG.db.hud.scale = value
         HudChanged()
     end), 28)
-    Add(Heading(f, L["SET_WINDOW_SCALE"]), 16)
+    Add(Heading(f, L["SET_WINDOW_SCALE"]), 16, "own")
     Add(Kit.Scale(f, 0.7, 1.3, 0.05, function() return FG.db.window.scale end, function(value)
         FG.db.window.scale = value
         FG.Window.ApplyScale()
     end), 28)
     Add(Kit.Button(f, { text = L["SET_RESET"], height = 26, width = "fit", onClick = function()
         FG.Settings.ResetPlaces()
-    end }), 34)
+    end }), 34, "own")
     return f
 end
 
@@ -95,10 +96,10 @@ function View.Layout()
         w:ClearAllPoints()
         w:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + x, -(PAD + y))
         local h = item.height
-        if w.Layout and item.wide then
+        if item.sizing == "flow" then
             w:SetWidth(colWidth)
             h = w:Layout(colWidth) + 10
-        elseif not (w.GetFont or w.variant) then
+        elseif item.sizing == "fill" then
             w:SetWidth(colWidth)
         end
         y = y + h

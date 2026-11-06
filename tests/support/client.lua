@@ -649,6 +649,8 @@ function Client:LoadAddon(addon, skip)
     self.meta = self.meta or {}
     self.meta[addon] = meta
     self.addons[addon] = true
+    self.loadOrder = self.loadOrder or {}
+    self.loadOrder[#self.loadOrder + 1] = addon
     local own = {}
     self.addonTables = self.addonTables or {}
     self.addonTables[addon] = own
@@ -690,7 +692,7 @@ function Client:LoadAddon(addon, skip)
 end
 
 function Client:Login()
-    for addon in pairs(self.addons) do UI.Fire("ADDON_LOADED", addon) end
+    for _, addon in ipairs(self.loadOrder) do UI.Fire("ADDON_LOADED", addon) end
     self.loggedIn = true
     UI.Fire("PLAYER_LOGIN")
     UI.Fire("PLAYER_ENTERING_WORLD", true, false)

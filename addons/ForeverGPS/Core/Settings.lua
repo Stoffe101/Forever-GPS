@@ -41,16 +41,14 @@ Settings._Fill = Fill
 -- EasyFind ships a welcome and its own search bar. With Forever-GPS as the way
 -- in, a new install starts without them; settings can bring the bar back.
 local function FirstRun(db)
-    if db.firstRunDone then return end
-    db.firstRunDone = true
     local ef = EasyFind and EasyFind.db
-    if ef then
-        ef.tutorialDone = true
-        ef.showForeverWelcome = false
-        ef.visible = false
-        ef.spotlightsDone = ef.spotlightsDone or {}
-        ef.spotlightsDone.snippets31 = true
-    end
+    if db.firstRunDone or not ef then return end
+    db.firstRunDone = true
+    ef.tutorialDone = true
+    ef.showForeverWelcome = false
+    ef.visible = false
+    ef.spotlightsDone = ef.spotlightsDone or {}
+    ef.spotlightsDone.snippets31 = true
 end
 
 function Settings.Load()
