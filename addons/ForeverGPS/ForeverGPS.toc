@@ -1,0 +1,40 @@
+## Interface: 16001
+## Title: Forever-GPS
+## Notes: Search anywhere in Azeroth, inspect the journey, and follow it.
+## Author: Stoffe101
+## Version: 1.0.0
+## Dependencies: EasyFind, EasyFind_GPS
+## OptionalDeps: EasyFind_Questie, Questie, QuestieDB, TomTom
+## SavedVariables: ForeverGPSDB
+## SavedVariablesPerCharacter: ForeverGPSCharDB
+## IconTexture: Interface\AddOns\ForeverGPS\Art\logo
+## AddonCompartmentFunc: ForeverGPS_OnCompartmentClick
+## Category: Map
+## DefaultState: enabled
+
+Locales/enUS.lua
+Core/Namespace.lua
+Core/Format.lua
+Core/Settings.lua
+Core/Bridge.lua
+Core/Kinds.lua
+Core/Eta.lua
+Core/Risk.lua
+Core/Planner.lua
+Core/Saved.lua
+Core/Quests.lua
+Core/QuestTargets.lua
+Core/Search.lua
+Core/Journey.lua
+Core/TomTom.lua
+Core/Diagnostics.lua
+UI/Theme.lua
+UI/Kit.lua
+UI/List.lua
+UI/RoutePanel.lua
+UI/SearchView.lua
+UI/QuestsView.lua
+UI/Settings.lua
+UI/MainWindow.lua
+UI/HUD.lua
+Commands.lua

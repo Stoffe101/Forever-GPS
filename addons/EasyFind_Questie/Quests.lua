@@ -968,6 +968,27 @@ API.RegisterSearchProvider({
     menu = QuestieMenu,
 })
 
+-- Forever-GPS: every place a quest's parts are done, so a navigator can offer
+-- each unfinished objective and choose among its spawns by travel time.
+-- objectives[i] matches the log's objective i, as Questie's own index does.
+if API.RegisterAction then
+    API.RegisterAction("questie", "isReady", function() return ready end)
+    API.RegisterAction("questie", "questSpots", function(id)
+        if not (ready and id) then return nil end
+        local out = { name = QuestName(id), objectives = {} }
+        local quest = Q.db.GetQuest(id)
+        local data = quest and quest.ObjectiveData
+        for i = 1, data and #data or 0 do
+            out.objectives[i] = { kind = data[i].Type, text = data[i].Text, spots = ObjectiveSpots(data[i]) }
+        end
+        local npcs, objects = Finishers(id)
+        out.turnIn = ListSpots("object", objects, ListSpots("npc", npcs, {}))
+        out.turnInName = npcs and npcs[1] and EntityName("npc", npcs[1])
+            or objects and objects[1] and EntityName("object", objects[1]) or nil
+        return out
+    end)
+end
+
 -- Questie's tracker stands in for the game's quest watch: it hides and shows
 -- with EasyFind's Toggle Objective Tracker (API MINOR 9), and comes back
 -- through Questie's own show, so its rules (instances, nothing tracked) hold.

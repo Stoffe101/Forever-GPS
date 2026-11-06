@@ -100,6 +100,8 @@ if mode ~= "noapi" then
     -- The GPS is installed in the questie mode: its entry joins Questie's menu.
     function API.HasAction(id, name) return mode == "questie" and id == "gps" and name == "navigate" end
     function API.CallAction() end
+    -- Forever-GPS reads these (Quests.lua, the questSpots action).
+    function API.RegisterAction(id, name, fn) registered[id .. ":" .. name] = fn end
     function API.RegisterTrackerPiece(frame, show) registered.tracker = { frame = frame, show = show } end
     _G.EasyFind = { API = API }
 end
@@ -124,7 +126,7 @@ local questDB = {
     IsDoable = function() return false end,
 }
 for id in pairs(quests) do questDB.QuestPointers[id] = true end
-local zoneDB = { GetUiMapIdByAreaId = function() return nil end }
+local zoneDB = { GetUiMapIdByAreaId = function(_, area) return area == 12 and 1429 or nil end }
 -- Questie's tracker frame and module, its own show counted.
 local trackerShows = 0
 local trackerModule = { Show = function() trackerShows = trackerShows + 1 end }
@@ -247,6 +249,31 @@ if mode == "data" then
         for _, r in ipairs(again) do now[r.questId] = r end
         Check(now[7507] ~= nil and now[7507] == was[7507], "an unmoved quest keeps its row")
     end
+end
+-- Forever-GPS: each objective's spots by the log's index, the turn-in's too;
+-- a spawn inside an instance (negative) is left out, and a quest Questie has no
+-- objectives for still answers.
+if mode == "data" then
+    local spawned = {
+        [5] = { name = "Young Wolf", spawns = { [12] = { { 40, 50 }, { -1, -1 } } } },
+        [9] = { name = "Marshal Dughan", spawns = { [12] = { { 42, 65 } } } },
+    }
+    questDB.QueryNPCSingle = function(id, field) return spawned[id] and spawned[id][field] end
+    questDB.GetQuest = function(id)
+        if id ~= 7507 then return nil end
+        return { ObjectiveData = { { Type = "monster", Id = 5, Text = "Young Wolf" }, { Type = "reputation", Id = 1 } } }
+    end
+    quests[7507].finishedBy = { { 9 } }
+    local isReady, spots = registered["questie:isReady"], registered["questie:questSpots"]
+    Check(isReady ~= nil and isReady() == true, "says it is ready")
+    local ok, out = pcall(spots, 7507)
+    Check(ok and #out.objectives == 2, "an entry per objective: " .. tostring(ok and #out.objectives or out))
+    Check(ok and #out.objectives[1].spots == 1 and out.objectives[1].spots[1].mapID == 1429 and out.objectives[1].spots[1].x == 0.4,
+        "a creature's open spawns, on its map, in map fractions")
+    Check(ok and out.objectives[1].kind == "monster" and #out.objectives[2].spots == 0, "an objective with no place has no spots")
+    Check(ok and out.turnInName == "Marshal Dughan" and #out.turnIn == 1, "the turn-in's giver and spot")
+    ok, out = pcall(spots, 100)
+    Check(ok and #out.objectives == 0 and #out.turnIn == 0, "a quest with no data answers empty, never an error")
 end
 if ns.Subtext then
     rawset(env.C_QuestLog, "IsQuestFlaggedCompleted", function() return false end)

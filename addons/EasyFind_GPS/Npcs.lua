@@ -619,6 +619,28 @@ function N.HasID(npcID)
     return IndexOfID(npcID) ~= nil
 end
 
+-- Forever-GPS: every map spot a creature stands at, { m, x, y, spawns } each,
+-- for choosing among them; nil when the id is not in the catalog.
+function N.SpotsOf(npcID)
+    if not Load() then return nil end
+    local i = IndexOfID(npcID)
+    if not i then return nil end
+    local out, first, last = {}, SpotRange(i)
+    for k = first, last do
+        local m, x, y = SpotPoint(k)
+        if m then out[#out + 1] = { m = m, x = x, y = y, spawns = Spot.spawns(k) } end
+    end
+    return out
+end
+
+-- Forever-GPS: a creature's reaction to the player's faction, as the NPC
+-- filters read it: 0 friendly, 1 neutral, 2 hostile; nil when not in the catalog.
+function N.ReactionOf(npcID, horde)
+    if not Load() then return nil end
+    local i = IndexOfID(npcID)
+    return i and mfloor(Rec.flags(i) / (horde and 32 or 8)) % 4 or nil
+end
+
 -- The words extensions give creatures (EasyFind API MINOR 7 decorator
 -- words: "decor"): the ids holding one with word in it, and whether
 -- creature i holds one.

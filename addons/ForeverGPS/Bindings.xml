@@ -1,0 +1,11 @@
+<Bindings>
+    <Binding name="FOREVERGPS_TOGGLE" category="Forever-GPS">
+        ForeverGPS.Toggle()
+    </Binding>
+    <Binding name="FOREVERGPS_QUESTS" category="Forever-GPS">
+        ForeverGPS.OpenQuests()
+    </Binding>
+    <Binding name="FOREVERGPS_STOP" category="Forever-GPS">
+        ForeverGPS.StopNavigation()
+    </Binding>
+</Bindings>
