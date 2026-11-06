@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0 (unreleased)
+
+### Changed
+
+- **One folder.** Forever-GPS installs as a single `ForeverGPS` addon. EasyFind, EasyFind GPS and the Questie extension are built into it under `Vendor/`, and the ten companion apps that served EasyFind's search bar are gone. Questie and TomTom stay separate and optional.
+
 ## 2.0.0 (unreleased, not yet tested in the game)
 
 ### Added

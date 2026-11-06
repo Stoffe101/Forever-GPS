@@ -6,7 +6,7 @@
 -- straight-line estimate; and only the destination picked gets a full ground route.
 -- Where a search asks for a kind of thing (any inn), the list ends up in order of
 -- travel time, and a row standing for many places picks the one quickest to reach.
-local _, FG = ...
+local FG = ForeverGPS
 local Search = {}
 FG.Search = Search
 

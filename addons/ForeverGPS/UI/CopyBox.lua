@@ -1,6 +1,6 @@
 -- A box of text to copy: the game cannot reach the clipboard itself, so the text is
 -- selected and the player presses Ctrl-C.
-local _, FG = ...
+local FG = ForeverGPS
 local CopyBox = {}
 FG.CopyBox = CopyBox
 

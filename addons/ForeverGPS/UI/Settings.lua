@@ -1,12 +1,11 @@
 -- The settings page: each group of choices on its own, with a rail to move between
 -- them. Every control here changes something real, straight away; a setting nothing
 -- reads does not get a control.
-local _, FG = ...
+local FG = ForeverGPS
 local View = {}
 FG.SettingsView = View
 
 local Kit, Theme = FG.Kit, FG.Theme
-local Bridge = FG.Bridge
 local L = FG.L
 
 local PAD = 14
@@ -139,8 +138,6 @@ local GROUPS = {
             FG.db.minimap.shown = on
             FG.Emit("settings:changed")
         end)
-        ui.check("SET_EASYFIND_BAR", Bridge.EasyFindBar, Bridge.SetEasyFindBar)
-        ui.button("SET_RESTORE_EASYFIND", function() FG.Settings.RestoreEasyFind() end, "SET_RESTORE_EASYFIND_TT")
         ui.status(function()
             return L[FG.QuestTargets.HasQuestie() and "SET_QUESTIE_ON" or "SET_QUESTIE_OFF"]
         end)

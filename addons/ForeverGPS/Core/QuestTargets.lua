@@ -4,7 +4,7 @@
 -- with no reliable place says so instead of inventing a route.
 --
 -- FG.Areas works on any list of spots, NPC spawns as well as quest objectives.
-local _, FG = ...
+local FG = ForeverGPS
 local Areas = {}
 FG.Areas = Areas
 local Targets = {}

@@ -1,7 +1,7 @@
 -- A scrolling list that only ever builds the rows that fit. Items may differ in
 -- height and in kind; rows are reused by kind. Thirty search results or a full
 -- quest log cost a handful of frames.
-local _, FG = ...
+local FG = ForeverGPS
 local List = {}
 FG.List = List
 

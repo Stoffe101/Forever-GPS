@@ -221,17 +221,6 @@ function tests.aSmallScreen_reopensOnTheJourneyUnderWay()
     T.has(W.route.title:GetText(), "Auberdine", "and its destination")
 end
 
-function tests.easyFindsBar_comesBackWhenAskedFor()
-    local c = Start(SCREENS[3])
-    local B = c.FG.Bridge
-    T.no(B.EasyFindBar(), "off by default")
-    B.SetEasyFindBar(true)
-    T.ok(B.EasyFindBar(), "on")
-    B.SetEasyFindBar(false)
-    T.no(B.EasyFindBar(), "off again")
-    T.eq(#c.errors, 0, tostring(c.errors[1]))
-end
-
 function tests.aLargeScreen_usesTwoColumns()
     local c = Start(SCREENS[1])
     c.FG.Window.Show("search")
@@ -665,7 +654,6 @@ function tests.firstRun_startsWithoutEasyFindsWelcome()
     local db = c.env.EasyFind.db
     T.ok(db.tutorialDone, "no tutorial")
     T.eq(db.visible, false, "and no second search bar, until asked for")
-    T.ok(c.FG.db.firstRunDone)
 end
 
 function tests.commands_work()

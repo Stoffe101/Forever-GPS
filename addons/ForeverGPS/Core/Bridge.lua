@@ -1,7 +1,7 @@
 -- The one file that knows EasyFind's and EasyFind GPS's insides. Everything else
 -- in Forever-GPS asks here, so an upstream update has a single place to break,
 -- and `/fgps diag` a single place to report from.
-local _, FG = ...
+local FG = ForeverGPS
 local Bridge = {}
 FG.Bridge = Bridge
 
@@ -574,18 +574,6 @@ function Bridge.ClaimGuiding(fn)
     claimed = true
     local own = Arrow.Guiding
     function Arrow:Guiding() return fn() or own(self) end
-end
-
-function Bridge.SetEasyFindBar(on)
-    local ns = NS()
-    local bar = ns and ns.Search
-    if on and bar and bar.Show then bar:Show()
-    elseif not on and bar and bar.Hide then bar:Hide() end
-    if EasyFind.db then EasyFind.db.visible = on and true or false end
-end
-
-function Bridge.EasyFindBar()
-    return EasyFind.db ~= nil and EasyFind.db.visible ~= false
 end
 
 -- Upstream's events: routeStarted(dest), arrived(dest), routeCleared.

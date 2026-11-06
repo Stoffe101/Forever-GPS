@@ -1,6 +1,6 @@
 -- Slash commands, key bindings and the addon compartment: thin doors onto the
 -- window and the planner.
-local _, FG = ...
+local FG = ForeverGPS
 local L = FG.L
 local Bridge, Search, Planner = FG.Bridge, FG.Search, FG.Planner
 
@@ -71,6 +71,23 @@ local function Help()
         print("  " .. L[key])
     end
 end
+
+-- The old separate folders, left enabled by a hand upgrade: offered a way out, once a
+-- session, because two copies of one addon cannot share a session.
+local function OfferCleanup()
+    local old = ForeverGPSPreflight.old
+    if #old == 0 then return end
+    StaticPopupDialogs["FOREVERGPS_OLD_FOLDERS"] = {
+        text = L["OLD_FOLDERS_POPUP"], button1 = L["OLD_FOLDERS_DISABLE"], button2 = CANCEL,
+        OnAccept = function()
+            for _, name in ipairs(old) do pcall(C_AddOns.DisableAddOn, name) end
+            ReloadUI()
+        end,
+        timeout = 0, whileDead = true, hideOnEscape = true,
+    }
+    StaticPopup_Show("FOREVERGPS_OLD_FOLDERS")
+end
+FG.On("login", OfferCleanup)
 
 SLASH_FOREVERGPS1, SLASH_FOREVERGPS2 = "/fgps", "/forevergps"
 SlashCmdList["FOREVERGPS"] = function(input)

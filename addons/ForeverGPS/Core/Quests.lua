@@ -1,7 +1,7 @@
 -- The quest log as Forever-GPS reads it: titles, levels, zone headers, objectives
 -- and progress, straight from the client, so it works with or without Questie.
 -- Read lazily and only after the log changed; QUEST_LOG_UPDATE fires constantly.
-local _, FG = ...
+local FG = ForeverGPS
 local Quests = {}
 FG.Quests = Quests
 

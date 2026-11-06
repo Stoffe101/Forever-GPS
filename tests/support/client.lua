@@ -618,11 +618,8 @@ local function Allowed(rules)
     return true
 end
 
-local PATHS = {
-    EasyFind = "addons/EasyFind", EasyFind_GPS = "addons/EasyFind_GPS", EasyFind_Questie = "addons/EasyFind_Questie",
-    ForeverGPS = "addons/ForeverGPS",
-    EasyFind_Calc = "addons/EasyFind/Apps/Calc", EasyFind_Clipboard = "addons/EasyFind/Apps/Clipboard",
-}
+-- What ships: one folder, assembled by tools/assemble.py from the parts in addons/.
+local PATHS = { ForeverGPS = "build/assembled/ForeverGPS" }
 Client.PATHS = PATHS
 
 function Client.TocLines(addon)
@@ -645,6 +642,7 @@ end
 
 -- skip(file) leaves a file out (the walking grids are slow to parse).
 function Client:LoadAddon(addon, skip)
+    self.loadFiles = self.loadFiles or {}
     local meta, files = Client.TocLines(addon)
     self.meta = self.meta or {}
     self.meta[addon] = meta

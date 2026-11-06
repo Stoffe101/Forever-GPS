@@ -1,6 +1,6 @@
 -- English text. Other clients read these too until they are translated;
 -- route steps themselves come from EasyFind GPS, already localized.
-local _, FG = ...
+local FG = ForeverGPS
 local L = setmetatable({}, { __index = function(_, key) return key end })
 FG.L = L
 
@@ -281,8 +281,6 @@ L["SET_CLEAR_RECENTS"] = "Clear recent destinations"
 L["SET_QUEST_NEXT"] = "Offer what comes next when an objective is done"
 L["SET_REDUCED_MOTION"] = "Reduce motion"
 L["SET_MINIMAP"] = "Show the minimap button"
-L["SET_RESTORE_EASYFIND"] = "Restore EasyFind's settings"
-L["SET_RESTORE_EASYFIND_TT"] = "Puts back the welcome and search bar settings Forever-GPS changed on first run."
 L["SET_QUESTIE_ON"] = "Questie: connected"
 L["SET_QUESTIE_OFF"] = "Questie: not found"
 L["SET_TOMTOM_ON"] = "TomTom: connected"
@@ -311,7 +309,6 @@ L["SET_HUD_COMBAT"] = "Hide the HUD in combat"
 L["SET_HUD_SCALE"] = "HUD scale"
 L["SET_WINDOW_SCALE"] = "Window scale"
 L["SET_AUTOCLOSE"] = "Close this window when navigation starts"
-L["SET_EASYFIND_BAR"] = "Show EasyFind's own search bar"
 L["SET_RESET"] = "Reset positions"
 
 -- Commands and diagnostics
@@ -330,4 +327,6 @@ L["HELP_DIAG"] = "/fgps diag - report the client and addon state"
 L["HELP_RESET"] = "/fgps reset - reset window and HUD positions"
 L["WAY_BAD"] = "Use /fgps way [zone] <x> <y>, for example /fgps way Westfall 56 47."
 L["WAY_NO_ZONE"] = "No zone matches \"%s\"."
+L["OLD_FOLDERS_POPUP"] = "Forever-GPS is now one folder, but the old EasyFind addons are still enabled. Turn them off and reload?"
+L["OLD_FOLDERS_DISABLE"] = "Turn off and reload"
 L["NOT_READY"] = "EasyFind GPS is not ready, so navigation is unavailable."

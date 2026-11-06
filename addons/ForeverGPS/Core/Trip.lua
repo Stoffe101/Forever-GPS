@@ -2,7 +2,7 @@
 -- in. The order is worked out from the route engine's own travel times; the trip
 -- itself is planned and followed by EasyFind GPS's multi-stop engine, so there is no
 -- second router here, only the choice of order.
-local _, FG = ...
+local FG = ForeverGPS
 local Trip = {}
 FG.Trip = Trip
 

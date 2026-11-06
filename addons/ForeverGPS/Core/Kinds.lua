@@ -1,6 +1,6 @@
 -- What each way of travel is called and drawn as, and the one-line shape of a
 -- route. The step kinds are the route engine's own.
-local _, FG = ...
+local FG = ForeverGPS
 local Kinds = {}
 FG.Kinds = Kinds
 

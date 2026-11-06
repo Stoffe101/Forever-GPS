@@ -1,7 +1,7 @@
 -- A plain label for the known hazards on a route. It reads what the addon data
 -- does know: creatures by level, enemy guards, enemy towns and enemy transport.
 -- It cannot know about enemy players, and the words shown never suggest it can.
-local _, FG = ...
+local FG = ForeverGPS
 local Risk = {}
 FG.Risk = Risk
 

@@ -12,7 +12,8 @@ ignore = {
 }
 
 globals = {
-    "ForeverGPS", "ForeverGPSDB", "ForeverGPSCharDB", "ForeverGPS_OnCompartmentClick",
+    "ForeverGPS", "ForeverGPSDB", "ForeverGPSCharDB", "ForeverGPS_OnCompartmentClick", "ForeverGPSPreflight", "ForeverGPSImported",
+    "EasyFindDB", "StaticPopupDialogs",
     "EasyFind",     -- its saved settings are written through the Bridge; never the global itself
     "SLASH_FOREVERGPS1", "SLASH_FOREVERGPS2", "SlashCmdList", "UISpecialFrames",
     "BINDING_HEADER_FOREVERGPS", "BINDING_NAME_FOREVERGPS_TOGGLE", "BINDING_NAME_FOREVERGPS_QUESTS", "BINDING_NAME_FOREVERGPS_STOP", "BINDING_NAME_FOREVERGPS_QUICK",
@@ -23,5 +24,5 @@ read_globals = {
     "GetAddOnMemoryUsage", "GetAddOnMetadata", "GetBuildInfo", "GetLocale", "GetPlayerFacing", "GetTime", "InCombatLockdown",
     "STANDARD_TEXT_FONT", "UIParent", "UnitClass", "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "UpdateAddOnMemoryUsage",
     "WOW_PROJECT_ID", "debugprofilestop", "geterrorhandler", "issecretvalue", "strtrim", "tinsert", "wipe",
-    "ToggleWorldMap", "WorldMapFrame", "GetCursorPosition", "IsShiftKeyDown", "Minimap",
+    "ToggleWorldMap", "WorldMapFrame", "GetCursorPosition", "IsShiftKeyDown", "Minimap", "CANCEL", "ReloadUI", "StaticPopup_Show",
 }

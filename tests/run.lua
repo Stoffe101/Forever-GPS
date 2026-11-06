@@ -17,6 +17,10 @@ local function ListFiles()
     return files
 end
 
+-- Tests run against the folder that ships, so it is put together first.
+local PYTHON = os.getenv("FGPS_PYTHON") or (package.config:sub(1, 1) == "\\" and "python" or "python3")
+assert(os.execute(PYTHON .. " -I tools/assemble.py --quiet"), "tools/assemble.py failed")
+
 local totalPass, totalFail, failures = 0, 0, {}
 local T = require("support.t")
 

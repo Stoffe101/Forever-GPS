@@ -57,17 +57,16 @@ function Stack.new(opts)
     local c = Client.new(opts)
     if opts.saved then
         c.env.ForeverGPSDB = opts.saved.ForeverGPSDB
+        c.importing = opts.saved.ForeverGPSImported
         c.env.ForeverGPSCharDB = opts.saved.ForeverGPSCharDB
         c.env.EasyFindDB = opts.saved.EasyFindDB
         c.env.EasyFindCharDB = opts.saved.EasyFindCharDB
     end
     if opts.questie then InstallQuestie(c, opts.questie) end
     if opts.tomtom then c.env.TomTom = opts.tomtom; c.addons.TomTom = true end
-    c:LoadAddon("EasyFind")
-    c:LoadAddon("EasyFind_GPS")
-    if opts.questie or opts.withQuestieAddon then c:LoadAddon("EasyFind_Questie") end
     local skip = opts.ui == false and function(file) return file:find("^UI/") end or nil
     c:LoadAddon("ForeverGPS", skip)
+    if c.importing then c.env.ForeverGPSImported = c.importing end
     c:Login()
     -- Questie's own database takes a while on a real login; questieLate holds it back.
     function c:QuestieReady()

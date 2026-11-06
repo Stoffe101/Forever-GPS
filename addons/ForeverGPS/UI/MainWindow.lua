@@ -1,7 +1,7 @@
 -- The window. On a wide screen the list and the journey sit side by side; on a
 -- narrow one (a small resolution at a large UI scale) they take turns. It always
 -- fits the screen it is on, and it never needs to stay open while traveling.
-local _, FG = ...
+local FG = ForeverGPS
 local Window = {}
 FG.Window = Window
 

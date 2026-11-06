@@ -1,9 +1,10 @@
 -- Saved settings: account-wide in ForeverGPSDB, per character in ForeverGPSCharDB.
-local ADDON, FG = ...
+local FG = ForeverGPS
+local ADDON = FG.ADDON
 local Settings = {}
 FG.Settings = Settings
 
-local SCHEMA = 2
+local SCHEMA = 3
 Settings.SCHEMA = SCHEMA
 
 local DEFAULTS = {
@@ -20,7 +21,6 @@ local DEFAULTS = {
     reducedMotion = false,
     autoClose = true,
     favorites = {},
-    firstRunDone = false,
 }
 
 local CHAR_DEFAULTS = {
@@ -45,22 +45,6 @@ local function Fill(into, from)
 end
 Settings._Fill = Fill
 
--- EasyFind ships a welcome and its own search bar. With Forever-GPS as the way
--- in, a fresh install starts without them. Someone who already uses EasyFind
--- keeps it as it is, and what is changed is kept, so it can be put back.
-local function FirstRun(db)
-    local ef = EasyFind and EasyFind.db
-    if db.firstRunDone or not ef then return end
-    db.firstRunDone = true
-    if ef.tutorialDone then return end
-    db.easyFindBefore = { visible = ef.visible, showForeverWelcome = ef.showForeverWelcome }
-    ef.tutorialDone = true
-    ef.showForeverWelcome = false
-    ef.visible = false
-    ef.spotlightsDone = ef.spotlightsDone or {}
-    ef.spotlightsDone.snippets31 = true
-end
-
 -- Each step takes settings from one schema to the next. 1.0.0 turned EasyFind's
 -- character arrow off in EasyFind's own settings; that is now held at run time,
 -- so the old write is undone unless the character arrow was the one chosen.
@@ -71,6 +55,10 @@ local MIGRATIONS = {
         -- 1.0.0 stored its default sizes; a size left at the default is no choice.
         if db.hud and db.hud.scale == 1 then db.hud.scale = nil end
         if db.window and db.window.scale == 1 then db.window.scale = nil end
+    end,
+    -- 2.1.0 is one addon: there is no separate EasyFind left to put back.
+    [2] = function(db)
+        db.easyFindBefore, db.firstRunDone = nil, nil
     end,
 }
 
@@ -93,15 +81,6 @@ local function Migrate(db)
     db.schema = SCHEMA
 end
 
--- Puts back what the first run changed in EasyFind.
-function Settings.RestoreEasyFind()
-    local ef, before = EasyFind and EasyFind.db, FG.db.easyFindBefore
-    if not ef then return end
-    if before then ef.showForeverWelcome = before.showForeverWelcome end
-    FG.Bridge.SetEasyFindBar(not before or before.visible ~= false)
-    FG.db.easyFindBefore = nil
-end
-
 function Settings.Load()
     ForeverGPSDB = ForeverGPSDB or {}
     ForeverGPSCharDB = ForeverGPSCharDB or {}
@@ -112,7 +91,6 @@ function Settings.Load()
     ForeverGPSDB.schema = existing or SCHEMA
     Migrate(ForeverGPSDB)
     ForeverGPSCharDB.schema = SCHEMA
-    FirstRun(FG.db)
 end
 
 function Settings.ResetPlaces()

@@ -78,11 +78,13 @@ local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent UISpecialFrames "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue ToggleWorldMap WorldMapFrame GetCursorPosition IsShiftKeyDown Minimap _G"):gmatch("%S+") do GAME[name] = true end
+    .. "issecretvalue ToggleWorldMap WorldMapFrame GetCursorPosition IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs "
+    .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
 for name in ("ForeverGPS ForeverGPSDB ForeverGPSCharDB ForeverGPS_OnCompartmentClick SLASH_FOREVERGPS1 SLASH_FOREVERGPS2 "
-    .. "BINDING_HEADER_FOREVERGPS BINDING_NAME_FOREVERGPS_TOGGLE BINDING_NAME_FOREVERGPS_QUESTS BINDING_NAME_FOREVERGPS_STOP BINDING_NAME_FOREVERGPS_QUICK"):gmatch("%S+") do
+    .. "BINDING_HEADER_FOREVERGPS BINDING_NAME_FOREVERGPS_TOGGLE BINDING_NAME_FOREVERGPS_QUESTS BINDING_NAME_FOREVERGPS_STOP BINDING_NAME_FOREVERGPS_QUICK ForeverGPSPreflight EasyFindDB "
+    .. "ForeverGPSImported"):gmatch("%S+") do
     OWN_GLOBALS[name] = true
 end
 
@@ -124,6 +126,8 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     haystack[#haystack + 1] = Read("addons/EasyFind/Shared/Utils.lua")
     haystack[#haystack + 1] = Read("addons/EasyFind/Core/Main.lua")
     haystack[#haystack + 1] = Read("addons/EasyFind/Search/Modules.lua")
+    -- Not something EasyFind has reason to call, and guarded by a pcall where it is used.
+    haystack[#haystack + 1] = "C_AddOns.DisableAddOn"
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do

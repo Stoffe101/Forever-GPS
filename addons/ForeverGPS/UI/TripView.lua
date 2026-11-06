@@ -1,6 +1,6 @@
 -- Quest Circuit and trips on screen: the stops, in the order they will be visited,
 -- with what moves them, and the buttons that find the best order and plan it.
-local _, FG = ...
+local FG = ForeverGPS
 local View = {}
 FG.TripView = View
 

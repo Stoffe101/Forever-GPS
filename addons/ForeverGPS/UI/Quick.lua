@@ -1,6 +1,6 @@
 -- Quick navigation: a small box in the middle of the screen. Type, press Enter, go.
 -- The window stays out of the way; Shift-Enter looks the journey over there instead.
-local _, FG = ...
+local FG = ForeverGPS
 local Quick = {}
 FG.Quick = Quick
 

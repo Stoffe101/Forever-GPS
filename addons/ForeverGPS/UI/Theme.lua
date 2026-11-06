@@ -1,6 +1,6 @@
 -- The design tokens: every color and text size the interface uses, in one place.
 -- A theme swaps the colors; widgets repaint themselves through Theme.Paint.
-local _, FG = ...
+local FG = ForeverGPS
 local Theme = {}
 FG.Theme = Theme
 
@@ -44,7 +44,7 @@ Theme.C = {}
 
 -- Inter, as EasyFind ships it, for clean small text; the client's font where
 -- Inter has no glyphs.
-local FONT_DIR = "Interface\\AddOns\\EasyFind\\Fonts\\"
+local FONT_DIR = "Interface\\AddOns\\ForeverGPS\\Vendor\\EasyFind\\Fonts\\"
 local CJK = { koKR = true, zhCN = true, zhTW = true }
 
 local function Face(file)

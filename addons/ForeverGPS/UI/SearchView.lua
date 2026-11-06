@@ -1,6 +1,6 @@
 -- The search side: the box, the categories, and result cards. With nothing typed
 -- it is a home screen: nearby services, the map pin, favorites and recents.
-local _, FG = ...
+local FG = ForeverGPS
 local View = {}
 FG.SearchView = View
 

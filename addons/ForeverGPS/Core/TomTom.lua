@@ -1,6 +1,6 @@
 -- Optional: when chosen as the arrow, TomTom points at the current step's end.
 -- One waypoint at a time, never left behind, and nothing at all without TomTom.
-local _, FG = ...
+local FG = ForeverGPS
 local Mirror = {}
 FG.TomTom = Mirror
 

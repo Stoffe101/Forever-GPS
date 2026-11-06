@@ -3,7 +3,7 @@
 -- walks (Bridge.EstimateRoute), so a boat, a flight or a hearth counts, and a
 -- place across a sea reads as far as it is. Run in small slices while nothing
 -- else plans, and remembered briefly.
-local _, FG = ...
+local FG = ForeverGPS
 local Eta = {}
 FG.Eta = Eta
 

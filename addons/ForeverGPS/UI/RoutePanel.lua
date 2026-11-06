@@ -2,7 +2,7 @@
 -- differ, each step in order, and the buttons that show it on the map and start it.
 -- With nothing being inspected it shows the route under way; with neither, a short
 -- invitation.
-local _, FG = ...
+local FG = ForeverGPS
 local Panel = {}
 FG.RoutePanel = Panel
 

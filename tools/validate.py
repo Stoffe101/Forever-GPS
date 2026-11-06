@@ -45,6 +45,8 @@ def validate_toc() -> None:
     listed = toc_files()
     for name in listed:
         check((ADDON / name).exists(), f"TOC lists a missing file: {name}")
+    text = (ADDON / "ForeverGPS.toc").read_text(encoding="utf-8")
+    check("## Dependencies" not in text, "one folder depends on nothing")
     lua = {p.relative_to(ADDON).as_posix() for p in ADDON.rglob("*.lua")}
     for name in sorted(lua - set(listed)):
         check(False, f"Lua file the TOC never loads: {name}")

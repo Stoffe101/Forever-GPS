@@ -219,7 +219,7 @@ function tests.withoutQuestie_aDoneQuestsMarkerIsItsTurnIn()
 end
 
 function tests.questieInstalledButNotReady_fallsBackQuietly()
-    local c = Start({ withQuestieAddon = true })
+    local c = Start({})
     T.no(c.FG.QuestTargets.HasQuestie())
     T.eq(c.FG.QuestTargets.For(c.FG.Quests.Get(1)).source, "game")
     T.eq(#c.errors, 0)

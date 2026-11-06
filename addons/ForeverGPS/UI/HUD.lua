@@ -2,7 +2,7 @@
 -- a ride it stops pointing and says which ride it is. The arrow's aim is EasyFind
 -- GPS's own, so it follows the walk around bends rather than straight at the end;
 -- this only eases it, so it turns rather than twitches.
-local _, FG = ...
+local FG = ForeverGPS
 local HUD = {}
 FG.HUD = HUD
 

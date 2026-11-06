@@ -1,6 +1,6 @@
 -- A button on the minimap's edge: left click opens the window, right click the quick
 -- box. Dragged around the rim; gone entirely when the setting says so.
-local _, FG = ...
+local FG = ForeverGPS
 local Button = {}
 FG.MinimapButton = Button
 

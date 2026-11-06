@@ -1,7 +1,7 @@
 -- What the addon can say about itself: how long work took, and what went wrong,
 -- in a small ring that costs nothing when nobody looks. Read by `/fgps diag`; never
 -- saved, and never printed during play.
-local _, FG = ...
+local FG = ForeverGPS
 local Metrics = {}
 FG.Metrics = Metrics
 

@@ -166,23 +166,81 @@ function tests.stopsAhead_survivesASavedRoute()
     T.eq(#after.ns.GPS.StopsAhead(back), 2, "and knows what is behind it")
 end
 
-function tests.firstRun_leavesAnExistingEasyFindUserAlone()
-    local c = Start({ saved = { EasyFindDB = { tutorialDone = true, visible = true, dbVersion = 27 } } })
-    T.ok(c.env.EasyFind.db.visible ~= false, "their search bar stays")
+function tests.settingsFrom2_0_0_survive()
+    local c = Start({ saved = {
+        ForeverGPSDB = { schema = 2, theme = "parchment", firstRunDone = true, arrow = "tomtom",
+                         easyFindBefore = { visible = true }, reducedMotion = true,
+                         hud = { enabled = true, mode = "detailed", opacity = 0.5, scale = 1.3, point = { "TOP", "TOP", 10, -200 } },
+                         window = { scale = 1.1, width = 900, point = { "CENTER", "CENTER", 40, 20 } },
+                         map = { preview = false }, minimap = { shown = false, angle = 90 },
+                         favorites = { { name = "Home", data = { name = "Home", mapID = 1429, x = 0.5, y = 0.5 } } } },
+        ForeverGPSCharDB = { schema = 2, mode = "roads", recents = { { name = "Bank", data = { name = "Bank", mapID = 1453, x = 0.6, y = 0.8 } } } },
+    } })
+    local db, char = c.FG.db, c.FG.char
+    T.eq(db.theme, "parchment", "theme kept")
+    T.eq(db.arrow, "tomtom", "arrow kept")
+    T.eq(db.reducedMotion, true)
+    T.eq(db.hud.mode, "detailed", "HUD kept")
+    T.eq(db.hud.opacity, 0.5)
+    T.eq(db.hud.scale, 1.3)
+    T.eq(db.hud.point[4], -200, "and where it sits")
+    T.eq(db.window.width, 900, "window kept")
+    T.eq(db.window.point[3], 40)
+    T.eq(db.map.preview, false, "map choices kept")
+    T.eq(db.minimap.angle, 90)
+    T.eq(#db.favorites, 1, "favorites kept")
+    T.eq(#char.recents, 1, "recents kept")
+    T.eq(char.mode, "roads", "the way picked first kept")
+    T.eq(db.schema, c.FG.Settings.SCHEMA, "moved to the current schema")
+    T.no(db.easyFindBefore, "what no longer means anything is gone")
+    T.eq(c.env.EasyFind.db.visible, false, "and the bar stays away, with no saved settings of its own")
 end
 
-function tests.firstRun_remembersWhatItChanged()
-    local c = Start()
-    local db = c.FG.db
-    T.ok(db.easyFindBefore, "what it changed is kept, so it can be put back")
-    T.ok(c.FG.Settings.RestoreEasyFind, "and there is a way to")
-    c.FG.Settings.RestoreEasyFind()
-    T.ok(c.env.EasyFind.db.visible ~= false, "the bar is back")
+local function Imported(extra)
+    local data = { id = "test", accounts = { {
+        gpsAvoid = { boat = true },
+        gpsBoats = { ["Realm"] = { [11616] = { epoch = 100, seen = 50 } } },
+        gpsChar = { ["Name-Realm"] = { flights = { [6] = true, [7] = true } } },
+        gpsHearth = { ["Name-Realm"] = { m = 1429, x = 0.4, y = 0.6 } },
+        visible = true, someBarSetting = 3,
+    } } }
+    for k, v in pairs(extra or {}) do data[k] = v end
+    return data
+end
+
+function tests.whatTheOldFoldersSaved_comesAcross()
+    local c = Start({ saved = { ForeverGPSImported = Imported() } })
+    local ef = c.env.EasyFind.db
+    T.ok(ef.gpsChar["Name-Realm"].flights[7], "flight paths come across")
+    T.eq(ef.gpsBoats["Realm"][11616].epoch, 100, "boat timings")
+    T.eq(ef.gpsHearth["Name-Realm"].m, 1429, "the hearth")
+    T.ok(ef.gpsAvoid.boat, "what was avoided")
+    T.no(ef.someBarSetting, "and nothing of the old search bar's")
+    T.eq(ef.visible, false, "which stays away")
+    T.eq(c.env.ForeverGPSDB.importedFrom, "test", "noted as done")
+end
+
+function tests.anImport_appliesOnceAndNeverOverwrites()
+    local c = Start({ saved = {
+        ForeverGPSImported = Imported(),
+        ForeverGPSDB = { importedFrom = "older" },
+        EasyFindDB = { gpsChar = { ["Name-Realm"] = { flights = { [6] = false } }, ["Other-Realm"] = { flights = { [9] = true } } } },
+    } })
+    local ef = c.env.EasyFind.db
+    T.eq(ef.gpsChar["Name-Realm"].flights[6], false, "what is here now stands")
+    T.ok(ef.gpsChar["Name-Realm"].flights[7], "what is missing is added")
+    T.ok(ef.gpsChar["Other-Realm"].flights[9], "others untouched")
+    local again = Start({ saved = {
+        ForeverGPSImported = Imported(),
+        ForeverGPSDB = { importedFrom = "test" },
+        EasyFindDB = { gpsChar = {} },
+    } })
+    T.no(again.env.EasyFind.db.gpsChar["Name-Realm"], "a second login changes nothing")
 end
 
 function tests.theHudArrow_writesNothingToEasyFindsSettings()
     local c = Start()
-    T.eq(c.env.EasyFind.db.gpsArrow, nil, "removing Forever-GPS must leave EasyFind's arrow as it was")
+    T.eq(c.env.EasyFind.db.gpsArrow, nil, "the character arrow's own setting is left alone")
     Plan(c, AUBERDINE)
     c.FG.Planner.Start()
     c:Advance(1)

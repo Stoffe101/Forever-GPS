@@ -2,7 +2,7 @@
 -- quest into its unfinished objectives and its turn-in, each with where it is, how
 -- long the journey takes, and a route when one can honestly be offered. Any of them
 -- can go on a trip, for a Quest Circuit.
-local _, FG = ...
+local FG = ForeverGPS
 local View = {}
 FG.QuestsView = View
 

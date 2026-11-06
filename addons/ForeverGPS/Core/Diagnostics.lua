@@ -3,7 +3,7 @@
 -- Forever-GPS depends on is probed here at runtime, so a client change shows up as a
 -- line rather than a mystery. Reports hold no character or realm name, so they can
 -- be posted as they are.
-local _, FG = ...
+local FG = ForeverGPS
 local Diagnostics = {}
 FG.Diagnostics = Diagnostics
 
@@ -32,6 +32,13 @@ local function AddonLine(name)
     local loaded = C_AddOns.IsAddOnLoaded(name)
     local version = Meta(name, "Version")
     return ("%s: %s%s"):format(name, loaded and "loaded" or "not loaded", version and (" (" .. version .. ")") or "")
+end
+
+-- What is inside the folder, by version.
+local function VendorLine()
+    local parts = {}
+    for _, part in ipairs(FG.VENDOR or {}) do parts[#parts + 1] = ("%s %s"):format(part.name, part.version) end
+    return "Built on: " .. table.concat(parts, ", ")
 end
 
 local function MissingApi()
@@ -72,6 +79,8 @@ function Diagnostics.Checks()
     Add(FG.QuestTargets.HasQuestie() and "ok" or "limited",
         FG.QuestTargets.HasQuestie() and "Questie data ready" or "No Questie data: objective places and world search are limited")
     if not Bridge.PlayerStart() then Add("limited", "No position available here") end
+    local old = ForeverGPSPreflight.old
+    if #old > 0 then Add("broken", "Old folders still enabled: " .. table.concat(old, ", ")) end
     table.sort(out, function(a, b)
         local rank = { broken = 1, limited = 2, note = 3, ok = 4 }
         if a[1] ~= b[1] then return rank[a[1]] < rank[b[1]] end
@@ -102,7 +111,8 @@ function Diagnostics.Lines()
         tostring(version), tostring(build), tostring(interface), tostring(WOW_PROJECT_ID), tostring(GetLocale()))
     local data = RouteData()
     out[#out + 1] = ("Route data built from client build %s"):format(tostring(data and data.build))
-    for _, name in ipairs({ "EasyFind", "EasyFind_GPS", "EasyFind_Questie", "Questie", "TomTom" }) do
+    out[#out + 1] = VendorLine()
+    for _, name in ipairs({ "Questie", "TomTom" }) do
         out[#out + 1] = AddonLine(name)
     end
     out[#out + 1] = "Questie data: " .. (FG.QuestTargets.HasQuestie() and "ready" or "not available")

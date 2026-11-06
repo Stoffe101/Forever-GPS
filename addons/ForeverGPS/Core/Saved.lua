@@ -1,6 +1,6 @@
 -- Favorites (shared by the account's characters) and recent destinations (each
 -- character's own). What is stored is enough to route there again.
-local _, FG = ...
+local FG = ForeverGPS
 local Saved = {}
 FG.Saved = Saved
 

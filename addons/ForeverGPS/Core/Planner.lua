@@ -12,7 +12,7 @@
 --   an option: { mode, avoid, steps, total, advice, risk, walks, yards, quality,
 --                same, noWay, estimate, failed, from, builtAt }
 --   quality: "detailed" (every walk follows the ground), "partial" or "estimate"
-local _, FG = ...
+local FG = ForeverGPS
 local Planner = {}
 FG.Planner = Planner
 

@@ -1,5 +1,5 @@
 -- How numbers read. Pure functions: no client state.
-local _, FG = ...
+local FG = ForeverGPS
 local Format = {}
 FG.Format = Format
 

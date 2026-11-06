@@ -2,7 +2,7 @@
 -- quest abandoned or finished mid-route, the arrow in use. EasyFind GPS itself
 -- advances the steps, reroutes, leads a ghost to its corpse and restores the
 -- route after a reload; this only reads that state and keeps quests in step.
-local _, FG = ...
+local FG = ForeverGPS
 local Journey = {}
 FG.Journey = Journey
 

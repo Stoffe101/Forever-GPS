@@ -1,6 +1,6 @@
 -- The widgets everything is built from. No templates: every piece is drawn here,
 -- so the look stays one thing and nothing depends on Blizzard's frame art.
-local _, FG = ...
+local FG = ForeverGPS
 local Kit = {}
 FG.Kit = Kit
 

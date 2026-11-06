@@ -1,6 +1,7 @@
--- Forever-GPS: the namespace every other file builds on. The global ForeverGPS
--- exists for key bindings and the addon compartment; nothing else reaches in.
-local ADDON, FG = ...
+-- Forever-GPS: the namespace every other file builds on, as a global of its own. The
+-- addon's private table belongs to the EasyFind code under Vendor/, which shares it.
+local ADDON = ...
+local FG = {}
 ForeverGPS = FG
 FG.ADDON = ADDON
 

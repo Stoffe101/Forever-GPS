@@ -6,7 +6,7 @@
 -- Walks follow the ground. A crossing is a straight line only where one is true (a
 -- flight, a boat on its own continent); across continents the legs stand apart on
 -- their own maps, joined by labeled marks, never by a line through the world.
-local _, FG = ...
+local FG = ForeverGPS
 local MapPreview = {}
 FG.MapPreview = MapPreview
 

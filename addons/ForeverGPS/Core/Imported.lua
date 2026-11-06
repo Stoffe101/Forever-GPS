@@ -1,0 +1,2 @@
+-- Empty in the package. tools/migrate_saved.py fills it in on an install coming from the
+-- separate EasyFind folders, with what those saved: see Core/Preflight.lua.
