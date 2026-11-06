@@ -3,6 +3,7 @@
 
     python tools/install_local.py "<...>/World of Warcraft/_forever_"            # shows what it would do
     python tools/install_local.py "<...>/World of Warcraft/_forever_" --apply
+    python tools/install_local.py "<...>/World of Warcraft/_forever_" --apply --wait      # as soon as the game closes
 
 Moves the old separate folders out of Interface/AddOns into a backup beside it, so going
 back is moving them home. It touches only the folders named in OURS, refuses to run while
@@ -23,6 +24,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+CHECK_SECONDS, SETTLE_SECONDS = 15, 10
 OURS = ("EasyFind", "EasyFind_Calc", "EasyFind_Clipboard", "EasyFind_GPS", "EasyFind_Guide", "EasyFind_Icons", "EasyFind_Items",
         "EasyFind_Onboarding", "EasyFind_Options", "EasyFind_Questie", "EasyFind_Quicklists", "EasyFind_Settings", "EasyFind_Snippets",
         "ForeverGPS")
@@ -59,6 +61,11 @@ def main(argv: list[str]) -> int:
     if not zip_path.is_file():
         print(f"No package at {zip_path}: run python tools/package.py")
         return 1
+    if apply and "--wait" in argv:
+        print("Waiting for the game to close.", flush=True)
+        while game_running():
+            time.sleep(CHECK_SECONDS)
+        time.sleep(SETTLE_SECONDS)      # saved variables are written as it exits
     if game_running():
         print("The game is running. Close it first: it writes saved variables as it exits.")
         return 1

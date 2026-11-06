@@ -59,7 +59,7 @@ python tools/package.py
 python tools/install_local.py "D:/Battle.net games/World of Warcraft/_forever_"
 ```
 
-That shows what it would do. Add `--apply` to do it. It moves only the old Forever-GPS folders into a dated `ForeverGPS-backup-...` folder beside `Interface`, unpacks the new one, and carries over what the old folders saved. It refuses to run while the game is open, and it leaves every other addon and all of `WTF` alone.
+That shows what it would do. Add `--apply` to do it, or `--apply --wait` to have it wait for the game to close. It moves only the old Forever-GPS folders into a dated `ForeverGPS-backup-...` folder beside `Interface`, unpacks the new one, and carries over what the old folders saved. It refuses to run while the game is open, and it leaves every other addon and all of `WTF` alone.
 
 By hand:
 
