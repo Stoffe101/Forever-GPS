@@ -13,12 +13,13 @@ ignore = {
 
 globals = {
     "ForeverGPS", "ForeverGPSDB", "ForeverGPSCharDB", "ForeverGPS_OnCompartmentClick",
+    "EasyFind",     -- its saved settings are written through the Bridge; never the global itself
     "SLASH_FOREVERGPS1", "SLASH_FOREVERGPS2", "SlashCmdList", "UISpecialFrames",
     "BINDING_HEADER_FOREVERGPS", "BINDING_NAME_FOREVERGPS_TOGGLE", "BINDING_NAME_FOREVERGPS_QUESTS", "BINDING_NAME_FOREVERGPS_STOP",
 }
 
 read_globals = {
-    "C_AddOns", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "CreateFrame", "EasyFind", "GameTooltip",
+    "C_AddOns", "C_Item", "C_Map", "C_QuestLog", "C_Spell", "C_Timer", "CreateFrame", "GameTooltip",
     "GetAddOnMemoryUsage", "GetAddOnMetadata", "GetBuildInfo", "GetLocale", "GetPlayerFacing", "GetTime", "InCombatLockdown",
     "STANDARD_TEXT_FONT", "UIParent", "UnitClass", "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "UpdateAddOnMemoryUsage",
     "WOW_PROJECT_ID", "debugprofilestop", "geterrorhandler", "issecretvalue", "strtrim", "tinsert", "wipe",

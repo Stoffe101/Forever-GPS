@@ -375,7 +375,7 @@ local function Stack(steps, option, showModes, showAvoid)
 end
 
 local function FillModes(plan)
-    for i, chip in ipairs(f.modes) do
+    for _, chip in ipairs(f.modes) do
         local option
         for _, o in ipairs(plan.options) do
             if o.mode == chip.mode then option = o end
