@@ -35,6 +35,7 @@ local function Learn(c, ids)
     Route.recordedKnown = {}
     for _, id in ipairs(ids) do Route.recordedKnown[id] = true end
     Route.ForgetKnown()
+    c.FG.Planner.Forget()   -- as a flight master's map does
 end
 
 local tests = {}
@@ -126,7 +127,7 @@ end
 function tests.theModes_collapseWhenTheyAreTheSameRoute()
     local c = Start()
     local plan = Plan(c, AUBERDINE)
-    T.eq(#plan.options, 3, "fastest, safer and roads were each tried")
+    T.eq(#plan.options, 4, "fastest, safer, roads and overland were each tried")
     T.ok(plan.options[1].steps, "fastest planned")
     for i = 2, #plan.options do
         local o = plan.options[i]
@@ -139,7 +140,7 @@ function tests.planning_leavesTheFollowedRoutesGridAlone()
     local Nav = c.ns.GPSNav
     Plan(c, AUBERDINE)
     c.FG.Planner.Start()
-    c:Advance(1)
+    T.ok(Stack.Until(c, function() return c.FG.Bridge.ActiveRoute().others ~= nil end, 90), "settled")
     local epoch = Nav.epoch
     Plan(c, { name = "Westfall", mapID = 1436, x = 0.5, y = 0.5 })
     T.eq(Nav.epoch, epoch, "comparing routes puts the grid's settings back, or the arrow would lose its walk")

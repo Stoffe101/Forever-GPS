@@ -78,7 +78,7 @@ local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent UISpecialFrames "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue _G"):gmatch("%S+") do GAME[name] = true end
+    .. "issecretvalue ToggleWorldMap _G"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
 for name in ("ForeverGPS ForeverGPSDB ForeverGPSCharDB ForeverGPS_OnCompartmentClick SLASH_FOREVERGPS1 SLASH_FOREVERGPS2 "
@@ -127,7 +127,7 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do
-        for call in CodeOnly(file.src):gmatch("(C_%w+%.[%w_]+)") do
+        for call in CodeOnly(file.src):gmatch("%f[%w_](C_%w+%.[%w_]+)") do
             checked = checked + 1
             T.ok(all:find(call, 1, true), file.path .. " calls " .. call .. ", which upstream never does")
         end
@@ -156,7 +156,7 @@ for name in ("Paint Place SetLabel SetVariant SetSelected SetColor SetColorKey S
     .. "IsPlanning Plan BuildRoute Clear Build Guiding HasGlobalInstanceCache "
     -- GameTooltip.
     .. "SetOwner AddLine"):gmatch("%S+") do OWN_METHODS[name] = true end
-local STRING_METHODS = { find = true, match = true, gmatch = true, gsub = true, sub = true, lower = true, format = true }
+local STRING_METHODS = { find = true, match = true, gmatch = true, gsub = true, sub = true, lower = true, format = true, byte = true }
 
 function tests.everyWidgetMethod_isReal()
     for _, file in ipairs(Sources()) do

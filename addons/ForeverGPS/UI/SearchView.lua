@@ -194,10 +194,13 @@ end
 
 local function ResultItems()
     local items = {}
-    for i = 1, #results do
-        items[i] = { kind = "card", result = results[i] }
+    if info.corrected then
+        items[1] = { kind = "hint", body = L["SEARCH_CORRECTED_FMT"]:format(info.corrected) }
     end
-    if #items == 0 then
+    for i = 1, #results do
+        items[#items + 1] = { kind = "card", result = results[i] }
+    end
+    if #results == 0 then
         local text = strtrim(f.box:GetText())
         items[1] = { kind = "hint", title = L[filter == "all" and "NO_RESULTS" or "FILTER_EMPTY"]:format(text), body = L["NO_RESULTS_HINT"] }
     end

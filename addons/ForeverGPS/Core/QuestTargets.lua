@@ -20,14 +20,15 @@ local PRICED_FAR = 3         -- and on others
 -- ==== areas =================================================================
 
 -- spots: { { mapID, x, y, name? }, ... }. Returns areas, each with its spots'
--- count, its zone, and a real spot near its middle to route to.
-function Areas.From(spots)
+-- count, its zone, and a real spot near its middle to route to. apart: each spot
+-- stands alone, for places where any one will do.
+function Areas.From(spots, apart)
     local cells, out = {}, {}
     for i = 1, #spots do
         local s = spots[i]
         local ci, wx, wy = Bridge.WorldPos(s.mapID, s.x, s.y)
         if ci then
-            local key = ("%d:%d:%d"):format(ci, math.floor(wx / CELL), math.floor(wy / CELL))
+            local key = apart and i or ("%d:%d:%d"):format(ci, math.floor(wx / CELL), math.floor(wy / CELL))
             local area = cells[key]
             if not area then
                 area = { ci = ci, sx = 0, sy = 0, n = 0, members = {}, zone = Bridge.MapName(s.mapID) }

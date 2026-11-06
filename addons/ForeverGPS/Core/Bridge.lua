@@ -13,6 +13,12 @@ local function GPS()
     return ns and ns.GPS
 end
 
+-- EasyFind's API, when EasyFind_Questie offers this action.
+local function QuestieAction(name)
+    local API = EasyFind and EasyFind.API
+    return API and API.HasAction and API.HasAction("questie", name) and API or nil
+end
+
 -- What navigation needs, by name: Bridge.Missing() lists what is absent.
 local REQUIRED = {
     { "EasyFind", function() return EasyFind end },
@@ -143,6 +149,74 @@ function Bridge.WarmSearch()
         end)
     end
     if ns and ns.GPSNpcs and ns.GPSNpcs.Load then pcall(ns.GPSNpcs.Load) end
+    Bridge.StartWorldIndex()
+end
+
+-- Questie's names, indexed a few milliseconds a frame until done.
+local WORLD_SLICE_MS = 3
+local worldRunner
+function Bridge.StartWorldIndex()
+    if worldRunner or not QuestieAction("warmWorld") then return end
+    worldRunner = CreateFrame("Frame")
+    worldRunner:SetScript("OnUpdate", function(self)
+        if Bridge.WarmWorld(WORLD_SLICE_MS) then self:SetScript("OnUpdate", nil) end
+    end)
+end
+
+function Bridge.AreaName(area)
+    if not area then return nil end
+    local name = C_Map.GetAreaInfo(area)
+    return type(name) == "string" and name ~= "" and name or nil
+end
+
+-- Every map and town the route data names: what a misspelling is checked against.
+function Bridge.PlaceNames()
+    local ns = NS()
+    local data = ns and ns.GPSData
+    local out, seen = {}, {}
+    local function Add(name)
+        if name and not seen[name] then
+            seen[name] = true
+            out[#out + 1] = name
+        end
+    end
+    for _, node in pairs(data and data.nodes or {}) do Add((node.n or ""):gsub(",", " ")) end
+    for area in pairs(data and data.binds or {}) do Add(Bridge.AreaName(area)) end
+    for m in pairs(ns and ns.NPC_DATA and ns.NPC_DATA.planes or {}) do Add(Bridge.MapName(m)) end
+    return out
+end
+
+-- Rides as the route data lists them.
+function Bridge.TransportEdges()
+    local ns = NS()
+    return ns and ns.GPSData and ns.GPSData.edges or {}
+end
+
+-- ==== Questie's world =======================================================
+
+-- A slice of building Questie's name index; true once it is built.
+function Bridge.WarmWorld(budget)
+    local API = QuestieAction("warmWorld")
+    if not API then return true end
+    return API.CallAction("questie", "warmWorld", budget) == true
+end
+
+function Bridge.FindWorld(query, limit)
+    local API = QuestieAction("findWorld")
+    return API and API.CallAction("questie", "findWorld", query, limit) or nil
+end
+
+function Bridge.WorldSpots(kind, id)
+    local API = QuestieAction("worldSpots")
+    return API and API.CallAction("questie", "worldSpots", kind, id) or nil
+end
+
+function Bridge.NpcKnown(npcID)
+    local ns = NS()
+    local N = ns and ns.GPSNpcs
+    if not (N and N.HasID) then return false end
+    local ok, has = pcall(N.HasID, npcID)
+    return ok and has == true
 end
 
 function Bridge.IsKindQuery(query)

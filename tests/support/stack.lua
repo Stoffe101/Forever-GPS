@@ -10,9 +10,9 @@ local Stack = {}
 local function InstallQuestie(c, data)
     local env = c.env
     c.addons.Questie = true
-    local npcs, quests = data.npcs or {}, data.quests or {}
+    local npcs, quests, objects = data.npcs or {}, data.quests or {}, data.objects or {}
     local db = {
-        QuestPointers = {},
+        QuestPointers = {}, NPCPointers = {}, ObjectPointers = {},
         QueryQuestSingle = function(id, field)
             local q = quests[id]
             if not q then return nil end
@@ -20,7 +20,7 @@ local function InstallQuestie(c, data)
             return q[field]
         end,
         QueryNPCSingle = function(id, field) return npcs[id] and npcs[id][field] end,
-        QueryObjectSingle = function() return nil end,
+        QueryObjectSingle = function(id, field) return objects[id] and objects[id][field] end,
         QueryItemSingle = function() return nil end,
         GetQuest = function(id)
             local q = quests[id]
@@ -34,6 +34,8 @@ local function InstallQuestie(c, data)
         IsDoable = function() return true end,
     }
     for id in pairs(quests) do db.QuestPointers[id] = true end
+    for id in pairs(npcs) do db.NPCPointers[id] = true end
+    for id in pairs(objects) do db.ObjectPointers[id] = true end
     local zones = { GetUiMapIdByAreaId = function(_, area) return data.areaMaps and data.areaMaps[area] end }
     env.QuestieLoader = { ImportModule = function(_, name)
         if name == "QuestieDB" then return db end

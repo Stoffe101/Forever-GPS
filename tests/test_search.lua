@@ -245,6 +245,206 @@ function tests.favoritesAndRecents_comeBackFromSaved()
     T.no(FG.Saved.IsFavorite(target.data), "removed")
 end
 
+-- ==== understanding what was typed ==========================================
+
+function tests.theExamplesFromTheBrief_allFindSomething()
+    local c = Start({ mapID = 1429, x = 0.45, y = 0.6 })
+    for _, q in ipairs({ "auberdine", "blacksmith trainer", "weapon trainer", "repair", "nearest mailbox", "bank stormwind",
+                         "any inn", "flight master darkshore", "deadmines", "Westfall 56 47" }) do
+        T.ok(#c.FG.Search.Run(q) > 0, "nothing for: " .. q)
+    end
+end
+
+function tests.nearest_meansAKindOfThing()
+    local _, info = C().FG.Search.Run("nearest mailbox")
+    T.ok(info.kind, "ordered by travel time")
+    T.eq(info.query, "mailbox", "and read as what is wanted")
+end
+
+function tests.whatPlayersCallThings_isUnderstood()
+    local N = C().FG.Search._Normalize
+    T.eq((N("ah")), "auction house")
+    T.eq((N("fp")), "flight master")
+    T.eq((N("where is the bank")), "bank")
+    T.eq((N("closest inn")), "inn")
+    T.ok(select(2, N("any inn")), "any means nearest")
+end
+
+function tests.aMisspelling_stillFindsThePlace()
+    for _, q in ipairs({ "stormwnid", "darkshroe", "ironfoge", "innkeper" }) do
+        T.ok(#C().FG.Search.Run(q) > 0, "nothing for: " .. q)
+    end
+end
+
+function tests.spelling_correctsWhatEasyFindCannot()
+    local Search = C().FG.Search
+    T.eq(Search._Corrected("westfal"), "westfall", "a word it knows")
+    T.eq(Search._Corrected("flght mastr"), "flight master", "several at once")
+    local results, info = Search.Run("flght mastr")
+    T.ok(#results > 0, "found")
+    T.eq(info.corrected, "flight master", "and it says what it read")
+end
+
+function tests.aRealWord_isNeverCorrected()
+    local _, info = C().FG.Search.Run("stormwind")
+    T.no(info.corrected, "spelling only steps in when nothing was found")
+end
+
+function tests.spelling_isBounded()
+    local Search = C().FG.Search
+    T.eq(Search._Distance("kitten", "sitting", 5), 3)
+    T.ok(Search._Distance("short", "averyverylongword", 2) > 2, "gives up at once")
+    T.no(Search._Corrected("zzzzzzzz"), "nothing close: no guess")
+end
+
+function tests.longAndOddInput_isHarmless()
+    local Search = C().FG.Search
+    for _, q in ipairs({ string.rep("a", 500), "%%%%", "(((", "[a-z]+", "ÅÄÖ", "日本語", "   ", "a", "\\", "' OR 1" }) do
+        Search.Run(q)
+    end
+    T.eq(#C().errors, 0, tostring(C().errors[1]))
+end
+
+-- ==== the transport network ==================================================
+
+function tests.boatsAndDocks_canBeSearched()
+    local results = C().FG.Search.Run("boat")
+    local found = Find(results, "Boat to Auberdine")
+    T.ok(found, "the Stormwind boat: " .. Names(results))
+    T.eq(found.group, "travel")
+    T.has(found.subtitle, "Boat", "says what it is")
+    T.ok(C().FG.Bridge.CanNavigate(found.data), "and the dock can be routed to")
+end
+
+function tests.theTravelFilter_listsRidesWithNothingTyped()
+    local results = C().FG.Search.Run("", "travel")
+    T.ok(#results >= 5, "rides are listed: " .. #results)
+    for _, r in ipairs(results) do T.eq(r.group, "travel", r.name) end
+end
+
+function tests.aTram_isFound()
+    T.ok(#C().FG.Search.Run("tram") > 0, "the Deeprun Tram")
+end
+
+function tests.enemyRides_areNotOffered()
+    local c = Start({ faction = "Horde", race = "Orc", mapID = 1454, x = 0.5, y = 0.5 })
+    T.no(Find(c.FG.Search.Run("boat", "travel"), "Boat to Auberdine"), "an Alliance boat for a Horde character")
+    T.ok(#c.FG.Search.Run("zeppelin", "travel") > 0, "its own zeppelins are")
+end
+
+-- ==== places with many instances ==============================================
+
+function tests.aManyPlaceRow_goesToTheQuickestNotTheNearest()
+    local c = Start({ mapID = 1429, x = 0.45, y = 0.6 })
+    local results, info = c.FG.Search.Run("innkeeper")
+    local row = Find(results, "Innkeeper")
+    T.ok(row and row.instances, "the row knows its places: " .. tostring(row and row.data.spotCount))
+    c.FG.Search.Price(results, info, function() end)
+    T.ok(Stack.Until(c, function() return row.priced end, 10), "priced")
+    T.ok(row.eta and row.eta.sec < 300, "a nearby inn: " .. tostring(row.eta and row.eta.sec))
+    T.eq(row.basis, "travel", "chosen by the route engine's time")
+    T.ok(row.areas, "and the others stay on offer")
+end
+
+function tests.aManyPlaceRow_skipsEnemyTowns()
+    local c = Start({ mapID = 1454, x = 0.445, y = 0.04 })   -- Alliance, in Orgrimmar
+    -- One inn on the doorstep, in the enemy's city; one a world away, at home.
+    local row = { name = "Innkeeper", data = { name = "Innkeeper", mapID = 1454, x = 0.445, y = 0.04 },
+                  instances = { { mapID = 1454, x = 0.445, y = 0.04 }, { mapID = 1429, x = 0.44, y = 0.66 } } }
+    c.FG.Search.Price({ row }, { kind = true }, function() end)
+    T.ok(Stack.Until(c, function() return row.priced end, 10), "priced")
+    T.no(row.area.enemy, "the nearest friendly inn, not the enemy's next door")
+    T.eq(row.area.zone, "Elwynn Forest")
+end
+
+function tests.aServiceInAnEnemyTown_saysSoAndComesLast()
+    local c = Start({ mapID = 1454, x = 0.5, y = 0.5 })   -- Alliance, in Orgrimmar
+    local results = c.FG.Search.Run("bank")
+    local last = results[#results]
+    T.ok(last and last.hostile, "the local bank is the enemy's")
+    T.ok(last.note, "and marked: " .. tostring(last.note))
+    T.eq(last.noteTone, "danger")
+end
+
+function tests.enemyGround_isToldFromFlightMasters()
+    local c = C()
+    local Risk = c.FG.Risk
+    T.ok(Risk.EnemyGround(1, 1678, -4316), "Orgrimmar's master, to an Alliance character")
+    T.no(Risk.EnemyGround(0, -8841, 490), "Stormwind's is not")
+    T.no(Risk.EnemyGround(0, 100, 100), "open country is nobody's")
+end
+
+function tests.zones_haveAnOwner()
+    local Risk = C().FG.Risk
+    T.eq(Risk.ZoneControl(1429, "Alliance"), "home")
+    T.eq(Risk.ZoneControl(1429, "Horde"), "enemy")
+    T.eq(Risk.ZoneControl(1431, "Alliance"), "contested", "Duskwood")
+end
+
+function tests.choosingABusyRow_plansTheChosenPlace()
+    local c = Start({ mapID = 1429, x = 0.45, y = 0.6 })
+    local row = Find(c.FG.Search.Run("innkeeper"), "Innkeeper")
+    c.FG.Search.Inspect(row)
+    T.ok(Stack.Until(c, function()
+        local p = c.FG.Planner.Current()
+        return p and (p.status == "ready" or p.status == "failed")
+    end, 30), "planned")
+    local plan = c.FG.Planner.Current()
+    T.eq(plan.status, "ready")
+    T.ok(plan.target.areas and #plan.target.areas > 1, "with its other places to choose from")
+end
+
+-- ==== Questie's world ==========================================================
+
+local WORLD = {
+    areaMaps = { [12] = 1429, [40] = 1436 },
+    npcs = {
+        [299] = { name = "Young Wolf", spawns = { [12] = { { 43, 72 }, { 44, 73 } }, [40] = { { 58, 22 } } }, zoneID = 12 },
+        [240] = { name = "Marshal Dughan", spawns = { [12] = { { 42.1, 65.9 } } }, zoneID = 12 },
+    },
+    objects = {
+        [1731] = { name = "Copper Vein", spawns = { [12] = { { 60, 50 } }, [40] = { { 40, 40 } } }, zoneID = 12 },
+    },
+}
+
+local function WithWorld()
+    local c = Start({ questie = WORLD, mapID = 1429, x = 0.45, y = 0.6 })
+    T.ok(Stack.Until(c, function() return c.FG.Bridge.WarmWorld(50) end, 5), "indexed")
+    return c
+end
+
+function tests.questiesWorld_findsWhatTheCatalogLacks()
+    local c = WithWorld()
+    local r = Find(c.FG.Search.Run("copper vein"), "Copper Vein")
+    T.ok(r, "an object no NPC list has")
+    T.ok(r.world, "from Questie")
+    T.has(r.subtitle, "known spawns", "and it says these are known spawns")
+end
+
+function tests.questiesWorld_doesNotRepeatTheCatalog()
+    local c = WithWorld()
+    local n = 0
+    for _, r in ipairs(c.FG.Search.Run("marshal dughan")) do
+        if r.name == "Marshal Dughan" then n = n + 1 end
+    end
+    T.eq(n, 1, "one row, the catalog's")
+end
+
+function tests.questiesWorld_offersEveryArea()
+    local c = WithWorld()
+    local r = Find(c.FG.Search.Run("young wolf"), "Young Wolf")
+    T.ok(r, "found")
+    local target = c.FG.Search.Target(r)
+    T.ok(target.areas and #target.areas == 2, "both zones")
+    T.ok(target.predicted, "and marked as prediction, not a live position")
+end
+
+function tests.withoutQuestie_noWorldRowsAndNoErrors()
+    local c = C()
+    T.eq(#c.FG.Search.Run("copper vein"), 0, "nothing")
+    T.eq(#c.errors, 0)
+end
+
 function tests.aMissingDestination_cannotBeNavigated()
     local B = C().FG.Bridge
     T.no(B.CanNavigate({ name = "No spot" }), "no map at all")

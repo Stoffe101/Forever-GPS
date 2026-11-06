@@ -987,6 +987,71 @@ if API.RegisterAction then
             or objects and objects[1] and EntityName("object", objects[1]) or nil
         return out
     end)
+
+    -- Forever-GPS: every creature and object Questie knows, found by name: common
+    -- creatures, herbs, veins and chests. Questie's data is read as it is asked for
+    -- and never kept beyond a list of lower-case names, built a slice at a time.
+    local world = { n = 0, names = {}, ids = {}, kinds = {} }
+    API.RegisterAction("questie", "warmWorld", function(budget)
+        if world.done then return true end
+        if not ready then return false end
+        if not world.queue then
+            world.queue, world.at = {}, 1
+            for id in pairs(Q.db.NPCPointers or {}) do world.queue[#world.queue + 1] = id end
+            world.npcs = #world.queue
+            for id in pairs(Q.db.ObjectPointers or {}) do world.queue[#world.queue + 1] = id end
+        end
+        local stop, queue = debugprofilestop() + budget, world.queue
+        while world.at <= #queue do
+            local i = world.at
+            local kind = i <= world.npcs and "npc" or "object"
+            local name = EntityName(kind, queue[i])
+            if name and name ~= "" then
+                local n = world.n + 1
+                world.n, world.names[n], world.ids[n], world.kinds[n] = n, name:lower(), queue[i], kind
+            end
+            world.at = i + 1
+            if i % CHECK_EVERY == 0 and debugprofilestop() > stop then return false end
+        end
+        world.queue, world.done = nil, true
+        return true
+    end)
+
+    -- Up to limit matches for text: names starting with it first, then shortest.
+    API.RegisterAction("questie", "findWorld", function(text, limit)
+        if not world.done then return nil end
+        local q, hits = text:lower(), {}
+        for i = 1, world.n do
+            local at = world.names[i]:find(q, 1, true)
+            if at then hits[#hits + 1] = { i = i, at = at == 1 and 0 or 1, len = #world.names[i] } end
+        end
+        table.sort(hits, function(a, b)
+            if a.at ~= b.at then return a.at < b.at end
+            if a.len ~= b.len then return a.len < b.len end
+            return a.i < b.i
+        end)
+        local out = {}
+        for k = 1, math.min(limit or 8, #hits) do
+            local i = hits[k].i
+            local kind, id = world.kinds[i], world.ids[i]
+            local entry = { kind = kind, id = id, name = EntityName(kind, id) }
+            if kind == "npc" then
+                entry.title = Q.db.QueryNPCSingle(id, "subName")
+                entry.friendly = Q.db.QueryNPCSingle(id, "friendlyToFaction")
+                entry.zone = AreaName(Q.db.QueryNPCSingle(id, "zoneID"))
+            else
+                entry.zone = AreaName(Q.db.QueryObjectSingle(id, "zoneID"))
+            end
+            out[k] = entry
+        end
+        return out
+    end)
+
+    API.RegisterAction("questie", "worldSpots", function(kind, id)
+        if not ready then return nil end
+        if kind == "npc" then return NpcSpots(id, {}) end
+        return ObjectSpots(id, {})
+    end)
 end
 
 -- Questie's tracker stands in for the game's quest watch: it hides and shows

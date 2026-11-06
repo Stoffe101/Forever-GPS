@@ -59,7 +59,7 @@ PATCHES = {
         "Jumps.lua": "Fixes ShopTip leaving the walking grid at an unlimited drop height, which lost the route's walks.",
     },
     "EasyFind_Questie": {
-        "Quests.lua": "Exports objective, turn-in and starter spots through public EasyFind actions.",
+        "Quests.lua": "Exports quest spots, and a name index over Questie's creatures and objects, as public EasyFind actions.",
         "tools/tests/smoke_test.lua": "Covers the new actions.",
     },
 }

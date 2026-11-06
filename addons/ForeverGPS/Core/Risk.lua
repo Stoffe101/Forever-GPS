@@ -13,6 +13,42 @@ local SAMPLE_YARDS = 60      -- how often along a walk to look for one
 
 local RANK = { low = 1, moderate = 2, high = 3 }
 
+local ENEMY_TOWN_YARDS = 450 -- this close to a flight master, a spot is that town's
+
+-- Who holds a zone, by the game's own home territories. Anything else is contested.
+local HOME = {
+    Alliance = { [1429] = true, [1426] = true, [1436] = true, [1432] = true, [1438] = true, [1439] = true,
+                 [1453] = true, [1455] = true, [1457] = true },
+    Horde = { [1411] = true, [1412] = true, [1413] = true, [1420] = true, [1421] = true,
+              [1454] = true, [1456] = true, [1458] = true },
+}
+
+local function Enemy(faction) return faction == "Horde" and "Alliance" or "Horde" end
+
+-- "home", "enemy" or "contested", for a zone and the player's faction.
+function Risk.ZoneControl(mapID, faction)
+    faction = faction or UnitFactionGroup("player")
+    if HOME[faction] and HOME[faction][mapID] then return "home" end
+    if HOME[Enemy(faction)] and HOME[Enemy(faction)][mapID] then return "enemy" end
+    return "contested"
+end
+
+-- Whether a world spot stands in an enemy town: the nearest flight master within
+-- reach belongs to the other side, or, with none near, the zone is the enemy's own.
+-- mapID may be left out where only the town matters.
+function Risk.EnemyGround(ci, wx, wy, mapID)
+    local faction = UnitFactionGroup("player")
+    local best, bestD
+    for _, node in pairs(Bridge.FlightNodes()) do
+        if node.ci == ci and node.wx then
+            local d = (node.wx - wx) ^ 2 + (node.wy - wy) ^ 2
+            if d <= ENEMY_TOWN_YARDS * ENEMY_TOWN_YARDS and (not bestD or d < bestD) then best, bestD = node, d end
+        end
+    end
+    if best then return best.faction ~= nil and best.faction ~= faction end
+    return mapID ~= nil and Risk.ZoneControl(mapID, faction) == "enemy"
+end
+
 local function Worse(a, b)
     return (RANK[b] or 0) > (RANK[a] or 0) and b or a
 end

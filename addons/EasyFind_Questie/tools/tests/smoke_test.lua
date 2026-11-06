@@ -274,6 +274,19 @@ if mode == "data" then
     Check(ok and out.turnInName == "Marshal Dughan" and #out.turnIn == 1, "the turn-in's giver and spot")
     ok, out = pcall(spots, 100)
     Check(ok and #out.objectives == 0 and #out.turnIn == 0, "a quest with no data answers empty, never an error")
+    questDB.NPCPointers, questDB.ObjectPointers = { [5] = true, [9] = true }, { [77] = true }
+    questDB.QueryObjectSingle = function(id, field)
+        local object = { name = "Tin Vein", spawns = { [12] = { { 30, 30 } } } }
+        return id == 77 and object[field] or nil
+    end
+    local warm, find = registered["questie:warmWorld"], registered["questie:findWorld"]
+    Check(find("wolf") == nil, "nothing to find until the index is built")
+    Check(warm(1000) == true, "the index builds")
+    local hits = find("vein", 8)
+    Check(#hits == 1 and hits[1].kind == "object" and hits[1].name == "Tin Vein", "objects are found by name")
+    Check(#registered["questie:worldSpots"]("object", 77) == 1, "and have their spots")
+    hits = find("marshal", 8)
+    Check(#hits == 1 and hits[1].kind == "npc", "and so are creatures")
 end
 if ns.Subtext then
     rawset(env.C_QuestLog, "IsQuestFlaggedCompleted", function() return false end)
