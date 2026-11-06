@@ -66,6 +66,29 @@ local function Visible(frame, visit, clipped)
     end
 end
 
+-- Child frames draw over their parent's own text. Text with something solid in a
+-- child frame on top of it is there for a test and invisible to a person.
+local function CheckNotCovered(frame, name)
+    for _, region in ipairs(frame._regions) do
+        local r = region._kind == "FontString" and region._shown and (region._text or "") ~= "" and Rect(region)
+        if r then
+            local x, y = (r.l + r.r) / 2, (r.t + r.b) / 2
+            for _, child in ipairs(frame._children) do
+                for _, tex in ipairs(child._shown and child._regions or {}) do
+                    local tint = tex._kind == "Texture" and tex._shown and (tex._tint or tex._color)
+                    local box = tint and (tint[4] or 1) >= 0.9 and Rect(tex)
+                    if box then
+                        T.ok(not (x > box.l and x < box.r and y > box.b and y < box.t), ("%s: %q is painted over"):format(name, region._text))
+                    end
+                end
+            end
+        end
+    end
+    for _, child in ipairs(frame._children) do
+        if child._shown then CheckNotCovered(child, name) end
+    end
+end
+
 local function Check(c, name, frame)
     local window = frame or c.env.ForeverGPSWindow
     local screen = c.root._rect
@@ -93,6 +116,7 @@ local function Check(c, name, frame)
             end
         end
     end
+    CheckNotCovered(window, name)
     local bad = {}
     for key in pairs(c.UI.conflicts) do bad[#bad + 1] = key end
     T.eq(#bad, 0, name .. ": over-constrained anchors: " .. table.concat(bad, "; "))
@@ -132,6 +156,11 @@ function tests.everyView_fitsEveryScreen()
         FG.QuestsView.Toggle(99)
         c:Advance(1)
         Check(c, screen[1] .. " quests")
+        FG.Trip.Add({ name = "A stop with quite a long name for its row, to see that it fits", subtitle = "Westfall", mapID = 1436, x = 0.5, y = 0.5 })
+        FG.Trip.Add({ name = "Goldshire", subtitle = "Elwynn Forest", mapID = 1429, x = 0.42, y = 0.65 })
+        FG.Window.Show("trip")
+        c:Advance(0.3)
+        Check(c, screen[1] .. " trip")
         FG.Window.Show("settings")
         c:Advance(0.3)
         Check(c, screen[1] .. " settings")

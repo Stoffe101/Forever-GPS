@@ -239,7 +239,9 @@ function tests.aTrip_onScreen()
     T.ok(view.plan:IsEnabled(), "two stops to plan")
     T.ok(view.order:IsEnabled(), "and an order to find")
     local rows = 0
-    for _ in ipairs(view.list.shown) do rows = rows + 1 end
+    for _, row in ipairs(view.list.shown) do
+        if row.kind == "stop" then rows = rows + 1 end
+    end
     T.eq(rows, 2, "a row for each stop")
     view.plan:Click()
     T.ok(Stack.Until(c, function()

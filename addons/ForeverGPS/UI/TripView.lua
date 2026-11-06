@@ -15,26 +15,22 @@ local working = false
 
 local function MakeStop(parent)
     local row = CreateFrame("Frame", nil, parent)
-    -- A card a little shorter than its row, so the cards stand apart.
-    row.card = CreateFrame("Frame", nil, row)
-    row.card:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
-    row.card:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, ROW_GAP)
-    row.back = Kit.Shape(row.card, 7, "BACKGROUND", 1)
+    row.back = Kit.Shape(row, 7, "BACKGROUND", 1)
     Theme.Paint(function(c) row.back:SetColor(c.card) end)
     row.number = Kit.Text(row, "label", "accent")
     row.number:SetPoint("LEFT", row, "LEFT", 12, 0)
     row.number:SetJustifyV("MIDDLE")
     row.remove = Kit.IconButton(row, "close", 9, L["TRIP_REMOVE"], function(self)
-        Trip.Remove(self:GetParent().index)
+        Trip.Remove(self:GetParent().item.number)
     end)
     row.remove:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.down = Kit.IconButton(row, "chevron-down", 10, L["TRIP_DOWN"], function(self)
-        local i = self:GetParent().index
+        local i = self:GetParent().item.number
         Trip.Move(i, i + 1)
     end)
     row.down:SetPoint("RIGHT", row.remove, "LEFT", 0, 0)
     row.up = Kit.IconButton(row, "chevron-up", 10, L["TRIP_UP"], function(self)
-        local i = self:GetParent().index
+        local i = self:GetParent().item.number
         Trip.Move(i, i - 1)
     end)
     row.up:SetPoint("RIGHT", row.down, "LEFT", 0, 0)
@@ -46,6 +42,10 @@ local function MakeStop(parent)
     row.sub:SetPoint("TOPRIGHT", row.name, "BOTTOMRIGHT", 0, -3)
     return row
 end
+
+-- The space between two cards. A frame of its own: a child frame laid over a row
+-- to leave a gap would paint over the row's text.
+local function MakeGap(parent) return CreateFrame("Frame", nil, parent) end
 
 local function MakeHint(parent)
     local row = CreateFrame("Frame", nil, parent)
@@ -60,21 +60,26 @@ local function MakeHint(parent)
     return row
 end
 
-local function Bind(row, item, index)
+local function Bind(row, item)
     if item.kind ~= "stop" then return end
     local stop, count = item.stop, Trip.Count()
-    row.number:SetText(index)
+    row.number:SetText(item.number)
     row.name:SetText(stop.name or "?")
     row.sub:SetText(stop.subtitle or "")
-    row.up:SetShown(index > 1)
-    row.down:SetShown(index < count)
+    row.up:SetShown(item.number > 1)
+    row.down:SetShown(item.number < count)
 end
 
-local function Height(item) return item.kind == "stop" and STOP_H + ROW_GAP or 90 end
+local HEIGHTS = { stop = STOP_H, gap = ROW_GAP, hint = 90 }
+
+local function Height(item) return HEIGHTS[item.kind] end
 
 local function Items()
     local items = {}
-    for i, stop in ipairs(Trip.List()) do items[i] = { kind = "stop", stop = stop } end
+    for i, stop in ipairs(Trip.List()) do
+        if i > 1 then items[#items + 1] = { kind = "gap" } end
+        items[#items + 1] = { kind = "stop", stop = stop, number = i }
+    end
     if #items == 0 then items[1] = { kind = "hint" } end
     return items
 end
@@ -102,7 +107,7 @@ end
 
 local function Build(parent)
     f = CreateFrame("Frame", nil, parent)
-    list = List.New(f, { make = { stop = MakeStop, hint = MakeHint }, bind = Bind, height = Height })
+    list = List.New(f, { make = { stop = MakeStop, gap = MakeGap, hint = MakeHint }, bind = Bind, height = Height })
     list:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     list:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOT_H + 8)
     f.list = list
