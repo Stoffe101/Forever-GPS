@@ -48,7 +48,8 @@ end
 
 -- { level = "low"|"moderate"|"high"|"unknown", reasons = { text, ... } }
 -- route: anything Bridge.WalkOf can read a walk's ends from ({ steps, from }).
-function Risk.Assess(route)
+-- walks: its walks by step, when the caller holds them.
+function Risk.Assess(route, walks)
     local level, reasons, assessed = "low", {}, false
     local seen = {}
     local function Add(rank, text)
@@ -67,7 +68,14 @@ function Risk.Assess(route)
             assessed = true
         end
         if step.kind == "travel" and not step.corpse then
-            local path, ci = Bridge.WalkOf(step, i, route)
+            local path, ci
+            if walks then path = walks[i] end
+            if path then
+                ci = route.from and route.from.ci
+                if i > 1 and route.steps[i - 1].arrive then ci = route.steps[i - 1].arrive.ci or ci end
+            else
+                path, ci = Bridge.WalkOf(step, i, route)
+            end
             if path then
                 assessed = true
                 local d = Bridge.DeadlyAlong(path, ci)

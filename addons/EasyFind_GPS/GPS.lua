@@ -1073,10 +1073,33 @@ local function OffRoute(route, ci, px, py)
     return true
 end
 
+-- Forever-GPS: a trip's stops not reached yet. Saved routes come back as copies,
+-- so a stop is matched by what it is, not by which table it is.
+function GPS.StopsAhead(route)
+    local stops = route.stops
+    if not (stops and #stops > 1) then return stops end
+    local ahead = {}
+    for i = 1, #stops do ahead[i] = stops[i] end
+    for i = 1, (route.active or 1) - 1 do
+        local reached = route.steps[i] and route.steps[i].tripStop
+        for k = 1, reached and #ahead or 0 do
+            local s = ahead[k]
+            if s.name == reached.name and s.mapID == reached.mapID and s.x == reached.x and s.y == reached.y then
+                table.remove(ahead, k)
+                break
+            end
+        end
+    end
+    return #ahead > 0 and ahead or stops
+end
+
 -- The route again from where the player stands, to the same place. A stop
 -- to learn a flight master stays until that master is learned.
 local function Reroute(route)
     if GPS:IsPlanning() then return end
+    -- Forever-GPS: from here, a trip goes on to the stops still ahead, not back
+    -- round the ones already reached.
+    route.stops = GPS.StopsAhead(route)
     local via = GPS.ViaLeft(route, ns.GPSRoute and ns.GPSRoute.recordedKnown)
     GPS:Plan(nil, function() return GPS:BuildStops(route, via, route.wayAvoid, true, "first") end,
         function(steps, total, advice)
@@ -1093,7 +1116,8 @@ function GPS.Rerouted(route, via, steps, total, advice)
     if report then report.re = (report.re or 0) + 1 end
     CharDB().route = { dest = route.dest, steps = steps, active = 1, t = time(), eta = total, total = total, advice = advice,
                        via = via, from = ci and { ci = ci, wx = wx, wy = wy } or nil, report = report,
-                       wayAvoid = route.wayAvoid, dangerSeen = route.dangerSeen }
+                       wayAvoid = route.wayAvoid, dangerSeen = route.dangerSeen,
+                       stops = route.stops, skipLearn = route.skipLearn }   -- Forever-GPS: a trip stays a trip
     closing.step = nil
     if GPS.AfterRoute then GPS.AfterRoute() end
     if ns.GPSPreview and ns.GPSPreview.Reset then ns.GPSPreview:Reset() end

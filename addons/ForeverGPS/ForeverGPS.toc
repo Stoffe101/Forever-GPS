@@ -2,7 +2,7 @@
 ## Title: Forever-GPS
 ## Notes: Search anywhere in Azeroth, inspect the journey, and follow it.
 ## Author: Stoffe101
-## Version: 1.0.0
+## Version: 2.0.0
 ## Dependencies: EasyFind, EasyFind_GPS
 ## OptionalDeps: EasyFind_Questie, Questie, QuestieDB, TomTom
 ## SavedVariables: ForeverGPSDB
@@ -15,6 +15,7 @@
 Locales/enUS.lua
 Core/Namespace.lua
 Core/Format.lua
+Core/Metrics.lua
 Core/Settings.lua
 Core/Bridge.lua
 Core/Kinds.lua
@@ -31,6 +32,7 @@ Core/Diagnostics.lua
 UI/Theme.lua
 UI/Kit.lua
 UI/List.lua
+UI/MapPreview.lua
 UI/RoutePanel.lua
 UI/SearchView.lua
 UI/QuestsView.lua

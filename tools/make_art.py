@@ -314,6 +314,14 @@ def vendor(c: Canvas) -> None:
     c.disc(46, 51, 5)
 
 
+def ring(c: Canvas) -> None:
+    c.ring(32, 32, 28, 8)
+
+
+def dot(c: Canvas) -> None:
+    c.disc(32, 32, 18)
+
+
 def logo(c: Canvas) -> None:
     c.ring(32, 32, 26, 4)
     c.poly([(32, 11), (42, 35), (32, 30), (22, 35)])
@@ -329,6 +337,7 @@ GLYPHS = {
     "chevron-down": chevron_down, "chevron-right": chevron_right, "back": back, "check": check,
     "warning": warning, "shield": shield, "clock": clock, "nav-arrow": nav_arrow, "inn": inn, "bank": bank,
     "auction": auction, "mail": mail, "repair": repair, "trainer": trainer, "vendor": vendor, "logo": logo,
+    "ring": ring, "dot": dot,
 }
 
 

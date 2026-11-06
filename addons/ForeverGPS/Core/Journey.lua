@@ -74,9 +74,10 @@ end
 
 local turnedIn = {}
 
--- The quest the route was started for, or nil to forget it.
-function Journey.Bind(binding)
-    FG.char.binding = binding
+-- The quest the route was started for, or nil to forget it. bindings: the quests a
+-- trip's stops stand for, in order.
+function Journey.Bind(binding, bindings)
+    FG.char.binding, FG.char.bindings = binding, bindings
 end
 
 function Journey.Binding() return FG.char and FG.char.binding end
@@ -187,7 +188,7 @@ end)
 function Journey.ApplyArrow()
     local mode = FG.db.arrow
     if mode == "tomtom" and not FG.TomTom.Available() then mode = "hud" end
-    Bridge.SetCharacterArrow(mode == "character")
+    Bridge.HoldCharacterArrow(mode ~= "character")
     Bridge.ClaimGuiding(function() return FG.HUD ~= nil and FG.HUD.Guiding() end)
     FG.Emit("arrow:changed", mode)
 end

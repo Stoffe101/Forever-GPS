@@ -257,6 +257,10 @@ function Texture:SetAtlas(a) self._atlas = a end
 function Texture:SetBlendMode(m) self._blend = m end
 function Texture:SetDrawLayer(l, s) self._layer = l self._sub = s end
 function Texture:SetDesaturated(v) self._desat = v end
+function Texture:SetVertexOffset(i, x, y)
+    self._vertex = self._vertex or {}
+    self._vertex[i] = { x, y }
+end
 function Texture:SetSnapToPixelGrid() end
 function Texture:SetTexelSnappingBias() end
 function Texture:SetHorizTile() end

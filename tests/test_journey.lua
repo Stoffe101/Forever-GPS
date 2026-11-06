@@ -252,11 +252,12 @@ function tests.exactlyOneArrowLeads()
     Go(c, nil)
     local db = c.env.EasyFind.db
     T.eq(c.FG.db.arrow, "hud")
-    T.eq(db.gpsArrow, false, "the HUD's arrow: EasyFind's own stands down")
+    T.no(c.env.EasyFindGPSArrow and c.env.EasyFindGPSArrow:IsShown(), "the HUD's arrow: EasyFind's own stands down")
     c.FG.db.arrow = "character"
     c.FG.Journey.ApplyArrow()
-    T.eq(db.gpsArrow, true, "at the character: EasyFind's own")
     c:Advance(0.5)
+    T.ok(c.env.EasyFindGPSArrow and c.env.EasyFindGPSArrow:IsShown(), "at the character: EasyFind's own")
+    T.eq(db.gpsArrow, nil, "and neither wrote to its settings")
     T.no(c.env.ForeverGPSHUD.arrow:IsShown(), "and the HUD's stands down")
 end
 

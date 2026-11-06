@@ -213,15 +213,38 @@ function Bridge.RouteAvoid()
     return route and route.wayAvoid or (EasyFind.db and EasyFind.db.gpsAvoid) or nil
 end
 
--- A plan in the planner's slices. Only one runs at a time and a newer one
--- replaces it, so callers wait for IsPlanning to clear first. done(...) gets
--- what build returns, and is simply not called if a newer plan took over.
-function Bridge.Plan(build, done)
-    GPS():Plan(nil, build, done, true)
+-- A plan in the planner's slices. Only one runs at a time and a newer one replaces
+-- it, and a replaced plan's done is never called. So who owns the running plan
+-- matters: a plan of ours gone out of date may be replaced; the engine's reroutes
+-- and walks never are. Every plan passes through here to be told apart.
+local planIsOurs, marking = false, false
+local function MarkPlans()
+    local g = GPS()
+    if not g or g._fgpsPlan then return end
+    g._fgpsPlan = g.Plan
+    function g:Plan(...)
+        planIsOurs, marking = marking, false
+        return self._fgpsPlan(self, ...)
+    end
+end
+
+function Bridge.PlanIsOurs() return planIsOurs and Bridge.IsPlanning() end
+
+function Bridge.PlanOurs(build, done)
+    MarkPlans()
+    marking = true
+    GPS():Plan(nil, build, function(...)
+        planIsOurs = false
+        return done(...)
+    end, true)
 end
 
 function Bridge.BuildRoute(dest, avoid, draw)
     return GPS():BuildRoute(dest, nil, avoid, true, draw)
+end
+
+function Bridge.BuildTrip(stops, avoid, draw)
+    return NS().GPSTrip.Build(stops, nil, avoid, true, draw)
 end
 
 -- A route the engine would give, priced with straight-line walks: the same
@@ -249,18 +272,21 @@ function Bridge.RestoreNav()
     Nav.SetDanger(danger and Npcs.DangerTiles(UnitLevel("player"), UnitFactionGroup("player")) or nil)
     Nav.SetRoads(avoid and avoid.offroad)
     if Nav.SetDropLimit then
-        local start = Bridge.PlayerStart()
+        local route = Bridge.ActiveRoute()
+        local start = route and route.from or Bridge.PlayerStart()
         local jumps = not (avoid and avoid.jumps)
         Nav.SetDropLimit(jumps and Jumps and start and Jumps.Limit(start.ci) or nil)
     end
 end
 
 -- Starts navigation with steps already planned, on the way they were planned.
-function Bridge.Commit(dest, steps, total, advice, avoid)
+function Bridge.Commit(dest, steps, total, advice, avoid, stops)
     local g = GPS()
-    g.Navigated(dest, steps, total, advice)
+    g.Navigated(dest, steps, total, advice, stops)
     local route = g.CurrentRoute()
     if route then route.wayAvoid = avoid end
+    -- Its walks are drawn from the next frame on: under its own settings.
+    Bridge.RestoreNav()
     return route
 end
 
@@ -274,6 +300,60 @@ function Bridge.WalkOf(step, index, route)
     local tci, tx, ty = Follow.World(step.go or step.arrive)
     if not (sci and sci == tci) then return nil end
     return Engine.WalkPath(sci, sx, sy, tx, ty, true, step.near), sci
+end
+
+-- A route's walks by step: { [index] = path }, read as they stand now. The engine
+-- keys them under the grid's settings, so these are only found while those hold.
+function Bridge.WalksOf(route)
+    local out = {}
+    for i, step in ipairs(route.steps) do
+        if step.kind == "travel" and not step.fly and not step.corpse then
+            local path = Bridge.WalkOf(step, i, route)
+            if path then out[i] = path end
+        end
+    end
+    return out
+end
+
+-- ==== drawing on the world map ==============================================
+
+function Bridge.NewMapLines(parent)
+    local ns = NS()
+    local Preview = ns and ns.GPSPreview
+    return Preview and Preview.NewLines and Preview.NewLines(parent, "TOPLEFT") or nil
+end
+
+function Bridge.LineColor(kind)
+    local ns = NS()
+    return ns.GPSPreview.LineColor(kind)
+end
+
+function Bridge.LineSpan()
+    local ns = NS()
+    return ns.GPSPreview.Span()
+end
+
+function Bridge.DangerColor()
+    local ns = NS()
+    return ns.GPSPreview.DANGER_COLOR
+end
+
+-- Screen pixels as canvas units, which change with the map's zoom.
+function Bridge.CanvasPx(v)
+    local ns = NS()
+    return ns.UIToCanvas and ns.UIToCanvas(v) or v
+end
+
+-- The part of a segment in map fractions that lies on the map, as t0, t1; or nil.
+function Bridge.ClipToMap(x0, y0, x1, y1)
+    local ns = NS()
+    return ns.GPSPreview._OnMap(x0, y0, x1, y1)
+end
+
+-- Traces a whole walk, marking its deadly stretches: pen(red), then to(x, y) per point.
+function Bridge.TraceWalk(path, ci, pen, to)
+    local ns = NS()
+    ns.GPSPreview.Trace(path, ci, 1, path.pts[1], path.pts[2], 0, pen, to)
 end
 
 function Bridge.DeadlyAlong(path, ci)
@@ -299,10 +379,23 @@ function Bridge.QuestSpot(questID)
     return nil
 end
 
-function Bridge.SetCharacterArrow(on)
+-- EasyFind's arrow at the character stands down while another leads. Held here,
+-- not written to its settings: removing Forever-GPS must leave EasyFind as it was.
+local arrowHeld = false
+function Bridge.HoldCharacterArrow(held)
     local ns = NS()
-    if EasyFind.db then EasyFind.db.gpsArrow = on end
-    if ns and ns.GPSArrow and ns.GPSArrow.Refresh then ns.GPSArrow:Refresh() end
+    local Arrow = ns and ns.GPSArrow
+    if not (Arrow and Arrow.Refresh) then return end
+    if not Arrow._ownRefresh then
+        Arrow._ownRefresh = Arrow.Refresh
+        function Arrow:Refresh()
+            if not arrowHeld then return self._ownRefresh(self) end
+            if self._driver then self._driver:SetScript("OnUpdate", nil) end
+            if _G.EasyFindGPSArrow then _G.EasyFindGPSArrow:Hide() end
+        end
+    end
+    arrowHeld = held
+    Arrow:Refresh()
 end
 
 -- px, py, ax, ay, yards left: where the walk leads from here.
@@ -354,4 +447,9 @@ function Bridge.Listen()
 end
 
 FG.On("loaded", Bridge.Listen)
-FG.On("login", function() FG.After(6, Bridge.WarmSearch) end)
+FG.On("login", function()
+    FG.After(6, Bridge.WarmSearch)
+    -- A route back from a reload redraws its walks from the next frame on: under
+    -- its own settings, which nothing else has set yet this session.
+    if Bridge.ActiveRoute() then Bridge.RestoreNav() end
+end)

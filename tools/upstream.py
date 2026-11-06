@@ -50,7 +50,11 @@ SKIP_PREFIXES = (".github/",)
 # Every intentional change to vendored code, with why. docs/UPSTREAM.md explains
 # each one; `verify` insists this list matches what is on disk.
 PATCHES = {
+    "EasyFind": {
+        "MapSearch/Search/Results.lua": "Keeps a folded row's instances on the row, so one can be chosen by travel time.",
+    },
     "EasyFind_GPS": {
+        "GPS.lua": "Fixes trips losing their stops on a reroute, and returning to stops already reached.",
         "Npcs.lua": "Adds N.SpotsOf and N.ReactionOf: read-only access to a creature's spawns and its reaction.",
         "Jumps.lua": "Fixes ShopTip leaving the walking grid at an unlimited drop height, which lost the route's walks.",
     },
