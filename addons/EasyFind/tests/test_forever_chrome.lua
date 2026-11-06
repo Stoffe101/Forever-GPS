@@ -1,0 +1,658 @@
+-- Tests for the frame-art skins (Shared/Utils.lua, ns.ApplySkin): while the
+-- window border option is on, a surface that opts in wears the Forever
+-- spellbook border over the quest log background, or the Classic tooltip
+-- frame; off, every surface is rounded again with the ring it last asked
+-- for. Loads the REAL Shared/Utils.lua.
+
+local H = require("Harness")
+local env = H.newEnv()
+local ns = H.newNs(env)
+
+local function fakeWidget()
+    local w = {}
+    setmetatable(w, { __index = function() return function() return w end end })
+    return w
+end
+
+-- A region or frame that keeps the state the skin touches.
+local function newRegion(w, h)
+    local r = { shown = true, level = 1, w = w or 100, h = h or 30, hooks = {}, coords = nil }
+    function r:Show() self.shown = true end
+    function r:Hide() self.shown = false end
+    function r:SetShown(v) self.shown = v and true or false end
+    function r:IsShown() return self.shown end
+    function r:SetFrameLevel(l) self.level = l end
+    function r:GetFrameLevel() return self.level end
+    function r:GetWidth() return self.w end
+    function r:GetHeight() return self.h end
+    function r:SetWidth(v) self.w = v end
+    function r:SetHeight(v) self.h = v end
+    function r:SetSize(a, b) self.w, self.h = a, b end
+    function r:GetEffectiveScale() return self.effScale or 1 end
+    function r:SetTexCoord(...) self.coords = { ... } end
+    function r:SetTexture(t, wh, wv) self.tex, self.wrapH, self.wrapV = t, wh, wv return true end
+    function r:SetColorTexture(...) self.color = { ... } end
+    function r:SetVertexColor(...) self.vertex = { ... } end
+    function r:SetBackdrop(b) self.backdrop = b end
+    function r:SetBackdropColor(...) self.bdColor = { ... } end
+    function r:SetBackdropBorderColor() end
+    function r:SetAlpha(a) self.alpha = a end
+    function r:HookScript(name, fn) self.hooks[name] = fn end
+    function r:CreateTexture() return newRegion() end
+    function r:CreateMaskTexture() return newRegion() end
+    function r:ClearAllPoints() self.points = {} end
+    function r:SetPoint(...) self.points = self.points or {}; self.points[#self.points + 1] = { ... } end
+    -- Unknown methods are no-ops; unknown fields stay nil.
+    setmetatable(r, { __index = function(_, k)
+        if type(k) == "string" and k:match("^%u") then return function() end end
+    end })
+    return r
+end
+
+local factory = fakeWidget
+env.CreateFrame = function(...) return factory(...) end
+env.CreateFont = fakeWidget
+env.CreateColor = function(r, g, b, a) return { GetRGBA = function() return r, g, b, a end } end
+env.UIParent = newRegion()
+env.WorldFrame = fakeWidget()
+env.GameTooltip = fakeWidget()
+env.hooksecurefunc = function() end
+env.GameFontNormal = setmetatable({}, { __index = function(_, k)
+    if k == "GetFont" then return function() return "font", 12, "" end end
+    return function() end
+end })
+
+H.loadModule("Shared/Utils.lua", env, ns)
+
+local FILL = { file = 5684755, width = 307, height = 510,
+               leftTexCoord = 0.3, rightTexCoord = 0.6, topTexCoord = 0.0, bottomTexCoord = 1.0 }
+local function info(file, w, h)
+    return { file = file, width = w, height = h, leftTexCoord = 0, rightTexCoord = 1, topTexCoord = 0, bottomTexCoord = 1 }
+end
+-- Forever's spellbook art: bands wider than tall.
+local FOREVER_ART = {
+    ["UI-Frame-Metal-CornerTopLeft"] = info(1, 95, 95), ["UI-Frame-Metal-CornerTopRight"] = info(2, 95, 95),
+    ["UI-Frame-Metal-CornerBottomLeft"] = info(3, 95, 100), ["UI-Frame-Metal-CornerBottomRight"] = info(4, 95, 100),
+    ["_UI-Frame-Metal-EdgeTop"] = info(5, 128, 95), ["_UI-Frame-Metal-EdgeBottom"] = info(6, 128, 100),
+    ["!UI-Frame-Metal-EdgeLeft"] = info(7, 95, 128), ["!UI-Frame-Metal-EdgeRight"] = info(8, 95, 128),
+}
+local served
+local function installClient(art)
+    served = art
+    env.C_Texture = { GetAtlasInfo = function(name)
+        if name == "QuestLog-main-background" then return FILL end
+        return served and served[name]
+    end }
+end
+local OTHER_ART = {}
+for k, v in pairs(FOREVER_ART) do OTHER_ART[k] = v end
+-- The client with the page's 2x art: 614 x 1020, its own coords.
+local FILL_2X = { file = 5684770, width = 614, height = 1020,
+                  leftTexCoord = 0.4, rightTexCoord = 0.7, topTexCoord = 0.0, bottomTexCoord = 1.0 }
+local SHARP_ART = {}
+for k, v in pairs(FOREVER_ART) do SHARP_ART[k] = v end
+SHARP_ART["QuestLog-main-background-2x"] = FILL_2X
+OTHER_ART["_UI-Frame-Metal-EdgeBottom"] = info(6, 16, 32)
+
+local FOREVER = { chrome = "forever", fillAtlas = "QuestLog-main-background", windowFill = { 0.1, 0.1, 0.1 } }
+local PLAIN = { windowFill = { 0.1, 0.1, 0.1 } }
+local CLASSIC = { chrome = "classic", windowFill = { 0.05, 0.05, 0.1 } }
+
+local function borderOption(on) env.EasyFind.db.windowBorder = on end
+
+local function surface(optIn, w, h)
+    factory = function() return newRegion() end
+    local f = newRegion(w or 400, h or 30)
+    ns.CreateRoundedRectBorder(f)
+    ns.CreateRoundedRectDivider(f)
+    ns.SetRoundedRectBarHeight(f, 30)
+    f._efForeverSurface = optIn or nil
+    return f
+end
+
+local function roundedShown(f, part)
+    for _, t in pairs(f.combinedBorder[part]) do
+        if t.shown then return true end
+    end
+    return false
+end
+
+local function near(a, b) return math.abs(a - b) < 1e-6 end
+
+local tests = {}
+
+-- The band off (frame art off): the line border and divider are the
+-- Forever theme's bronze, the usual gray under any other theme.
+function tests.bandOff_lineBorderWearsTheThemesBronze()
+    installClient(FOREVER_ART)
+    borderOption(true)
+    env.EasyFind.db.themeFrameArt = false
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true)
+    ns.ApplyThemeFill(f)
+    ns.SetRoundedRectDivider(f, 30, true)
+    H.assertFalse(f._efForeverOn, "no band")
+    for _, t in pairs(f.combinedBorder.border) do H.assertTrue(near(t.vertex[1], 0.78), "bronze border") end
+    H.assertTrue(near(f.combinedDivider.color[1], 0.78), "bronze divider")
+    ns.ACTIVE_UI_PALETTE = PLAIN
+    ns.ApplyThemeFill(f)
+    ns.SetRoundedRectDivider(f, 30, true)
+    for _, t in pairs(f.combinedBorder.border) do
+        H.assertTrue(near(t.vertex[1], ns.WINDOW_RING_COLOR[1]), "every window's soft line")
+    end
+    H.assertTrue(near(f.combinedDivider.color[1], 0.42), "gray divider")
+    env.EasyFind.db.themeFrameArt = nil
+end
+
+function tests.optedInSurface_wearsTheSpellbookBorderOverTheQuestLog()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true)
+    ns.ApplyThemeFill(f)
+    H.assertTrue(f._efForeverOn, "the skin is on")
+    local p = f._efForever.pieces
+    H.assertEq(p.bl.tex, 3, "the bottom-left corner is the client's own atlas")
+    H.assertTrue(near(p.bl.coords[1], 20 / 190) and near(p.bl.coords[4], 197 / 200), "cropped to the chamfer")
+    H.assertTrue(near(p.tl.coords[4], 38 / 190), "the top pieces stop above the title strip")
+    H.assertEq(p.top.wrapH, "REPEAT", "the band tiles along its length")
+    H.assertTrue(f._efForever.border.shown and f._efForever.fill.shown)
+    H.assertEq(f._efForever.fill.tex, FILL.file)
+    H.assertTrue(not roundedShown(f, "fill") and not roundedShown(f, "border"), "rounded pieces step aside")
+end
+
+function tests.fill_runsUnderTheMetal()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true)
+    ns.ApplyThemeFill(f)
+    local pts = f._efForever.fill.points
+    H.assertEq(pts[1][4], -1, "1 unit out: under the band")
+    H.assertEq(pts[2][4], 1)
+    local tl = f._efForever.pieces.tl
+    H.assertEq(tl.points[1][4], -4.25, "the band outside the window, half the spellbook's weight")
+    H.assertEq(tl.points[1][4] + 17 * 0.25, 0, "its inner edge on the window's edge: rows run to it clear of the metal")
+end
+
+-- The filter menu is zoomed 1.5x; its band is drawn at the bar's size.
+-- The page is 307 x 510 units at the band's scale: a smaller window shows
+-- its top left at that size, never scaled to the window.
+function tests.fill_isThePageAtItsOwnSizeCropped()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true, 200, 54)
+    ns.ApplyThemeFill(f)
+    local c = f._efForever.fill.coords
+    H.assertTrue(near(c[1], 0.3) and near(c[2], 0.3 + 0.3 * 202 / 307), "202 of its 307 across: " .. tostring(c[2]))
+    H.assertTrue(near(c[3], 0) and near(c[4], 56 / 510), "56 of its 510 down: " .. tostring(c[4]))
+end
+
+function tests.fill_takesThePagesSharpArt()
+    installClient(SHARP_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true, 200, 54)
+    ns.ApplyThemeFill(f)
+    local c = f._efForever.fill.coords
+    H.assertEq(f._efForever.fill.tex, FILL_2X.file, "the 2x file")
+    H.assertTrue(near(c[2], 0.4 + 0.3 * 202 / 307), "the same 307 units across, its pixels twice as fine: " .. tostring(c[2]))
+    H.assertTrue(near(c[4], 56 / 510))
+end
+
+function tests.zoomedMenu_wearsTheBandAtTheSpellbookSize()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true)
+    f.effScale = 1.5
+    ns.ApplyThemeFill(f)
+    local tl = f._efForever.pieces.tl
+    H.assertTrue(near(tl.w, 30 * 0.25 / 1.5), "corner width in the menu's own units: " .. tostring(tl.w))
+    H.assertTrue(near(tl.points[1][4], -17 * 0.25 / 1.5))
+end
+
+function tests.fill_isFittedToWidthAndCroppedFromTop()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true, 310, 54)
+    ns.ApplyThemeFill(f)
+    local c = f._efForever.fill.coords
+    H.assertTrue(near(c[1], 0.3) and near(c[2], 0.6), "full width of the atlas")
+    -- The fill reaches 1 under the band each side: 312 x 56, the atlas
+    -- fitted to 312 across.
+    H.assertTrue(near(c[3], 0) and near(c[4], 56 / (312 * 510 / 307)), "the top slice: " .. tostring(c[4]))
+end
+
+-- Option on: the filter menu, which asks for no rounded ring, still wears
+-- the Forever frame the bar wears.
+function tests.ringOff_keepsTheForeverBorder()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = PLAIN
+    local f = surface(true)
+    ns.SetRoundedRectRingShown(f, false)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    ns.ApplyThemeFill(f)
+    H.assertTrue(f._efForever.border.shown and f._efForever.fill.shown, "a ring-off menu keeps the border")
+end
+
+function tests.ringAndPanelRequests_areKeptWhileOn()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true)
+    ns.ApplyThemeFill(f)
+    ns.SetRoundedRectRingShown(f, false)
+    H.assertTrue(f._efForever.border.shown and f._efForever.fill.shown, "the Forever frame stays")
+    H.assertTrue(not roundedShown(f, "border"), "the rounded ring stays hidden")
+    ns.SetRoundedRectBorderShown(f, false)
+    H.assertTrue(not f._efForever.fill.shown, "panel off hides the fill")
+    ns.SetRoundedRectBorderShown(f, true)
+    H.assertTrue(f._efForever.fill.shown and f._efForever.border.shown)
+    ns.SetRoundedRectRingShown(f, false)
+    ns.ACTIVE_UI_PALETTE = PLAIN
+    ns.ApplyThemeFill(f)
+    H.assertTrue(not f._efForeverOn and not f._efForever.fill.shown and not f._efForever.border.shown, "skin off")
+    H.assertTrue(roundedShown(f, "fill") and not roundedShown(f, "border"), "rounded back, ring still off")
+end
+
+function tests.surfaceNotOptedIn_keepsTheRoundedLook()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(false)
+    ns.ApplyThemeFill(f)
+    H.assertTrue(not f._efForeverOn and f._efForever == nil)
+    H.assertTrue(f._efArtCells and f._efArtCells.mm.shown, "the quest log art fills the rounded window")
+    H.assertEq(f._efArtCells.mm.tex, FILL.file)
+end
+
+function tests.otherClientsArt_wearsOurCopyOfTheBand()
+    installClient(OTHER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true)
+    ns.ApplyThemeFill(f)
+    H.assertTrue(f._efForeverOn, "not Forever's art: the shipped copy of it")
+    H.assertEq(f._efForever.pieces.top.tex, "Interface\\AddOns\\EasyFind\\textures\\ForeverBandTop")
+    H.assertEq(f._efForever.pieces.br.tex, "Interface\\AddOns\\EasyFind\\textures\\ForeverBandCorners")
+    H.assertTrue(f._efForever.border.shown and f._efForever.fill.shown, "the band and its fill")
+    -- No metal under those names at all: still the shipped copy.
+    installClient(nil)
+    local g = surface(true)
+    ns.ApplyThemeFill(g)
+    H.assertTrue(g._efForeverOn and g._efForever.pieces.left.tex == "Interface\\AddOns\\EasyFind\\textures\\ForeverBandLeft")
+    -- No quest log page either (the classic clients): our copy of the page;
+    -- without one the skin never built there.
+    env.C_Texture = { GetAtlasInfo = function() return nil end }
+    local h = surface(true)
+    ns.ApplyThemeFill(h)
+    H.assertTrue(h._efForeverOn, "the iron frame")
+    H.assertEq(h._efForever.fill.tex, "Interface\\AddOns\\EasyFind\\textures\\QuestPaper", "on our page")
+end
+
+function tests.divider_isOneScreenPixelOfBronze()
+    installClient(FOREVER_ART)
+    env.GetPhysicalScreenSize = function() return 2560, 1440 end
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    local f = surface(true)
+    ns.ApplyThemeFill(f)
+    ns.SetRoundedRectDivider(f, 30, true)
+    local d = f.combinedDivider
+    H.assertEq(d.color[1], ns.FOREVER_BRONZE[1])
+    H.assertTrue(near(d.h, 768 / 1440), "one physical pixel: " .. tostring(d.h))
+    H.assertEq(d.points[1][4], -1.5, "band to band, under their inner edges")
+    ns.ACTIVE_UI_PALETTE = PLAIN
+    ns.ApplyThemeFill(f)
+    ns.SetRoundedRectDivider(f, 30, true)
+    H.assertTrue(d.color[1] ~= ns.FOREVER_BRONZE[1] and d.h == 1, "the plain divider returns")
+end
+
+function tests.glyphBlend_isNormalForFlatGlyphThemes()
+    H.assertEq(ns.ChromeGlyphBlend({ flatGlyphs = true }), "BLEND")
+    H.assertEq(ns.ChromeGlyphBlend({ lightTheme = true }), "BLEND")
+    H.assertEq(ns.ChromeGlyphBlend({}), "ADD")
+end
+
+-- Window border off: the Forever theme is rounded everywhere, with its
+-- quest log fill, and the bar and the filter menu agree on no ring.
+function tests.forever_borderOff_isRoundedEverywhere()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    borderOption(false)
+    local bar, menu = surface(true), surface(true)
+    ns.SetRoundedRectRingShown(bar, false)
+    ns.SetRoundedRectRingShown(menu, false)
+    ns.ApplyThemeFill(bar)
+    ns.ApplyThemeFill(menu)
+    for _, f in ipairs({ bar, menu }) do
+        H.assertTrue(not f._efSkin and f._efForever == nil, "no frame art")
+        H.assertTrue(f._efArtCells and f._efArtCells.mm.shown, "the quest log fill in the rounded shape")
+        H.assertTrue(not roundedShown(f, "border"), "no ring, as the option asks")
+    end
+    borderOption(nil)
+end
+
+-- Toggling the option flips a dressed surface both ways.
+function tests.forever_toggle_flipsBothWays()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    borderOption(true)
+    local menu = surface(true)
+    ns.SetRoundedRectRingShown(menu, false)
+    ns.ApplyThemeFill(menu)
+    H.assertTrue(menu._efForever.border.shown, "on: the spellbook border, ring request aside")
+    borderOption(false)
+    ns.ApplyThemeFill(menu)
+    H.assertTrue(not menu._efForever.border.shown and not menu._efForever.fill.shown, "off: the art is gone")
+    H.assertTrue(roundedShown(menu, "fill") and not roundedShown(menu, "border"), "rounded, ring still off")
+    borderOption(true)
+    ns.ApplyThemeFill(menu)
+    H.assertTrue(menu._efForever.border.shown and not roundedShown(menu, "fill"), "on again")
+    borderOption(nil)
+end
+
+local function classicSurface()
+    local f = surface(true)
+    f._efClassicSurface = true
+    return f
+end
+
+function tests.classic_borderOn_wearsTheTooltipFrame()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local f = classicSurface()
+    ns.ApplyThemeFill(f)
+    H.assertEq(f._efSkin, "classic")
+    -- The metal sits outside the frame, its inner edge on the frame's own.
+    local back = f._efClassicBack
+    H.assertTrue(back and back.shown, "a frame under it wears the art")
+    H.assertEq(back.backdrop, ns.CLASSIC_BACKDROP)
+    H.assertNil(f.backdrop, "nothing drawn on the frame itself")
+    -- Field by field: the frame refers back to itself through its parts.
+    local tl, br = back.points[1], back.points[2]
+    H.assertTrue(tl[1] == "TOPLEFT" and tl[2] == f and tl[3] == "TOPLEFT", "top left on the frame's")
+    H.assertTrue(tl[4] == -ns.CLASSIC_OUTSET and tl[5] == ns.CLASSIC_OUTSET, "outside it by the metal's width")
+    H.assertTrue(br[1] == "BOTTOMRIGHT" and br[2] == f and br[3] == "BOTTOMRIGHT", "bottom right on the frame's")
+    H.assertTrue(br[4] == ns.CLASSIC_OUTSET and br[5] == -ns.CLASSIC_OUTSET, "outside it by the metal's width")
+    H.assertTrue(back.level < f.level, "under the frame's own contents")
+    H.assertTrue(not roundedShown(f, "fill") and not roundedShown(f, "border"), "rounded pieces step aside")
+    ns.SetRoundedRectRingShown(f, true)
+    H.assertTrue(not roundedShown(f, "border"), "a ring request cannot show the rounded ring over the frame")
+    borderOption(nil)
+end
+
+-- The rounded ring's 2-texel line on a corner under 11 px is a fraction of
+-- a pixel and the arcs vanish (2026-10-27: the Notes and chat windows):
+-- small corners wear the thick ring, larger ones keep the fine one.
+function tests.smallCorners_wearTheThickRing()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = PLAIN
+    local win = surface(false)
+    ns.SetRoundedRectBarHeight(win, 14)
+    H.assertEq(win._efRingTex, ns.COMBINED_TEX_BORDER_SMALL, "a 7 px corner")
+    for _, t in pairs(win.combinedBorder.border) do H.assertEq(t.tex, ns.COMBINED_TEX_BORDER_SMALL) end
+    ns.SetRoundedRectBarHeight(win, 30)
+    H.assertTrue(win._efRingTex ~= ns.COMBINED_TEX_BORDER_SMALL, "a 15 px corner keeps the fine ring")
+end
+
+-- A window (Notes, the GPS pop-out, the chat) wears the dialog frame at its
+-- full weight, hung outside so its contents keep their places: the bar's
+-- half-weight edge read thin and uneven on a window (2026-10-27).
+function tests.classicWindow_wearsTheFullFrameOutside()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local f = classicSurface()
+    f._efClassicStyle = "window"
+    ns.ApplyThemeFill(f)
+    H.assertEq(f._efSkin, "classic")
+    local back = f._efClassicBack
+    H.assertTrue(back and back.shown, "on a frame under it")
+    H.assertEq(back.backdrop, ns.CLASSIC_WINDOW, "the window's frame, the stone under half its metal")
+    local tl, br = back.points[#back.points - 1], back.points[#back.points]
+    H.assertTrue(tl[4] == -ns.CLASSIC_WINDOW_OUTSET and tl[5] == ns.CLASSIC_WINDOW_OUTSET, "outside by its metal")
+    H.assertTrue(br[4] == ns.CLASSIC_WINDOW_OUTSET and br[5] == -ns.CLASSIC_WINDOW_OUTSET)
+    -- The same frame as a menu again: back to the half weight's place.
+    f._efClassicStyle = nil
+    ns.ApplyThemeFill(f)
+    tl = back.points[#back.points - 1]
+    H.assertTrue(tl[4] == -ns.CLASSIC_OUTSET, "the half weight's outset")
+    H.assertEq(back.backdrop, ns.CLASSIC_BACKDROP)
+    borderOption(nil)
+end
+
+function tests.classic_borderOff_isRounded()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local f = classicSurface()
+    ns.SetRoundedRectRingShown(f, false)
+    ns.ApplyThemeFill(f)
+    borderOption(false)
+    H.assertTrue(not ns.IsClassicChrome(), "the classic layout flags follow the option")
+    ns.ApplyThemeFill(f)
+    H.assertTrue(f.backdrop == nil and not f._efSkin, "the frame art is gone")
+    H.assertTrue(not (f._efClassicBack and f._efClassicBack.shown), "and the frame under it")
+    H.assertTrue(roundedShown(f, "fill") and not roundedShown(f, "border"), "rounded, ring as asked")
+    borderOption(nil)
+end
+
+-- The Classic metal lies outside the frame: a press on it lands on the
+-- frame (its hit rect reaches it) and no closer reads it as a click
+-- outside; the search bar hid on a click on its own border (2026-10-26).
+function tests.classic_metalOutsideTheFrameTakesTheMouse()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local f = classicSurface()
+    function f:SetHitRectInsets(...) self.hit = { ... } end
+    function f:GetHitRectInsets() return table.unpack(self.hit or { 0, 0, 0, 0 }) end
+    function f:IsMouseOver() return false end
+    ns.ApplyThemeFill(f)
+    local o = ns.CLASSIC_OUTSET
+    H.assertEq(table.concat(f.hit, ","), table.concat({ -o, -o, -o, -o }, ","), "the hit rect reaches the metal")
+    f._efClassicBack.IsMouseOver = function() return true end
+    H.assertTrue(ns.IsMouseOverWithBand(f), "the metal counts as the frame")
+    H.assertTrue(ns.Utils.IsFrameVisiblyMouseOver(f), "for every closer that asks")
+    borderOption(false)
+    ns.ApplyThemeFill(f)
+    H.assertEq(table.concat(f.hit, ","), "0,0,0,0", "the frame's own hit rect again")
+    H.assertTrue(not ns.IsMouseOverWithBand(f), "no metal, nothing outside counts")
+    borderOption(nil)
+end
+
+-- The tutorial's tiles hide their ring this way; off the Classic theme
+-- the ring came back, broken into light pixels at their small corners.
+function tests.edgeOff_staysOffWhenTheSkinComesOff()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local f = classicSurface()
+    ns.SetRoundedRectBorderEdgeShown(f, false)
+    ns.ApplySkin(f)
+    H.assertEq(f._efSkin, "classic")
+    ns.ACTIVE_UI_PALETTE = PLAIN
+    ns.ApplySkin(f)
+    H.assertNil(f._efSkin)
+    H.assertTrue(roundedShown(f, "fill") and not roundedShown(f, "border"), "rounded, no ring")
+    borderOption(nil)
+end
+
+function tests.classicWindow_usesTheDialogFrame()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local f = surface(false)
+    H.assertTrue(ns.ApplyClassicChrome(f, 0.9, "dialog"))
+    H.assertEq(f.backdrop, ns.CLASSIC_DIALOG)
+    H.assertEq(f.bdColor[4], 0.9)
+    borderOption(false)
+    H.assertTrue(not ns.ApplyClassicChrome(f, 0.9, "dialog"), "off: the window is rounded")
+    H.assertTrue(f.backdrop == nil)
+    borderOption(nil)
+end
+
+-- A talent tree behind a Classic window shows through the cards in it,
+-- which keep their thin edge. Menus, results and every other surface wear
+-- the tree too (2026-10-27: they kept the marble). The tree takes the
+-- surface's opacity, the one setting for it.
+function tests.classicTree_showsThroughTheWindowsCards()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    env.EasyFind.db.classicArt = "MageFire"
+    local win = surface(false)
+    H.assertTrue(ns.ApplyClassicChrome(win, 0.9, "dialog"))
+    H.assertTrue(near(win._efTree.clip.alpha, 0.9), "the tree in the window's opacity")
+    H.assertEq(win.bdColor[4], 0, "no marble under the tree: it read as a shadow behind it")
+    local card = surface(false)
+    card.GetParent = function() return win end
+    ns.ApplyCardFill(card)
+    H.assertEq(card.backdrop, ns.CLASSIC_THIN, "the card keeps its edge")
+    H.assertEq(card.bdColor[4], 0, "no marble over the tree")
+    local menu = classicSurface()
+    menu.GetParent = function() return win end
+    ns.ApplyThemeFill(menu)
+    H.assertEq(menu._efClassicBack.bdColor[4], 0, "a menu wears the tree, no marble")
+    H.assertTrue(menu._efTree and menu._efTree.clip.shown ~= false, "the menu's own tree")
+    ns.SetRoundedRectBorderBgAlpha(menu, 0.5)
+    H.assertTrue(near(menu._efTree.clip.alpha, 0.5), "its tree follows its opacity")
+    -- The options window wears its art on a frame beside its contents.
+    local panel = surface(false)
+    panel._efTreeHost = win
+    card.GetParent = function() return panel end
+    ns.ApplyCardFill(card)
+    H.assertEq(card.bdColor[4], 0, "found through the window's art frame")
+    env.EasyFind.db.classicArt = nil
+    ns.ApplyCardFill(card)
+    H.assertTrue(card.bdColor[4] > 0, "the marble alone: the card's marble is back")
+    ns.ApplyClassicChrome(win, 0.9, "dialog")
+    H.assertTrue(near(win.bdColor[4], 0.9), "and the window's")
+    borderOption(nil)
+end
+
+-- A theme change takes the Classic art off every frame that wore it, cards
+-- included, whatever their own painter does (2026-10-27: the settings
+-- cards kept the stone edge on a light theme until a reload).
+function tests.themeChange_takesTheClassicEdgeOffEveryCard()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local card = surface(false)
+    ns.ApplyCardFill(card)
+    H.assertEq(card._efSkin, "classic", "dressed under Classic")
+    ns.ACTIVE_UI_PALETTE = { light = true }
+    ns.RedressSkins()
+    H.assertEq(card._efSkin, nil, "the edge is off")
+    H.assertEq(card.backdrop, nil, "no stone backdrop left")
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    ns.ApplyCardFill(card)
+    ns.ACTIVE_UI_PALETTE = { light = true }
+    ns.ApplyCardFill(card)
+    H.assertEq(card._efSkin, nil, "a light card's own paint takes it off too")
+    borderOption(nil)
+end
+
+-- A theme change repaints every window-fill surface itself: a window with
+-- no theme callback of its own (an extension's) follows at once
+-- (2026-10-27: Notes kept the old fill over the tree until a reload).
+function tests.themeChange_repaintsEveryWindowFill()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    borderOption(nil)
+    local win = surface(false)
+    ns.ApplyThemeFill(win)
+    H.assertTrue(win._efTree == nil or win._efTree.clip.shown == false, "no tree on Forever")
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    env.EasyFind.db.classicArt = "MageFire"
+    ns.RepaintThemeFills()
+    H.assertTrue(win._efTree and win._efTree.clip.shown ~= false, "the tree, with no callback of its own")
+    env.EasyFind.db.classicArt = nil
+end
+
+-- A window without the Classic frame art (Notes on its line border, or the
+-- frame art off) still has the picked tree for its background, under its
+-- own ring; the marble alone keeps the marble (2026-10-27).
+function tests.classicTree_backsAWindowWithoutTheFrameArt()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(nil)
+    env.EasyFind.db.classicArt = "MageFire"
+    local win = surface(false)
+    ns.ApplyThemeFill(win)
+    H.assertEq(win._efSkin, nil, "no frame art on it")
+    H.assertTrue(win._efTree and win._efTree.clip.shown ~= false, "the tree behind it")
+    env.EasyFind.db.classicArt = nil
+    ns.ApplyThemeFill(win)
+    H.assertEq(win._efTree.clip.shown, false, "the marble alone: no tree")
+end
+
+-- The fill over the tree stays clear through the window's opacity and its
+-- resizes (2026-10-27: Notes on Classic was the plain navy, its callback's
+-- opacity set ramping the fill back over the tree).
+function tests.classicTree_fillStaysClearThroughOpacityAndResize()
+    installClient(FOREVER_ART)
+    local ramped = { chrome = "classic", windowFill = { 0.05, 0.05, 0.1 },
+                     windowFillBottom = { 0.03, 0.03, 0.07 }, windowFillTop = { 0.07, 0.07, 0.13 } }
+    ns.ACTIVE_UI_PALETTE = ramped
+    borderOption(nil)
+    env.EasyFind.db.classicArt = "MageFire"
+    local win = surface(false)
+    ns.SetRoundedRectBorderBgAlpha(win, 0.9)
+    ns.ApplyThemeFill(win)
+    ns.SetRoundedRectBorderBgAlpha(win, 0.9)
+    ns.UpdateThemeFillGradient(win)
+    ns.SetRoundedRectBarHeight(win, 14)
+    for _, t in pairs(win.combinedBorder.fill) do
+        H.assertEq(t.alpha, 0, "the fill stays clear over the tree")
+    end
+    H.assertTrue(near(win._efTree.clip.alpha, 0.9), "the tree at the window's opacity")
+    -- Off the tree, the fill is back at the window's opacity.
+    ns.ACTIVE_UI_PALETTE = PLAIN
+    ns.ApplyThemeFill(win)
+    for _, t in pairs(win.combinedBorder.fill) do
+        H.assertTrue(near(t.alpha, 0.9), "the fill shows again")
+    end
+    env.EasyFind.db.classicArt = nil
+end
+
+-- A frame built without the backdrop template gets the backdrop mixed in,
+-- and with it the template's retile on resize: a card sized by anchors
+-- after it was dressed wore the marble stretched (2026-10-26).
+function tests.aMixedInBackdrop_retilesOnResize()
+    installClient(FOREVER_ART)
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    borderOption(true)
+    local retiled = 0
+    env.BackdropTemplateMixin = {
+        SetBackdrop = function(self, b) self.backdrop = b end,
+        SetBackdropColor = function(self, ...) self.bdColor = { ... } end,
+        SetBackdropBorderColor = function() end,
+        OnBackdropLoaded = function() end,
+        OnBackdropSizeChanged = function() retiled = retiled + 1 end,
+    }
+    env.Mixin = function(target, src) for k, v in pairs(src) do target[k] = v end return target end
+    local win = surface(false)
+    win.SetBackdrop = false
+    H.assertTrue(ns.ApplyClassicChrome(win, 0.9, "dialog"))
+    H.assertEq(win.backdrop, ns.CLASSIC_DIALOG)
+    H.assertTrue(win.hooks.OnSizeChanged ~= nil, "the template's resize script, hooked")
+    win.hooks.OnSizeChanged(win)
+    H.assertEq(retiled, 1)
+    env.BackdropTemplateMixin, env.Mixin = nil, nil
+    borderOption(nil)
+end
+
+function tests.switchingThemes_leavesOnlyOneSkin()
+    installClient(FOREVER_ART)
+    borderOption(true)
+    local f = classicSurface()
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    ns.ApplyThemeFill(f)
+    ns.ACTIVE_UI_PALETTE = FOREVER
+    ns.ApplyThemeFill(f)
+    H.assertTrue(f.backdrop == nil and f._efSkin == "forever", "classic frame removed for the Forever border")
+    ns.ACTIVE_UI_PALETTE = CLASSIC
+    ns.ApplyThemeFill(f)
+    H.assertTrue(not f._efForever.border.shown and f._efClassicBack.backdrop == ns.CLASSIC_BACKDROP
+        and f._efClassicBack.shown, "and back")
+    borderOption(nil)
+end
+
+local pass, fail, failures = H.runSuite("ForeverChrome", tests)
+return { pass = pass, fail = fail, failures = failures }

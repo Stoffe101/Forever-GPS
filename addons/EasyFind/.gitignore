@@ -1,0 +1,24 @@
+# Release artifacts
+*.zip
+
+# Archived / retired assets (kept on disk for reference, not shipped)
+archive/
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# Dev workspace artifacts
+# Developer-only tooling, tests, notes, and drafts. Never shipped or pushed.
+dev/
+target/
+.claude/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Local release tooling: never tracked, never shipped.
+release.sh
+__pycache__/

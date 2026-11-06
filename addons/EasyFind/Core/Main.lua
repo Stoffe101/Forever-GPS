@@ -1,0 +1,2224 @@
+local ADDON_NAME, ns = ...
+
+local Utils   = ns.Utils
+local L       = ns.L
+local sformat = Utils.sformat
+local pairs   = Utils.pairs
+local xpcall  = Utils.xpcall
+local mmin, mmax = Utils.mmin, Utils.mmax
+local mrad, mdeg, matan2, mcos, msin, msqrt = math.rad, math.deg, math.atan2, math.cos, math.sin, math.sqrt
+local ErrorHandler = Utils.ErrorHandler
+
+EasyFind = {}
+ns.EasyFind = EasyFind
+EasyFind._ns = ns
+-- This release, bumped with the tocs: a load-on-demand companion read in
+-- from newer files than the session began with meets another and stops.
+ns.BUILD = "5.2.0"
+
+local eventFrame = CreateFrame("Frame")
+ns.eventFrame = eventFrame
+
+EasyFind.db = {}
+
+-- Increment when DB schema changes; migrations [N] run when savedVersion < N.
+local DB_VERSION = 27
+local REVAMPED_TUTORIAL_VERSION = "2.0.0"
+ns.REVAMPED_TUTORIAL_VERSION = REVAMPED_TUTORIAL_VERSION
+
+local DB_DEFAULTS = {
+    dbVersion = DB_VERSION,
+    learnedStepLocks = {},
+    visible = true,
+    enableMapSearch = true,
+    iconScale = 0.8,
+    nativePinScale = 1.5,
+    uiSearchScale = 1.0,
+    uiSearchWidth = 1.54,
+    uiResultsScale = 1.0,
+    uiResultsWidth = 350,
+    uiSearchBarHeight = ns.SEARCHBAR_HEIGHT,
+    fontSize = ns.DEFAULT_FONT_SIZE,
+    searchWindowOpacity = ns.SEARCH_WINDOW_ALPHA,
+    uiSearchPosition = nil,
+    localMapDirectOpen = true,
+    globalMapDirectOpen = true,
+    autoHide = true,
+    smartShow = false,
+    -- Always Show only: false keeps the bar visible through combat
+    -- (results and focus still clear at the combat boundary).
+    combatHide = true,
+    -- Always Show only: dim the kept-shown bar in combat / while moving.
+    combatDim = false,
+    moveDim = false,
+    -- Border on the search window and its menus: on for a new install; saved choices stay.
+    windowBorder = true,
+    themeFrameArt = true,
+    lockPosition = false,
+    tutorialDone = false,
+    updateNotify = true,
+    hideExtensionTips = false,
+    showForeverWelcome = true,
+    snippets = {},
+    snippetChatExpansion = true,
+    -- Quicklists: named lists of results on a key (the companion reads these).
+    quicklists = {},
+    -- Clipboard history sources (the clipboard companion reads these).
+    clipboardCopied = true,
+    clipboardPasted = true,
+    -- Off by default: trade and city chat carry far more junk than links
+    -- worth keeping. Copies and pastes are the player's own doing.
+    clipboardChat = false,
+    clipboardWhispers = false,
+    clipboardSent = false,
+    -- The last copied entry as a row on the empty bar: opt in.
+    clipboardLastCopiedRow = false,
+    -- Notes that apply where you are, on the empty bar: opt in.
+    notesSurfaceHere = false,
+    resultClicks = {},
+    -- Result actions' chords by action id (Search/Results/RowActions.lua).
+    rowActionKeys = {},
+    clickSelectsRow = false,
+    -- Clipboard History's own view, from the filter menu's Clipboard
+    -- History flyout: which kinds show, and the order.
+    clipboardKindLink = true, clipboardKindEflink = true, clipboardKindMappin = true,
+    clipboardKindUrl = true, clipboardKindCommand = true, clipboardKindNumber = true,
+    clipboardKindText = true,
+    clipboardOldestFirst = false,
+    snippetTriggerChar = "\\",
+    accountKeybinds = {},
+    resultsTheme = "Modern",
+    font = "Default",
+    -- WoW Forever opens in its own look; retail in Midnight.
+    uiTheme = (ns.Caps and ns.Caps.forever) and "Forever" or "Midnight",
+    iconVisibility = "all",
+    indicatorStyle = "EasyFind Arrow",
+    indicatorColor = "Yellow",
+    uiResultsRows = 6,
+    pinnedUIItems = {},
+    pinnedUIItemsPerChar = {},
+    pinnedMapItems = {},
+    lootStatCache = {},
+    lootStatCacheVer = 0,
+    lootItemCache = {},
+    lootItemCacheVer = 0,
+    bossCache = {},
+    bossCacheVer = 0,
+    statisticCache = {},
+    statisticCacheVer = 0,
+    -- Persisted Blizzard-options search index. Validity is gated by an internal
+    -- signature (schema + build + locale + enabled-addon set), so no companion
+    -- Ver field or reset block is needed -- a signature miss rebuilds it.
+    optionsSearchCache = {},
+    mapPinsCollapsed = false,
+    blinkingPins = false,
+    mapPinStyle = "glow",
+    autoPinClear = true,
+    autoTrackPins = true,
+    uiResultsAbove = false,
+    showResultShortcutHints = true,
+    showMinimapButton = true,
+    minimapButtonAngle = 200,
+    globalSearchFilters = {
+        zones = true,
+        dungeons = true,
+        raids = true,
+        delves = true,
+    },
+    localSearchFilters = {
+        instances = true,
+        travel = true,
+        services = true,
+        rares = true,
+    },
+    mapTabFilters = {
+        zones = true,
+        instances = true,
+        raid = true,
+        dungeon = true,
+        delve = true,
+        travel = true,
+        flights = false,
+        boats = true,
+        portals = true,
+        services = true,
+        banks = true,
+        auction = true,
+        inns = true,
+        mail = true,
+        trainers = true,
+        vendors = true,
+        appearance = true,
+        otherservices = true,
+        rares = true,
+        npcs = false,
+    },
+    -- The search bar's map buckets, independent of the map tab's so the
+    -- bar can stay lean while the tab shows everything.
+    addonOptionsFilters = {},
+    uiMapFilters = {
+        zones = true,
+        instances = true,
+        raid = true,
+        dungeon = true,
+        delve = true,
+        travel = true,
+        flights = false,
+        boats = true,
+        portals = true,
+        services = true,
+        banks = true,
+        auction = true,
+        inns = true,
+        mail = true,
+        trainers = true,
+        vendors = true,
+        appearance = true,
+        otherservices = true,
+        rares = true,
+        npcs = false,
+    },
+    mapTabRecentSearches = {},
+    mapTabShowRecent = true,
+    mapTabRecentCount = 3,
+    mapTabFontSize = 1,
+    mapTabAutoExpand = true,
+    mapTabShowParents = true,
+    mapSidePanelOpen = false,
+    alwaysShowRares = false,
+    housingCollection = "collected",
+    housingDyeableOnly = false,
+    housingCollectionBonusOnly = false,
+    housingIndoors = true,
+    housingOutdoors = true,
+    housingShowRooms = false,
+    housingSortType = 0,
+    housingTags = {},
+    housingTagGroupsCache = {},
+    housingFiltersPendingPush = false,
+    professionFilters = {},
+    skillFilters = {},
+    professionRecipeFilters = {},
+    professionFiltersPendingPush = false,
+    uiSearchFilters = {
+        achievements   = true,
+        characterInfo  = true,
+        statistics     = false,
+        charPlayed     = true,
+        charSeen       = true,
+        charGold       = true,
+        charLevel      = true,
+        currencies     = true,
+        reputations    = true,
+        collections    = true,
+        gameOptions    = true,
+        addonOptions   = true,
+        mounts         = true,
+        toys           = true,
+        pets           = true,
+        outfits        = true,
+        heirlooms      = true,
+        loot           = true,
+        housing        = true,
+        appearances    = true,
+        appearanceItems = true,
+        appearanceSets = true,
+        items          = true,
+        catalog        = false,
+        bags           = true,
+        bank           = false,
+        macros         = true,
+        options        = true,
+        professions    = false,
+        abilities      = true,
+        bosses         = true,
+        gearSets       = true,
+        skills         = true,
+        talents        = true,
+        titles         = true,
+        map            = true,
+    },
+    -- "all" | "current" | a specific "Name-Realm" key. Defaults to the logged-in
+    -- character: the account bank is shown regardless of scope, so this is only
+    -- about how much of your alts' storage bleeds into every search.
+    bankScope = "current",
+    -- Same three-way scope for bags. "current" is the live read the provider
+    -- has always done, so the default behaves exactly as before.
+    bagScope = "current",
+    lootSpecs = nil,
+    lootSearchSlots = true,
+    lootSearchStats = true,
+    lootUpgradesOnly = false,
+    lootDifficulty = "normal",
+    mountFilterCollected = true,
+    mountFilterNotCollected = false,
+    mountFilterUnusable = false,
+    mountTypeGround = true,
+    mountTypeFlying = true,
+    mountTypeAquatic = true,
+    mountTypeRideAlong = true,
+    mountSourceFilters = {},
+    heirloomFilterCollected = true,
+    heirloomFilterNotCollected = false,
+    heirloomSourceFilters = {},
+    toyFilterCollected = true,
+    toyFilterNotCollected = false,
+    toyFilterUnusable = true,
+    toySourceFilters = {},
+    toyExpansionFilters = {},
+    petFilterCollected = true,
+    petFilterNotCollected = false,
+    petSourceFilters = {},
+    petTypeFilters = {},
+    hideTooltips = {
+        collections = false,
+        loot        = false,
+        abilities   = false,
+        talents     = false,
+        macros      = false,
+        bags        = false,
+        bank        = false,
+        items       = false,
+        currencies  = false,
+    },
+    currencyFilterMode = "all",
+    gearSetSpecFilter = "all",
+    reputationFilterMode = "all",
+    achievementFilterMode = "all",
+    -- "all" | "recorded" | "unrecorded". All by default: statistics are a
+    -- reference list, so narrowing is opt-in.
+    statisticFilterMode = "all",
+    talentShowSpecs = true,
+    talentShowLoadouts = true,
+    titleFilterMode = "earned",
+    catalogQualityTier = 0,        -- 0 = all crafting tiers, else keep only 1/2/3
+    catalogTypeFilters = {},       -- per-type-bucket enable; absent/true = shown
+    hideAchievementHeaders = true,
+    hideGuildAchievements = true,
+    showLegacyReputations = false,
+    abilityHidePassives = false,
+    macroFilterGeneral = true,
+    macroFilterChar = true,
+    bossFilterDungeon = true,
+    bossFilterRaid = true,
+    bagHideJunk = false,
+    wowheadLocale = "auto",
+    shortkeyConflictPrompt = true,
+    commandShowNative = true,
+    commandShowCustom = true,
+    appearanceSetClass = nil,
+    appearanceSetCollected = true,
+    appearanceSetNotCollected = true,
+    appearanceSetPvE = true,
+    appearanceSetPvP = true,
+    uiMapSearchLocal = true,
+    aliases = {},
+    shortkeys = {},
+    shortkeysPerChar = {},
+    uiSearchHistory = {},
+    uiSearchHistoryLimit = 500,
+    searchAutocomplete = true,
+    mapTabAutocomplete = true,
+    showAppsButton = true,
+    showFilterButton = true,
+    -- "This zone only" per map category (a filter bucket key -> true), `all`
+    -- for every category; absent, every zone's places show, yours first.
+    mapZoneOnly = {},
+    learnFromPicks = true,
+    macroPickerSearch = true,
+    spotlightsDone = {},
+    queryLearn = {},
+}
+-- Exposed so option resets restore from the same table first-run uses;
+-- keeping a second copy in OptionsPanel let the two drift apart.
+ns.DB_DEFAULTS = DB_DEFAULTS
+
+local function RequireRevampedTutorial(db)
+    if db.revampedTutorialVersion ~= REVAMPED_TUTORIAL_VERSION then
+        db.tutorialDone = false
+        db.lastSeenVersion = REVAMPED_TUTORIAL_VERSION
+    end
+end
+
+local CloneDefaultValue = ns.Utils.DeepCopy
+
+-- Keys preserved across the 2.0 settings reset; all others restored to defaults.
+local PRESERVED_KEYS = {
+    dbVersion = true,
+    tutorialDone = true,
+    mapTabRecentSearches = true,
+    aliases = true,
+    shortkeys = true,
+    shortkeysPerChar = true,
+    uiSearchHistory = true,
+    uiSearchHistoryLimit = true,
+    accountKeybinds = true,
+}
+
+local RETIRED_SETTINGS_KEYS = {
+    enableUISearch = true,
+    mapSearchScale = true,
+    mapSearchWidth = true,
+    mapResultsScale = true,
+    mapResultsWidth = true,
+    mapFontSize = true,
+    mapResultsHeight = true,
+    mapResultsAbove = true,
+    mapSearchPosition = true,
+    globalSearchPosition = true,
+    mapSearchPositionMax = true,
+    globalSearchPositionMax = true,
+    mapSearchYOffset = true,
+    hideSearchBarsMaximized = true,
+    directOpen = true,
+    mapSmartShow = true,
+    pinsCollapsed = true,
+    arrivalDistance = true,
+    minimapArrowGlow = true,
+    glowOnlyEasyFind = true,
+    minimapGuideCircle = true,
+    circleOnlyEasyFind = true,
+    guideCircleScale = true,
+    minimapPinGlow = true,
+    panelOpacity = true,
+    searchBarOpacity = true,
+    staticOpacity = true,
+    suggestedKeybindsApplied = true,
+    optionsPosition = true,
+    lootFilter = true,
+    showTruncationMessage = true,
+    hardResultsCap = true,
+}
+
+local function ApplyFreshSettingsFor2(db)
+    for key, defaultValue in pairs(DB_DEFAULTS) do
+        if not PRESERVED_KEYS[key] then
+            db[key] = CloneDefaultValue(defaultValue)
+        end
+    end
+
+    for key in pairs(RETIRED_SETTINGS_KEYS) do
+        db[key] = nil
+    end
+
+    RequireRevampedTutorial(db)
+end
+
+-- User data and history kept when the player hits "Reset all settings"; every
+-- other DB_DEFAULTS key is restored. Keeps everything the 2.0 migration
+-- preserves, plus pins and the loot-stat cache. Inheriting PRESERVED_KEYS means
+-- a new user-data key added there is honored here automatically.
+local INTERACTIVE_RESET_PRESERVE = {
+    pinnedUIItems = true,
+    pinnedUIItemsPerChar = true,
+    pinnedMapItems = true,
+    lootStatCache = true,
+    lootStatCacheVer = true,
+    lootItemCache = true,
+    lootItemCacheVer = true,
+    bossCache = true,
+    bossCacheVer = true,
+    statisticCache = true,
+    statisticCacheVer = true,
+    optionsSearchCache = true,
+    -- The player's own lists and learned picks are data, not settings.
+    snippets = true,
+    quicklists = true,
+    queryLearn = true,
+}
+for key in pairs(PRESERVED_KEYS) do
+    INTERACTIVE_RESET_PRESERVE[key] = true
+end
+
+-- DB_DEFAULTS table-literal keys whose default is nil drop out of the table, so
+-- pairs() never visits them; clear them explicitly on reset.
+local NIL_DEFAULT_KEYS = { "uiSearchPosition", "lootSpecs", "appearanceSetClass", "heirloomFilter", "lootFilter",
+                           "appearanceItemClass", "appearanceItemSlot", "appearanceItemSourceFilters" }
+
+function EasyFind:ResetSettingsToDefaults()
+    local db = self.db
+    if not db then return end
+    for key, defaultValue in pairs(DB_DEFAULTS) do
+        if not INTERACTIVE_RESET_PRESERVE[key] then
+            db[key] = CloneDefaultValue(defaultValue)
+        end
+    end
+    for i = 1, #NIL_DEFAULT_KEYS do
+        db[NIL_DEFAULT_KEYS[i]] = nil
+    end
+end
+
+local DB_MIGRATIONS = {
+    [1] = function(db)
+        if db.maxResults then
+            if not db.uiMaxResults then db.uiMaxResults = db.maxResults end
+            if not db.mapMaxResults then db.mapMaxResults = db.maxResults end
+            db.maxResults = nil
+        end
+        if db.uiResultsWidth == 1.0 then db.uiResultsWidth = 300 end
+    end,
+    [2] = function(db)
+        if db.uiResultsWidth == 300 then db.uiResultsWidth = 350 end
+    end,
+    [3] = function(db)
+        if not db.uiResultsHeight then
+            db.uiResultsHeight = db.uiMaxResults and (db.uiMaxResults * 28) or 280
+        end
+        db.uiMaxResults = nil
+        db.mapMaxResults = nil
+    end,
+    [4] = function(db)
+        local w = db.uiSearchWidth
+        if w == nil or w <= 0.88 then
+            db.uiSearchWidth = 1.54
+        end
+    end,
+    [5] = function(db)
+        if db.localMapDirectOpen == false then db.localMapDirectOpen = true end
+        if db.globalMapDirectOpen == false then db.globalMapDirectOpen = true end
+    end,
+    [6] = function(db)
+        if db.mapTabFilters and db.mapTabFilters.flightpath == nil then
+            db.mapTabFilters.flightpath = false
+        end
+    end,
+    [8] = function(db)
+        if db.resultsTheme == "Retail" or db.resultsTheme == "Classic" then
+            db.resultsTheme = "Modern"
+        end
+    end,
+    [9] = function(db)
+        db.panelOpacity = nil
+    end,
+    [10] = function(db)
+        if not db.uiSearchBarHeight then db.uiSearchBarHeight = ns.SEARCHBAR_HEIGHT end
+    end,
+    [11] = function(db)
+        RequireRevampedTutorial(db)
+    end,
+    [12] = function(db)
+        db.searchBarOpacity = nil
+    end,
+    [13] = function(db)
+        RequireRevampedTutorial(db)
+    end,
+    [14] = function(db)
+        db.staticOpacity = nil
+        db.searchBarOpacity = nil
+        db.suggestedKeybindsApplied = nil
+        if db.mapTabFilters then
+            db.mapTabFilters.flightpath = false
+        end
+    end,
+    [15] = function(db)
+        db.showLoginMessage = false
+    end,
+    [16] = function(db)
+        if db.tutorialDone == true
+           and db.lastSeenVersion == REVAMPED_TUTORIAL_VERSION
+           and db.revampedTutorialVersion ~= REVAMPED_TUTORIAL_VERSION then
+            db.revampedTutorialVersion = REVAMPED_TUTORIAL_VERSION
+        end
+    end,
+    [17] = function(db)
+        ApplyFreshSettingsFor2(db)
+    end,
+    [18] = function(db)
+        -- Split the search bar's map filters from the map tab's: seed the
+        -- bar's store from the previously shared table so nothing changes
+        -- until the player diverges them.
+        if type(db.mapTabFilters) == "table" then
+            local barFilters = {}
+            for k, v in pairs(db.mapTabFilters) do barFilters[k] = v end
+            db.uiMapFilters = barFilters
+        end
+    end,
+    [19] = function(db)
+        -- Fold the standalone "flightpath" bucket into travel as "flights" and
+        -- seed the new instance/travel sub-filters so existing saves keep
+        -- everything visible except flight paths (which stayed off by default).
+        local seeded = {
+            "raid", "dungeon", "delve", "boats", "portals",
+            "banks", "auction", "inns", "mail", "trainers",
+            "vendors", "appearance", "otherservices",
+        }
+        local function foldFilters(t)
+            if type(t) ~= "table" then return end
+            if t.flights == nil then t.flights = t.flightpath == true end
+            t.flightpath = nil
+            for i = 1, #seeded do
+                if t[seeded[i]] == nil then t[seeded[i]] = true end
+            end
+        end
+        foldFilters(db.mapTabFilters)
+        foldFilters(db.uiMapFilters)
+    end,
+    [20] = function(db)
+        -- Manual-resize floor rose from 150px to 250px (multiplier 1.0 over
+        -- the 250 base); lift narrower saves onto the new floor.
+        local w = db.uiSearchWidth
+        if type(w) == "number" and w < 1.0 then
+            db.uiSearchWidth = 1.0
+        end
+    end,
+    [21] = function(db)
+        -- Results viewport is row-count owned; the pixel height is retired.
+        db.uiResultsHeight = nil
+    end,
+    [22] = function(db)
+        -- The highlight box toggle became a style; a box turned off stays off.
+        if db.mapPinHighlight == false then db.mapPinStyle = "off" end
+        db.mapPinHighlight = nil
+    end,
+    [24] = function(db)
+        -- The achievement index is a cache: copies filed in profile slots go.
+        for _, slot in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            if type(slot) == "table" and type(slot.settings) == "table" then
+                slot.settings.achievementIndex = nil
+            end
+        end
+    end,
+    [25] = function(db)
+        -- The GPS arrival chat line and its switch are gone.
+        db.gpsChatArrive = nil
+        for _, slot in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            if type(slot) == "table" and type(slot.settings) == "table" then
+                slot.settings.gpsChatArrive = nil
+            end
+        end
+    end,
+    [26] = function(db)
+        -- The alias chat line and its switch are gone.
+        db.showAliasMessages = nil
+        for _, slot in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            if type(slot) == "table" and type(slot.settings) == "table" then
+                slot.settings.showAliasMessages = nil
+            end
+        end
+    end,
+    [27] = function(db)
+        -- "This zone only" is per map category: the one switch becomes all of them.
+        if db.mapCategoryScope == "local" then db.mapZoneOnly = { all = true } end
+        db.mapCategoryScope = nil
+    end,
+}
+
+local RUNTIME_FIELDS = {
+    "firstInstall",
+}
+
+local GITHUB_ISSUES_URL = "https://github.com/fallenguards/EasyFind/issues/new"
+-- Consumed by the What's New footer's "See full changelog" link.
+ns.GITHUB_CHANGELOG_URL = "https://github.com/fallenguards/EasyFind/blob/main/CHANGELOG.md"
+
+local function UrlEncode(str)
+    return str:gsub("([^%w%-%.%_%~ ])", function(c)
+        return sformat("%%%02X", c:byte())
+    end):gsub(" ", "+")
+end
+
+-- A GitHub form's link in a dialog: what it opens, the link selected for
+-- Ctrl+C. The game opens no browser.
+local function ShowFeedbackURL(url, about)
+    ns.ShowThemedDialog({
+        text = about, hasEditBox = true, editBoxDefault = url, maxLetters = 0, readOnly = true,
+        single = true, acceptText = _G["CLOSE"] or "Close",
+    })
+end
+
+local function OpenBugReport()
+    local version = ns.version or "unknown"
+    local url = GITHUB_ISSUES_URL .. "?template=bug_report.yml&version=" .. UrlEncode(version)
+    ShowFeedbackURL(url, L["FEEDBACK_LINK_BUG"])
+end
+
+local function OpenFeatureRequest()
+    local url = GITHUB_ISSUES_URL .. "?template=feature_request.yml"
+    ShowFeedbackURL(url, L["FEEDBACK_LINK_FEATURE"])
+end
+
+function EasyFind:OpenBugReport() OpenBugReport() end
+
+-- A GPS route report: the issue form with the route's line filled in.
+function EasyFind:OpenRouteReport(code, step)
+    ShowFeedbackURL(GITHUB_ISSUES_URL .. "?template=route_report.yml&version=" .. UrlEncode(ns.version or "unknown")
+        .. "&route=" .. UrlEncode(code) .. (step and ("&step=" .. UrlEncode(step)) or ""), L["FEEDBACK_LINK_ROUTE"])
+end
+function EasyFind:OpenFeatureRequest() OpenFeatureRequest() end
+
+-- Account-wide binds a brand-new install starts with; seeded once at login.
+local SUGGESTED_KEYBINDS = {
+    EASYFIND_TOGGLE_FOCUS = "CTRL-SPACE",
+    EASYFIND_MAP_FOCUS = "CTRL-M",
+}
+
+-- The welcome message's links. ResultLinks registers the easyfind link type
+-- with the game, so SetItemRef returns and the post-hook below sees the click.
+-- The release the What's New popup describes: bumped, and the body
+-- rewritten, with every release.
+local WHATSNEW_CONTENT_VERSION = "5.2.0"
+
+local WHATSNEW_LINK_PREFIX = "easyfind:whatsnew:"
+local TUTORIAL_LINK_PREFIX = "easyfind:tutorial"
+local PAGE_LINK_PREFIX = "easyfind:page:"
+local EXTENSIONS_LINK = "easyfind:extensions"
+local BUG_REPORT_LINK = "easyfind:bugreport"
+local FOREVER_WELCOME_OFF_LINK = "easyfind:foreverwelcomeoff"
+local whatsNewHookInstalled = false
+
+local function InstallWhatsNewHyperlinkHook()
+    if whatsNewHookInstalled then return end
+    whatsNewHookInstalled = true
+    -- hooksecurefunc, never a global replacement: secure code reads the
+    -- SetItemRef global, so replacing it taints every secure reader (the
+    -- taint log traced chat -> macro -> UseAction -> action bar blocks back
+    -- to exactly this). Blizzard's own handler no-ops on unknown link
+    -- types, so observing after it is sufficient for our custom prefix.
+    hooksecurefunc("SetItemRef", function(link, text, button, chatFrame)
+        if link and link:sub(1, #WHATSNEW_LINK_PREFIX) == WHATSNEW_LINK_PREFIX then
+            local version = link:sub(#WHATSNEW_LINK_PREFIX + 1)
+            if ns.RequestOnboarding() and ns.Onboarding.ShowWhatsNew then
+                xpcall(ns.Onboarding.ShowWhatsNew, ErrorHandler, ns.Onboarding, version)
+            end
+        elseif link == TUTORIAL_LINK_PREFIX then
+            if ns.RequestOnboarding() and ns.Wizard.Show then
+                xpcall(ns.Wizard.Show, ErrorHandler, ns.Wizard)
+            end
+        elseif link and link:sub(1, #PAGE_LINK_PREFIX) == PAGE_LINK_PREFIX then
+            ns.ShowExtensionPage(link:sub(#PAGE_LINK_PREFIX + 1))
+        elseif link == EXTENSIONS_LINK then
+            ns.ShowExtensionPages()
+        elseif link == BUG_REPORT_LINK then
+            OpenBugReport()
+        elseif link == FOREVER_WELCOME_OFF_LINK then
+            ns.ShowThemedDialog({
+                text = L["FOREVER_WELCOME_HIDE_ASK"], acceptText = _G["HIDE"] or "Hide",
+                onAccept = function() EasyFind.db.showForeverWelcome = false end,
+            })
+        end
+    end)
+end
+
+-- Same blue as the options-page link chips; brackets are the chat-native
+-- clickable affordance (a glow texture cannot render inside a chat line).
+local function BlueChatLink(target, label)
+    local LC = ns.LINK_COLOR or { 0.44, 0.84, 1.0 }
+    return sformat("|cff%02x%02x%02x|H%s|h[%s]|h|r",
+        LC[1] * 255, LC[2] * 255, LC[3] * 255, target, label)
+end
+ns.BlueChatLink = BlueChatLink
+
+-- The tutorial offered in chat instead of opened: WoW Forever's beta has
+-- lost saved variables between sessions, and a wizard that opens on every
+-- login is worse than none. One line, one link; nothing else changes.
+function ns.OfferTutorialInChat()
+    print(ns.CHAT_LOGO .. sformat(L["TUTORIAL_CHAT_OFFER"], BlueChatLink(TUTORIAL_LINK_PREFIX, L["WHATSNEW_CHAT_HERE"])))
+end
+
+-- WoW Forever is a new client: at every login, a word on its bugs and a
+-- link to the bug report form, until the player hides it (its own link, or
+-- Options > General).
+local function WelcomeForever()
+    if not (ns.Caps and ns.Caps.forever) or EasyFind.db.showForeverWelcome == false then return end
+    Utils.SafeAfter(2.5, function()
+        print(ns.CHAT_LOGO .. sformat(L["FOREVER_WELCOME"], BlueChatLink(BUG_REPORT_LINK, L["WHATSNEW_CHAT_HERE"]))
+            .. " " .. BlueChatLink(FOREVER_WELCOME_OFF_LINK, L["FOREVER_WELCOME_HIDE"]))
+    end)
+end
+
+-- Whether the wizard may open on its own on this client.
+function ns.TutorialOpensItself()
+    return not (ns.Caps and ns.Caps.forever)
+end
+
+local function ShowWhatsNewChatMessage(version)
+    local v = version or "?"
+    local link = BlueChatLink(WHATSNEW_LINK_PREFIX .. v, L["WHATSNEW_CHAT_HERE"])
+    local msg = sformat(L["WHATSNEW_CHAT_HELLO"], v, link)
+    -- Plain print: the hello already carries the green brand, so the
+    -- usual "EasyFind:" Print prefix would say the name twice.
+    print(ns.CHAT_LOGO .. msg)
+end
+ns.ShowWhatsNewChatMessage = ShowWhatsNewChatMessage
+
+-- Compare two dotted version strings numerically: -1 / 0 / 1 for a<b, a==b, a>b.
+-- Missing or non-numeric segments count as 0, so "2.0" == "2.0.0" and a
+-- malformed value sorts oldest. String comparison can't be used: "2.0.10"
+-- must rank above "2.0.2".
+-- Numbers in order, then a pre-release tag ("4.0.0-beta1") ranks below the
+-- plain version and betas among themselves by their number.
+local function CompareVersion(a, b)
+    a, b = tostring(a or ""), tostring(b or "")
+    local abase, apre = a:match("^([^-]*)-?(.*)$")
+    local bbase, bpre = b:match("^([^-]*)-?(.*)$")
+    local ai, bi = abase:gmatch("%d+"), bbase:gmatch("%d+")
+    while true do
+        local av, bv = ai(), bi()
+        if av == nil and bv == nil then break end
+        av, bv = tonumber(av) or 0, tonumber(bv) or 0
+        if av ~= bv then return av < bv and -1 or 1 end
+    end
+    if (apre == "") ~= (bpre == "") then return apre == "" and 1 or -1 end
+    local an, bn = tonumber(apre:match("%d+")) or 0, tonumber(bpre:match("%d+")) or 0
+    if an ~= bn then return an < bn and -1 or 1 end
+    return 0
+end
+-- The What's New gate and the peer update check must rank versions the same
+-- way; one implementation, shared.
+ns.CompareVersion = CompareVersion
+
+-- Fills in every DB_DEFAULTS key the table lacks (and every sub-key of a
+-- table default), each a copy so no two profiles ever share a default
+-- table. Runs at load and after a profile switch.
+local function ApplyDBDefaults(db)
+    for k, v in pairs(DB_DEFAULTS) do
+        if db[k] == nil then
+            db[k] = CloneDefaultValue(v)
+        elseif type(v) == "table" and type(db[k]) == "table" then
+            for sk, sv in pairs(v) do
+                if db[k][sk] == nil then
+                    db[k][sk] = CloneDefaultValue(sv)
+                end
+            end
+        end
+    end
+end
+ns.ApplyDBDefaults = ApplyDBDefaults
+
+-- Profile slots keep the settings shape of schema 21 (3.4.0); steps from 22
+-- on run there too, so each must be safe to rerun.
+local SLOT_STEPS_FROM = 22
+local function MigrateSlots(db, fromVersion)
+    if type(db.profiles) ~= "table" then return end
+    for v = mmax(fromVersion + 1, SLOT_STEPS_FROM), db.dbVersion do
+        local step = DB_MIGRATIONS[v]
+        if step then
+            for _, slot in pairs(db.profiles) do
+                if type(slot) == "table" and type(slot.settings) == "table" then
+                    xpcall(step, ErrorHandler, slot.settings)
+                end
+            end
+        end
+    end
+end
+
+local function OnInitialize()
+    -- A new save starts at the current schema: no step applies to it.
+    EasyFindDB = EasyFindDB or { firstInstall = true, dbVersion = DB_VERSION }
+    EasyFindDB.dbVersion = tonumber(EasyFindDB.dbVersion) or 0
+    local savedVersion = EasyFindDB.dbVersion
+    -- Steps before defaults: a step's nil test sees the save as it was.
+    Utils.Migrate(EasyFindDB, "dbVersion", DB_MIGRATIONS, DB_VERSION)
+    MigrateSlots(EasyFindDB, savedVersion)
+    ApplyDBDefaults(EasyFindDB)
+
+    for k, v in pairs(EasyFindDB) do
+        local default = DB_DEFAULTS[k]
+        if default ~= nil and type(v) ~= type(default) then
+            EasyFindDB[k] = CloneDefaultValue(default)
+        end
+    end
+
+    EasyFind.db = EasyFindDB
+    -- The profile this character (or class) picked goes live before any
+    -- module reads the db. A per-spec pick waits for login.
+    if ns.Profiles then ns.Profiles:OnInitialize() end
+
+    ns.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")
+
+    SLASH_EASYFIND1 = "/ef"
+    SlashCmdList["EASYFIND"] = function(msg)
+        msg = msg and msg:lower():trim() or ""
+        if msg == "o" or msg == "options" or msg == "config" or msg == "settings" then
+            EasyFind:OpenOptions()
+        elseif msg == "toggle" or msg == "t" then
+            if ns.Search then ns.Search:Toggle() end
+        elseif msg == "c" or msg == "clear" then
+            EasyFind:ClearAll()
+        elseif msg == "r" or msg == "reset" then
+            if ns.RequestOptionsPanel() and ns.Options then
+                ns.Options:Initialize()
+                ns.Options:ConfirmResetAll()
+            end
+        elseif msg == "reset positions" then
+            if ns.RequestOptionsPanel() and ns.Options then
+                ns.Options:Initialize()
+                ns.Options:ConfirmResetPositions()
+            end
+        elseif msg == "bug" then
+            OpenBugReport()
+        elseif msg == "feature" then
+            OpenFeatureRequest()
+        elseif msg == "setup" or msg == "tutorial" or msg == "wizard" or msg == "welcome" then
+            if ns.RequestOnboarding() and ns.Wizard.Show then
+                EasyFind.db.tutorialDone = false
+                ns.Wizard:Show()
+            end
+        elseif msg == "whatsnew" then
+            if not ns.RequestOnboarding() then
+                return
+            elseif ns.version == "2.0.0" and ns.Wizard.Show then
+                EasyFind.db.tutorialDone = false
+                ns.Wizard:Show()
+            elseif ns.Onboarding.ShowWhatsNew then
+                ns.Onboarding:ShowWhatsNew(ns.version)
+            end
+        elseif msg == "help" or msg == "h" or msg == "?" then
+            EasyFind:Print(L["CMD_HEADER"])
+            EasyFind:Print(L["CMD_OPTIONS"])
+            EasyFind:Print(L["CMD_CLEAR"])
+            EasyFind:Print(L["CMD_RESET"])
+            EasyFind:Print(L["CMD_BUG"])
+            EasyFind:Print(L["CMD_FEATURE"])
+        elseif msg == "" then
+            EasyFind:OpenOptions()
+        end
+    end
+
+    -- /notes: the Notes window, or a note by its alias.
+    SLASH_EASYFINDNOTES1 = "/notes"
+    SlashCmdList["EASYFINDNOTES"] = function(msg)
+        if ns.RequestNotes() and ns.Notes.Slash then ns.Notes.Slash(msg) end
+    end
+
+    InstallWhatsNewHyperlinkHook()
+end
+
+local SafeAfter = Utils.SafeAfter
+
+local function MarkDynamicCategoryDirty(key)
+    if ns.Database and ns.Database.MarkDynamicCategoryDirty then
+        ns.Database:MarkDynamicCategoryDirty(key)
+    end
+    if ns.Search and ns.Search.RebuildOpenResults then
+        ns.Search:RebuildOpenResults()
+    end
+end
+
+-- One forward hook per class/spec filter: when the player changes a Blizzard
+-- panel's class/spec dropdown, mirror it into our db so our list follows. These
+-- were near-identical hand-rolled hooks, so they share one installer driven by a
+-- descriptor. hasSpec selects the class-only vs class+spec mapping; suppress is
+-- the flag our own db->game push raises so the hook ignores our writes.
+local function ClassFilterFromGame(hasSpec, classID, specID)
+    if not classID or classID <= 0 then return "all" end
+    local _, _, playerClassID = UnitClass("player")
+    if not hasSpec then
+        if classID == playerClassID then return nil end
+        return { classID = classID }
+    end
+    if not specID or specID == 0 then return { classID = classID } end
+    local si = GetSpecialization and GetSpecialization()
+    local playerSpecID = si and GetSpecializationInfo and GetSpecializationInfo(si)
+    if classID == playerClassID and specID == playerSpecID then return nil end
+    return { classID = classID, specID = specID }
+end
+
+local function SameClassFilter(a, b)
+    local aID = type(a) == "table" and a.classID or a
+    local bID = type(b) == "table" and b.classID or b
+    if aID ~= bID then return false end
+    local aSpec = type(a) == "table" and a.specID or nil
+    local bSpec = type(b) == "table" and b.specID or nil
+    return aSpec == bSpec
+end
+
+local CLASS_FILTER_HOOKS = {
+    { dbKey = "appearanceSetClass",  provider = "transmogSets",
+      tbl = C_TransmogSets,       method = "SetTransmogSetsClassFilter",
+      suppress = "_tmogClassHookSuppress",    installed = "_tmogClassHooked" },
+    { dbKey = "appearanceItemClass", provider = "appearanceItems",
+      tbl = C_TransmogCollection,  method = "SetClassFilter",
+      suppress = "_appItemClassHookSuppress", installed = "_tmogItemClassHooked" },
+    { dbKey = "heirloomFilter",      provider = "heirlooms", hasSpec = true,
+      tbl = C_Heirloom,            method = "SetClassAndSpecFilters",
+      suppress = "_heirloomHookSuppress",     installed = "_heirloomClassHooked" },
+    { dbKey = "lootFilter",          provider = "loot", hasSpec = true,
+      tbl = C_EncounterJournal,    method = "SetLootFilter", globalFn = "EJ_SetLootFilter",
+      suppress = "_lootFilterHookSuppress",   installed = "_lootClassHooked" },
+}
+
+local function InstallClassFilterHook(desc)
+    if EasyFind[desc.installed] then return end
+    local function onChange(classID, specID)
+        if EasyFind[desc.suppress] then return end
+        local db = EasyFind.db
+        if not db then return end
+        local newVal = ClassFilterFromGame(desc.hasSpec, classID, specID)
+        if SameClassFilter(db[desc.dbKey], newVal) then return end
+        db[desc.dbKey] = newVal
+        MarkDynamicCategoryDirty(desc.provider)
+    end
+    local tbl = desc.tbl
+    if tbl and tbl[desc.method] then
+        EasyFind[desc.installed] = true
+        hooksecurefunc(tbl, desc.method, onChange)
+    elseif desc.globalFn and _G[desc.globalFn] then
+        EasyFind[desc.installed] = true
+        hooksecurefunc(desc.globalFn, onChange)
+    end
+end
+
+local function InstallClassFilterHooks()
+    for i = 1, #CLASS_FILTER_HOOKS do
+        InstallClassFilterHook(CLASS_FILTER_HOOKS[i])
+    end
+end
+
+-- Deprecated compatibility hook retained for external callers.
+function EasyFind:EnsureDynamicLoaded()
+    -- Legacy public hook. Dynamic data is now requested by SearchEngine from
+    -- the active query instead of speculatively loading every provider.
+end
+
+-- EasyFind's keybinds are fully addon-managed: the chosen key is stored
+-- account-wide in EasyFindDB and applied as an override-click each login.
+-- They are not WoW named bindings, so they never appear in Blizzard's
+-- keybinding panel and work the same on every character.
+local EASYFIND_BINDINGS = { "EASYFIND_TOGGLE_FOCUS", "EASYFIND_FOCUS_BAR", "EASYFIND_MAP_FOCUS", "EASYFIND_CLEAR",
+                            "EASYFIND_CLIPBOARD", "EASYFIND_HOVER_NOTE" }
+local EASYFIND_BINDING_LOOKUP = {}
+for i = 1, #EASYFIND_BINDINGS do EASYFIND_BINDING_LOOKUP[EASYFIND_BINDINGS[i]] = true end
+
+local bindingOverrideOwner = CreateFrame("Frame")
+
+local KEYBIND_BUTTON = {
+    EASYFIND_TOGGLE_FOCUS = "EasyFindKeybindToggleButton",
+    EASYFIND_FOCUS_BAR    = "EasyFindKeybindFocusButton",
+    EASYFIND_MAP_FOCUS    = "EasyFindKeybindMapButton",
+    EASYFIND_CLEAR        = "EasyFindKeybindClearButton",
+    EASYFIND_CLIPBOARD    = "EasyFindKeybindClipboardButton",
+    EASYFIND_HOVER_NOTE   = "EasyFindKeybindNoteButton",
+}
+do
+    local toggleBtn = CreateFrame("Button", "EasyFindKeybindToggleButton", UIParent)
+    toggleBtn:Hide()
+    toggleBtn:SetScript("OnClick", function() EasyFind:ToggleFocusSearchUI() end)
+    -- Focus-only (no toggle): meaningful with Always Show, where the bar
+    -- is already up and the bind just puts the cursor in the editbox.
+    local focusBtn = CreateFrame("Button", "EasyFindKeybindFocusButton", UIParent)
+    focusBtn:Hide()
+    focusBtn:SetScript("OnClick", function()
+        if ns.Search and ns.Search.Focus then ns.Search:Focus() end
+    end)
+    local mapBtn = CreateFrame("Button", "EasyFindKeybindMapButton", UIParent)
+    mapBtn:Hide()
+    mapBtn:SetScript("OnClick", function() EasyFind:FocusMapSearch() end)
+    local clearBtn = CreateFrame("Button", "EasyFindKeybindClearButton", UIParent)
+    clearBtn:Hide()
+    clearBtn:SetScript("OnClick", function() EasyFind:ClearAll() end)
+    -- The clipboard history list, when its companion is on.
+    local clipBtn = CreateFrame("Button", "EasyFindKeybindClipboardButton", UIParent)
+    clipBtn:Hide()
+    clipBtn:SetScript("OnClick", function()
+        EasyFind.API.OpenExtension("clipboard")
+    end)
+    -- The note for whatever the tooltip shows (an ability on the bar, an item).
+    local noteBtn = CreateFrame("Button", "EasyFindKeybindNoteButton", UIParent)
+    noteBtn:Hide()
+    noteBtn:SetScript("OnClick", function()
+        if ns.OpenHoveredNote then ns.OpenHoveredNote() end
+    end)
+end
+
+local function ApplyAccountKeybinds()
+    local store = EasyFindDB and EasyFindDB.accountKeybinds
+    if not store then return end
+    if InCombatLockdown() then
+        bindingOverrideOwner:RegisterEvent("PLAYER_REGEN_ENABLED")
+        return
+    end
+    ClearOverrideBindings(bindingOverrideOwner)
+    for i = 1, #EASYFIND_BINDINGS do
+        local action = EASYFIND_BINDINGS[i]
+        local key = store[action]
+        if key and key ~= "" then
+            SetOverrideBindingClick(bindingOverrideOwner, true, key, KEYBIND_BUTTON[action])
+        end
+    end
+end
+
+bindingOverrideOwner:SetScript("OnEvent", function(self)
+    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    ApplyAccountKeybinds()
+end)
+
+-- Called by EasyFind's keybind UI when the user binds (key) or clears (nil) a
+-- shortcut. Stores it account-wide and re-applies the override immediately.
+-- Re-binds every account keybind from the db (a profile switch swaps them).
+function EasyFind:ApplyAccountKeybinds()
+    ApplyAccountKeybinds()
+end
+
+-- The search bar, results and map re-read their settings from the db. The
+-- options panel's reset buttons and a profile switch both end here.
+-- resetPosition true forgets the saved bar position (a reset); false puts
+-- the bar where the db says (a switch).
+function ns.ApplyUISettings(resetPosition)
+    if ns.Highlight and ns.Highlight.ClearAll then pcall(ns.Highlight.ClearAll, ns.Highlight) end
+    local Search = ns.Search
+    if not (_G["EasyFindSearchFrame"] and Search) then return end
+    if resetPosition then
+        if Search.ResetPosition then Search:ResetPosition() end
+    elseif Search.ApplySavedPosition then
+        Search:ApplySavedPosition()
+    end
+    if Search.UpdateScale then Search:UpdateScale() end
+    if Search.UpdateWidth then Search:UpdateWidth() end
+    if Search.UpdateOpacity then Search:UpdateOpacity() end
+    if Search.UpdateSearchBarHeight then Search:UpdateSearchBarHeight() end
+    if Search.UpdateSmartShow then Search:UpdateSmartShow(false) end
+    if Search.UpdateFontSize then Search:UpdateFontSize() end
+    if Search.RefreshResults then Search:RefreshResults() end
+end
+
+function ns.ClearMapRuntime()
+    local MapSearch = ns.MapSearch
+    if not MapSearch then return end
+    pcall(MapSearch.ClearAll, MapSearch)
+    pcall(MapSearch.ClearZoneHighlight, MapSearch)
+    MapSearch.pendingWaypoint = nil
+end
+
+function ns.ApplyMapSettings()
+    ns.ClearMapRuntime()
+    local MapSearch = ns.MapSearch
+    if MapSearch then
+        if MapSearch.UpdateIconScales then MapSearch:UpdateIconScales() end
+        if MapSearch.RefreshIndicators then MapSearch:RefreshIndicators() end
+    end
+    local uiInd = _G["EasyFindIndicatorFrame"]
+    if uiInd then uiInd:SetScale(EasyFind.db.iconScale or 0.8) end
+end
+
+function EasyFind:SetAccountKeybind(action, key)
+    if not (action and EASYFIND_BINDING_LOOKUP[action] and EasyFindDB) then return end
+    EasyFindDB.accountKeybinds = EasyFindDB.accountKeybinds or {}
+    if key == "" then key = nil end
+    EasyFindDB.accountKeybinds[action] = key
+    ApplyAccountKeybinds()
+end
+
+EasyFind.GetAccountKeybind = function(_, action)
+    return EasyFindDB and EasyFindDB.accountKeybinds and EasyFindDB.accountKeybinds[action]
+end
+
+-- Reset All restores the suggested account binds and re-applies the
+-- override clicks immediately, so the keys work without a rebind.
+function EasyFind:ResetAccountKeybindsToDefaults()
+    if not EasyFindDB then return end
+    local store = {}
+    for action, key in pairs(SUGGESTED_KEYBINDS) do store[action] = key end
+    EasyFindDB.accountKeybinds = store
+    EasyFindDB.suggestedKeybindsSeeded = true
+    ApplyAccountKeybinds()
+end
+
+-- Blizzard AddOns options category. The panel itself lives in the
+-- EasyFind_Options LoadOnDemand companion; this stub registers the category
+-- at login so EasyFind stays listed under ESC > Options > AddOns, and the
+-- first OnShow loads the companion and embeds the real panel into it.
+local function RegisterBlizzardOptionsStub()
+    -- Hidden until the client shows it: a frame born shown never fires
+    -- OnShow when the client parents and shows it.
+    local panel = CreateFrame("Frame")
+    panel:Hide()
+    panel.name = "EasyFind"
+
+    -- pageName: the tab a left-column entry stands for (nil: Home).
+    local function EmbedAt(frame, pageName)
+        if ns.RequestOptionsPanel() and ns.Options and ns.Options.EmbedInBlizzardPanel then
+            ns.Options:EmbedInBlizzardPanel(frame, pageName)
+        end
+    end
+    local function PanelHidden()
+        if ns.Options and ns.Options.OnBlizzardPanelHide then
+            ns.Options:OnBlizzardPanelHide()
+        end
+    end
+    panel:SetScript("OnShow", function(self) EmbedAt(self, nil) end)
+    panel:SetScript("OnHide", PanelHidden)
+
+    if Settings and Settings.RegisterCanvasLayoutCategory then
+        local category = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
+        Settings.RegisterAddOnCategory(category)
+        -- The panel's tabs as entries under EasyFind in the left column, in
+        -- the panel's order (Home is EasyFind itself).
+        if Settings.RegisterCanvasLayoutSubcategory then
+            ns.OptionsCategory = category
+            ns.OptionsSubcategories = {}
+            for _, key in ipairs({ "OPT_TAB_GENERAL_BINDS", "OPT_TAB_SEARCH", "OPT_TAB_MAP", "OPT_TAB_SHORTCUTS",
+                                   "OPT_TAB_ALIASES", "OPT_TAB_BLACKLIST", "FILTER_EXTENSIONS",
+                                   "OPT_TAB_PROFILES", "OPT_TAB_FEEDBACK" }) do
+                local name = L[key]
+                local page = CreateFrame("Frame")
+                page:Hide()
+                page.name = name
+                page:SetScript("OnShow", function(self) EmbedAt(self, name) end)
+                page:SetScript("OnHide", PanelHidden)
+                ns.OptionsSubcategories[name] = Settings.RegisterCanvasLayoutSubcategory(category, page, name)
+            end
+        end
+    elseif InterfaceOptions_AddCategory then
+        InterfaceOptions_AddCategory(panel)
+    end
+
+    -- Hide the search bar while Blizzard settings are open, restoring it on
+    -- close. Independent of the options companion: active from login.
+    local settingsRoot = SettingsPanel or InterfaceOptionsFrame
+    if settingsRoot then
+        local restoreOnClose = false
+        -- Both hooks fire from inside Blizzard's protected panel chain
+        -- (ESC > Options runs GameMenuFrame -> ShowUIPanel -> SetUIPanel ->
+        -- Show). Showing or hiding our bar in there is a protected call made
+        -- under EasyFind taint, which the client blocks in combat
+        -- (ADDON_ACTION_BLOCKED on EasyFindSearchFrame:Hide) and which
+        -- spreads our taint through the panel manager the rest of the time.
+        -- Step out of the chain with a zero delay, and do nothing at all
+        -- while locked down: combatHide already parks the bar for fights,
+        -- and an overlapping bar for one fight beats a blocked action.
+        local function AfterPanelChange(fn)
+            Utils.SafeAfter(0, function()
+                if InCombatLockdown() then return end
+                fn()
+            end)
+        end
+        settingsRoot:HookScript("OnShow", function()
+            local sf = _G["EasyFindSearchFrame"]
+            restoreOnClose = sf and sf:IsShown() or false
+            AfterPanelChange(function()
+                if not settingsRoot:IsShown() then return end
+                local frame = _G["EasyFindSearchFrame"]
+                if frame then frame:Hide() end
+                if ns.Search and ns.Search.HideResults then ns.Search:HideResults() end
+            end)
+        end)
+        settingsRoot:HookScript("OnHide", function()
+            if not restoreOnClose then return end
+            restoreOnClose = false
+            AfterPanelChange(function()
+                if settingsRoot:IsShown() then return end
+                local frame = _G["EasyFindSearchFrame"]
+                if frame then frame:Show() end
+            end)
+        end)
+    end
+end
+
+local function OnPlayerLogin()
+    -- Start the async scheduler's OnUpdate pump with a 2ms per-frame budget.
+    -- Dynamic provider coalescing and any future debounced/dep-aware jobs
+    -- run on this pump.
+    if ns.Scheduler and not ns.Scheduler._pumpFrame then
+        ns.Scheduler:SetBudgetMs(2)
+        ns.Scheduler:StartPump(CreateFrame("Frame"))
+    end
+
+    -- The spec is known now: a per-spec profile goes live before the
+    -- theme seed and the module Initialize loop read the db.
+    if ns.Profiles then ns.Profiles:OnLogin() end
+    EasyFind:RestoreChatFramesHidden()
+    EasyFind:RestoreObjectiveTrackerHidden()
+
+    -- Seed the live theme slots BEFORE the module Initialize loop below:
+    -- the search UI is created (and painted) inside it, and a seed after
+    -- creation with the repaint skipped leaves the whole bar wearing the
+    -- default palette until something else repaints (the reset-on-reload
+    -- bug). Creation-time paints read the selected palette directly.
+    -- Custom themes register first so a selected one survives the reload.
+    if ns.ThemeShare then
+        xpcall(ns.ThemeShare.RegisterCustomThemes, ErrorHandler, ns.ThemeShare)
+    end
+    if ns.ApplyUITheme then
+        ns.ApplyUITheme(EasyFind.db.uiTheme, true)
+    end
+    if ns.WarmAddonFonts and ns.Utils and ns.Utils.SafeAfter then
+        ns.Utils.SafeAfter(1, ns.WarmAddonFonts)
+    end
+
+    local function SafeInit(mod, name)
+        if not mod then return end
+        local ok, err = xpcall(mod.Initialize, ErrorHandler, mod)
+        if not ok then
+            EasyFind:Print("|cffff4444" .. (L["ERR_MODULE_INIT_FAILED"]):format(name, tostring(err)) .. "|r")
+        end
+    end
+    -- The onboarding surface ships as a LoadOnDemand companion; load it at
+    -- login only while something it owns is still pending (fresh-install
+    -- tutorial, or a live feature spotlight). Steady-state sessions skip
+    -- the parse entirely; /ef setup and /ef whatsnew load it explicitly.
+    -- The spotlight ids mirror FeatureSpotlight:Initialize -- update both
+    -- when a release adds a spotlight.
+    local spotlightsDone = EasyFind.db.spotlightsDone
+    if not EasyFind.db.tutorialDone
+       or not (spotlightsDone and spotlightsDone.snippets31) then
+        ns.RequestOnboarding()
+    end
+
+    if EasyFind.db.enableMapSearch ~= false then
+        SafeInit(ns.MapSearch,  "MapSearch")
+    end
+    SafeInit(ns.Search,        "UI")
+    SafeInit(ns.VersionCheck,  "VersionCheck")
+    SafeInit(ns.RowCopy,       "RowCopy")
+    local regOk, regErr = xpcall(RegisterBlizzardOptionsStub, ErrorHandler)
+    if not regOk then
+        EasyFind:Print("|cffff4444" .. (L["ERR_OPTIONS_REGISTER_FAILED"]):format(tostring(regErr)) .. "|r")
+    end
+    -- Our own settings in the search bar, through the door other addons use;
+    -- declared rows, so no options window builds for them.
+    if EasyFind.API and EasyFind.API.RegisterSettingsIndex then
+        EasyFind.API.RegisterSettingsIndex("EasyFind", ns.SettingsRows.Rows)
+    end
+    InstallClassFilterHooks()
+    if ns.ControlSync and ns.ControlSync.ArmAllAtLogin then
+        pcall(ns.ControlSync.ArmAllAtLogin)
+    end
+
+    -- Pre-warm the search dataset in the background a couple seconds after
+    -- login, at the idle frame budget (the warm chain and the live settings
+    -- walk are built to run "while nobody is waiting"). This makes the FIRST
+    -- search instant and free of the reshuffle that happened when the warm
+    -- loaded providers mid-search -- options and commands landing after the
+    -- first paint ("mount": Game Settings and /mountspecial jumping in). It is
+    -- idempotent with the first-focus warm: whichever runs first, the other is
+    -- a cheap no-op over already-loaded providers.
+    if ns.Database and ns.Utils and ns.Utils.SafeAfter then
+        ns.Utils.SafeAfter(2, function()
+            local db = ns.Database
+            if db.LoadDeferredSyncProvidersStaggered then
+                db:LoadDeferredSyncProvidersStaggered()
+            elseif db.WarmSearchHotPath then
+                db:WarmSearchHotPath()
+            end
+            local f = ns.Search and ns.Search.GetSearchFrame and ns.Search:GetSearchFrame()
+            if f then f._efProvidersWarmed = true end
+        end)
+    end
+
+
+    -- Drop the persisted loot-stat cache if the stat keyword map changed since it
+    -- was built. The cache makes gear/stat search instant on later logins. Loot
+    -- itself hydrates from its SavedVariables cache or scans lazily on gear intent.
+    if EasyFind.db.lootStatCacheVer ~= ns.LOOT_STAT_CACHE_VER then
+        EasyFind.db.lootStatCache = {}
+        EasyFind.db.lootStatCacheVer = ns.LOOT_STAT_CACHE_VER
+    end
+    if EasyFind.db.lootItemCacheVer ~= ns.LOOT_ITEM_CACHE_VER then
+        EasyFind.db.lootItemCache = {}
+        EasyFind.db.lootItemCacheVer = ns.LOOT_ITEM_CACHE_VER
+    end
+    if EasyFind.db.bossCacheVer ~= ns.BOSS_CACHE_VER then
+        EasyFind.db.bossCache = {}
+        EasyFind.db.bossCacheVer = ns.BOSS_CACHE_VER
+    end
+    if EasyFind.db.statisticCacheVer ~= ns.STATISTIC_CACHE_VER then
+        EasyFind.db.statisticCache = {}
+        EasyFind.db.statisticCacheVer = ns.STATISTIC_CACHE_VER
+    end
+    -- The achievement index used to persist as ~5000 tables (~2 MB live, parsed
+    -- by the client before we run). Drop the old shape on sight so it is not
+    -- held for a whole session waiting on a rebuild that may never be asked for.
+    local achievementIndex = EasyFind.db.achievementIndex
+    if type(achievementIndex) == "table" and type(achievementIndex.packed) ~= "string" then
+        EasyFind.db.achievementIndex = nil
+    end
+
+    -- Delay so Minimap is ready.
+    SafeAfter(0.6, function()
+        -- By now every addon (so every broker display and button gatherer)
+        -- has loaded; the broker object comes first so a LibDBIcon button can
+        -- take the hand-made one's place before it is ever shown.
+        if ns.RegisterDataBroker then ns.RegisterDataBroker() end
+        if ns.RegisterMinimapIcon then ns.RegisterMinimapIcon() end
+        if EasyFind.db.showMinimapButton then
+            EasyFind:UpdateMinimapButton()
+        end
+    end)
+
+    local currentVersion = ns.version
+    local lastSeen = EasyFind.db.lastSeenVersion
+    if currentVersion and currentVersion ~= lastSeen then
+        -- A new install reaches here with lastSeen nil: nothing to announce.
+        if lastSeen ~= nil then
+            -- The extensions notice (Core/Extensions.lua) reads the version left.
+            if ns.NoteUpgrade then ns.NoteUpgrade(lastSeen) end
+            if CompareVersion(lastSeen, REVAMPED_TUTORIAL_VERSION) < 0 then
+                -- Upgrading from before the tutorial revamp: send them through
+                -- the new-player tutorial rather than a What's New notice.
+                EasyFind.db.tutorialDone = false
+            elseif EasyFind.db.tutorialDone
+                and CompareVersion(lastSeen, WHATSNEW_CONTENT_VERSION) < 0 then
+                -- Existing user already past the tutorial, upgrading across the
+                -- release the What's New content describes: point them at it
+                -- with a clickable chat link. Users who already saw this
+                -- content (upgrading from the content version or later, e.g. a
+                -- patch release) get no repeat announcement. The tutorialDone
+                -- guard keeps the tutorial and the What's New notice mutually
+                -- exclusive: anyone who still has the tutorial pending gets the
+                -- tutorial only, never the chat line.
+                SafeAfter(2.0, function()
+                    ShowWhatsNewChatMessage(currentVersion)
+                end)
+            end
+        end
+        EasyFind.db.lastSeenVersion = currentVersion
+    end
+    WelcomeForever()
+
+    EasyFindDB.accountKeybinds = EasyFindDB.accountKeybinds or {}
+    -- One-time import of binds made through the retired native Bindings.xml:
+    -- a player upgrading keeps the key they had bound, in the account-wide
+    -- store, instead of being pushed onto the suggested defaults. Flagged so
+    -- a bind the player later clears can't resurrect from the stale native
+    -- cache on a future login.
+    if not EasyFindDB.nativeKeybindsImported then
+        EasyFindDB.nativeKeybindsImported = true
+        for i = 1, #EASYFIND_BINDINGS do
+            local action = EASYFIND_BINDINGS[i]
+            if not EasyFindDB.accountKeybinds[action] then
+                local existing = GetBindingKey(action)
+                if existing then EasyFindDB.accountKeybinds[action] = existing end
+            end
+        end
+    end
+
+    -- Retire leftover native bindings for our actions. The actions no longer
+    -- exist, so those saved keys can only shadow GetBindingKey reads and
+    -- confuse the display. Idempotent (no-op once clean), combat-deferred.
+    if not InCombatLockdown() then
+        local removedAny = false
+        for i = 1, #EASYFIND_BINDINGS do
+            local key1, key2 = GetBindingKey(EASYFIND_BINDINGS[i])
+            if key1 then SetBinding(key1); removedAny = true end
+            if key2 then SetBinding(key2); removedAny = true end
+        end
+        if removedAny and SaveBindings and GetCurrentBindingSet then
+            pcall(SaveBindings, GetCurrentBindingSet())
+        end
+    end
+
+    -- Seed the suggested defaults once, and only when nothing is bound (the
+    -- import above already pulled in any pre-existing native binds). This
+    -- never replaces a key the player set, and the flag stops it re-adding
+    -- one they cleared.
+    if not EasyFindDB.suggestedKeybindsSeeded then
+        EasyFindDB.suggestedKeybindsSeeded = true
+        if next(EasyFindDB.accountKeybinds) == nil then
+            for action, key in pairs(SUGGESTED_KEYBINDS) do
+                EasyFindDB.accountKeybinds[action] = key
+            end
+        end
+    end
+
+    ApplyAccountKeybinds()
+    if ns.Shortkeys and ns.Shortkeys.ApplyAll then ns.Shortkeys:ApplyAll() end
+
+    -- A login (cold launch especially) parses every file with the
+    -- incremental GC deep in debt, and it then sits on the parse garbage
+    -- for minutes -- memory meters show it as resident usage (audited:
+    -- shown 16.6MB vs 8.2MB live; same mechanism as the post-warm collect
+    -- in Database/Dynamic.lua). One settle pass once login I/O has quieted
+    -- so the meter shows the real floor instead of collector debt.
+    SafeAfter(8, function() ns.Utils.SettleGC() end)
+
+    -- Chat records conversations from login, not from its first open.
+    ns.Extensions.LoadAtLogin()
+
+    -- LoadAddOn parses are synchronous C work that no slicing can spread
+    -- (the item catalog's 6.3MB blob measured as the largest one-frame
+    -- cost left at first focus). Pre-load the search companions a session
+    -- will use anyway at a quiet post-login moment instead of at the
+    -- user's first click into the bar. The focus/query funnels remain the
+    -- fallback; sessions whose filters exclude a companion still skip it.
+    SafeAfter(12, function()
+        local uiFilters = EasyFind.db and EasyFind.db.uiSearchFilters
+        local map = ns.CategoryMap
+        if ns.RequestItemCatalog and map and map.IsProviderFilterOff
+           and not (uiFilters and map.IsProviderFilterOff(uiFilters, "catalog")) then
+            ns.RequestItemCatalog(false)
+        end
+        if ns.RequestSettingsSearch and map and map.IsProviderFilterOff then
+            local bothOff = uiFilters
+                and map.IsProviderFilterOff(uiFilters, "gameOptions")
+                and map.IsProviderFilterOff(uiFilters, "addonOptions")
+            if not bothOff then
+                ns.RequestSettingsSearch(false)
+            end
+        end
+    end)
+end
+
+local outfitRefreshTimer
+
+eventFrame:RegisterEvent("ADDON_LOADED")
+eventFrame:RegisterEvent("PLAYER_LOGIN")
+eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+eventFrame:RegisterEvent("PLAYER_LEVEL_UP")
+eventFrame:RegisterEvent("PLAYER_LOGOUT")
+-- Both handlers below end up asking the wardrobe, and on a client without
+-- one that call takes the game down rather than failing (Shared/Caps.lua).
+-- No wardrobe, no subscription.
+if not (ns.Caps and ns.Caps.transmog == false) then
+    eventFrame:RegisterEvent("TRANSMOG_OUTFITS_CHANGED")
+    eventFrame:RegisterEvent("TRANSMOG_COLLECTION_UPDATED")
+end
+eventFrame:RegisterEvent("UPDATE_MACROS")
+eventFrame:RegisterEvent("SPELLS_CHANGED")
+eventFrame:RegisterEvent("BAG_UPDATE_DELAYED")
+eventFrame:RegisterEvent("BANKFRAME_OPENED")
+eventFrame:RegisterEvent("BANKFRAME_CLOSED")
+eventFrame:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
+eventFrame:RegisterEvent("EQUIPMENT_SETS_CHANGED")
+-- A learned mount must clear the persisted mount cache (not just mark the
+-- category dirty), or a mount collected then not searched before logout would
+-- hydrate stale on the next reload. pcall: event name may vary by build.
+pcall(eventFrame.RegisterEvent, eventFrame, "NEW_MOUNT_ADDED")
+-- Loadout create/rename/delete and spec swaps re-dirty the talents provider
+-- so spec/loadout rows never go stale. pcall: trait events are retail-only.
+pcall(eventFrame.RegisterEvent, eventFrame, "TRAIT_CONFIG_CREATED")
+pcall(eventFrame.RegisterEvent, eventFrame, "TRAIT_CONFIG_DELETED")
+pcall(eventFrame.RegisterEvent, eventFrame, "TRAIT_CONFIG_UPDATED")
+pcall(eventFrame.RegisterEvent, eventFrame, "TRAIT_CONFIG_LIST_UPDATED")
+pcall(eventFrame.RegisterEvent, eventFrame, "ACTIVE_PLAYER_SPECIALIZATION_CHANGED")
+-- The classic clients' talent points spent or reset; MoP Classic's picks.
+pcall(eventFrame.RegisterEvent, eventFrame, "CHARACTER_POINTS_CHANGED")
+pcall(eventFrame.RegisterEvent, eventFrame, "PLAYER_TALENT_UPDATE")
+if C_HousingCatalog then
+    eventFrame:RegisterEvent("HOUSING_STORAGE_UPDATED")
+end
+-- Collection and character data that streams in after login: a populate
+-- that ran before the stream landed injects nothing (and now reports
+-- not-ready instead of success), and these events re-dirty the category
+-- so the next search retries against real data.
+local DIRTY_EVENT_CATEGORY = {
+    TOYS_UPDATED = "toys",
+    PET_JOURNAL_LIST_UPDATE = "pets",
+    KNOWN_TITLES_UPDATE = "titles",
+    HEIRLOOMS_UPDATED = "heirlooms",
+    CURRENCY_DISPLAY_UPDATE = "currencies",
+    UPDATE_FACTION = "reputations",
+    -- Professions is eager, so it can populate before skill data has arrived
+    -- and nothing else marks it dirty; this is "skill data changed".
+    SKILL_LINES_CHANGED = "professions",
+    TRADE_SKILL_SHOW = "professions",
+}
+-- Classic searches its skill list, and its professions from the recipes
+-- each window showed.
+if ns.Caps and ns.Caps.skills then DIRTY_EVENT_CATEGORY.SKILL_LINES_CHANGED = "skills" end
+local CLASSIC_PROFESSION_EVENTS = {}
+if ns.Caps and ns.Caps.classic then
+    for _, e in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE", "CRAFT_SHOW", "CRAFT_UPDATE" }) do
+        if pcall(eventFrame.RegisterEvent, eventFrame, e) then CLASSIC_PROFESSION_EVENTS[e] = true end
+    end
+    if pcall(eventFrame.RegisterUnitEvent, eventFrame, "UNIT_SPELLCAST_SUCCEEDED", "player") then
+        CLASSIC_PROFESSION_EVENTS.UNIT_SPELLCAST_SUCCEEDED = true
+    end
+end
+for dirtyEvent in pairs(DIRTY_EVENT_CATEGORY) do
+    -- pcall: event names vary across client builds, and this runs at file
+    -- load where an error would abort the whole module. A missing event
+    -- only costs that category its in-session heal; the populate-side
+    -- not-ready guard still retries on the next search.
+    pcall(eventFrame.RegisterEvent, eventFrame, dirtyEvent)
+end
+-- Cross-character search needs a character on record even if this session
+-- never searches bags. The provider snapshots for free whenever it runs and
+-- logout always snapshots, so this is only the safety net -- and it walks
+-- every container and rebuilds a multi-KB packed string, so it is throttled
+-- rather than run on each of the bag events that burst while looting.
+local BAG_SNAPSHOT_MIN_INTERVAL = 60
+local lastBagSnapshot = 0
+local function MaybeSnapshotBags()
+    if not (ns.Database and ns.Database.PersistBagContents) then return end
+    local now = GetTime and GetTime() or 0
+    if now - lastBagSnapshot < BAG_SNAPSHOT_MIN_INTERVAL then return end
+    lastBagSnapshot = now
+    ns.Database:PersistBagContents()
+end
+
+local talentRefreshTimer
+local bagRefreshTimer
+local spellRefreshTimer
+local gearSetRefreshTimer
+local appearanceItemRefreshTimer
+
+-- The bank is the one dataset that cannot be read on demand: slots only
+-- report while a bank is open, so every open is the chance to record what
+-- this character is holding for later searches from anywhere.
+local bankOpen = false
+local bankScanTimer
+local function ScheduleBankScan()
+    if bankScanTimer then bankScanTimer:Cancel() end
+    bankScanTimer = C_Timer.NewTimer(0.4, function()
+        bankScanTimer = nil
+        if not (ns.Database and ns.Database.ScanBankContents) then return end
+        if ns.Database:ScanBankContents() then
+            MarkDynamicCategoryDirty("bank")
+        end
+    end)
+end
+
+-- Debounced MarkDynamicCategoryDirty, one timer per category: streaming
+-- events (toy box, pet journal, faction pushes) arrive in bursts and only
+-- the settled state matters.
+-- One timer per category with a due stamp: a burst extends the stamp
+-- instead of cancelling and recreating a timer and closure per event.
+local dirtyTimers = {}
+local dirtyDue = {}
+local function MarkDirtyDebounced(category)
+    dirtyDue[category] = GetTime() + 1.0
+    if dirtyTimers[category] then return end
+    local function fire()
+        local left = dirtyDue[category] - GetTime()
+        if left > 0.05 then
+            dirtyTimers[category] = C_Timer.NewTimer(left, fire)
+            return
+        end
+        dirtyTimers[category] = nil
+        -- Self-echo guard, checked at fire time (rationale and trade-off
+        -- documented at Database:WasProviderRecentlyRun).
+        if ns.Database and ns.Database.WasProviderRecentlyRun
+           and ns.Database:WasProviderRecentlyRun(category, 2.5) then
+            return
+        end
+        MarkDynamicCategoryDirty(category)
+    end
+    dirtyTimers[category] = C_Timer.NewTimer(1.0, fire)
+end
+eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3)
+    -- The classic clients' profession windows: their recipes kept as they
+    -- show, with the spell that opened them.
+    if CLASSIC_PROFESSION_EVENTS[event] and ns.Database then
+        local changed
+        if event == "UNIT_SPELLCAST_SUCCEEDED" then
+            changed = ns.Database:NoteClassicCast(arg3)
+        else
+            changed = ns.Database:CaptureClassicRecipes(event:find("^CRAFT") ~= nil, event:find("SHOW$") ~= nil)
+        end
+        if changed then MarkDirtyDebounced("professions") end
+        return
+    end
+    local dirtyCategory = DIRTY_EVENT_CATEGORY[event]
+    -- The skills read unfolds headers itself: its own event is no news.
+    if dirtyCategory == "skills" and ns.skillHeadersToggledAt and GetTime() - ns.skillHeadersToggledAt < 1 then return end
+    if dirtyCategory then
+        MarkDirtyDebounced(dirtyCategory)
+        return
+    end
+    if event == "ADDON_LOADED" and arg1 == ADDON_NAME then
+        OnInitialize()
+        self:UnregisterEvent("ADDON_LOADED")
+    elseif event == "PLAYER_LOGIN" then
+        OnPlayerLogin()
+        self.loginHandled = true
+        self:UnregisterEvent("PLAYER_LOGIN")
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        if ns.Database and ns.Database.InvalidateLFGAvailability then
+            ns.Database:InvalidateLFGAvailability()
+        end
+        -- PLAYER_LOGIN does not fire on /reload; arg2 = isReloadingUI.
+        if arg2 and not self.loginHandled then
+            OnPlayerLogin()
+        end
+        self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    elseif event == "TRANSMOG_OUTFITS_CHANGED" then
+        if outfitRefreshTimer then outfitRefreshTimer:Cancel() end
+        outfitRefreshTimer = C_Timer.NewTimer(0.5, function()
+            outfitRefreshTimer = nil
+            MarkDynamicCategoryDirty("outfits")
+            if ns.UIPins and ns.UIPins.SyncOutfits then
+                ns.UIPins.SyncOutfits()
+            end
+        end)
+    elseif event == "TRANSMOG_COLLECTION_UPDATED" then
+        if ns.Database and ns.Database.SyncTransmogSetFiltersFromUI then
+            ns.Database:SyncTransmogSetFiltersFromUI()
+            MarkDynamicCategoryDirty("transmogSets")
+            InstallClassFilterHooks()
+        end
+        -- Appearance data streams in over several events after login; a single
+        -- early populate can catch a partial list. Re-run (debounced) so the
+        -- Items list fills out once it settles, and refresh an open search.
+        if appearanceItemRefreshTimer then appearanceItemRefreshTimer:Cancel() end
+        appearanceItemRefreshTimer = C_Timer.NewTimer(0.5, function()
+            appearanceItemRefreshTimer = nil
+            if ns.Database and ns.Database.RefreshDynamicCategory then
+                ns.Database:RefreshDynamicCategory("appearanceItems")
+            end
+            local frame = ns.Search and ns.Search.GetSearchFrame and ns.Search:GetSearchFrame()
+            local editBox = frame and frame.editBox
+            if editBox and frame:IsShown() and ns.Search.OnSearchTextChanged then
+                ns.Search:OnSearchTextChanged(ns.Search:GetTypedQuery(), true)
+            end
+        end)
+    elseif event == "UPDATE_MACROS" then
+        MarkDynamicCategoryDirty("macros")
+    elseif event == "HOUSING_STORAGE_UPDATED" then
+        MarkDynamicCategoryDirty("housing")
+    elseif event == "SPELLS_CHANGED" then
+        if spellRefreshTimer then spellRefreshTimer:Cancel() end
+        spellRefreshTimer = C_Timer.NewTimer(1.0, function()
+            spellRefreshTimer = nil
+            MarkDynamicCategoryDirty("abilities")
+        end)
+    elseif event == "TRAIT_CONFIG_CREATED" or event == "TRAIT_CONFIG_DELETED"
+        or event == "TRAIT_CONFIG_UPDATED" or event == "TRAIT_CONFIG_LIST_UPDATED"
+        or event == "ACTIVE_PLAYER_SPECIALIZATION_CHANGED" or event == "CHARACTER_POINTS_CHANGED"
+        or event == "PLAYER_TALENT_UPDATE" then
+        -- TRAIT_CONFIG_UPDATED fires in bursts while talents are edited or
+        -- committed; one debounced re-dirty covers the whole burst.
+        if talentRefreshTimer then talentRefreshTimer:Cancel() end
+        talentRefreshTimer = C_Timer.NewTimer(1.0, function()
+            talentRefreshTimer = nil
+            MarkDynamicCategoryDirty("talents")
+        end)
+    elseif event == "BAG_UPDATE_DELAYED" then
+        if bagRefreshTimer then bagRefreshTimer:Cancel() end
+        bagRefreshTimer = C_Timer.NewTimer(0.5, function()
+            bagRefreshTimer = nil
+            MarkDynamicCategoryDirty("bags")
+            MaybeSnapshotBags()
+        end)
+        if bankOpen then ScheduleBankScan() end
+    elseif event == "BANKFRAME_OPENED" then
+        bankOpen = true
+        -- Containers report their slots a beat after the frame opens; scanning
+        -- immediately reads zero and the empty result is discarded.
+        ScheduleBankScan()
+    elseif event == "PLAYERBANKSLOTS_CHANGED" then
+        if bankOpen then ScheduleBankScan() end
+    elseif event == "BANKFRAME_CLOSED" then
+        bankOpen = false
+        if bankScanTimer then
+            bankScanTimer:Cancel()
+            bankScanTimer = nil
+        end
+    elseif event == "EQUIPMENT_SETS_CHANGED" then
+        if gearSetRefreshTimer then gearSetRefreshTimer:Cancel() end
+        gearSetRefreshTimer = C_Timer.NewTimer(0.3, function()
+            gearSetRefreshTimer = nil
+            MarkDynamicCategoryDirty("gearSets")
+        end)
+    elseif event == "NEW_MOUNT_ADDED" then
+        if ns.Database and ns.Database.InvalidateMountCache then
+            ns.Database:InvalidateMountCache()
+        end
+        MarkDirtyDebounced("mounts")
+    elseif event == "PLAYER_LEVEL_UP" then
+        if ns.Database and ns.Database.OnPlayerLevelUp then
+            ns.Database:OnPlayerLevelUp()
+        end
+    elseif event == "PLAYER_LOGOUT" then
+        -- Truest state to remember, and the one snapshot that always runs.
+        if ns.Database and ns.Database.PersistBagContents then
+            pcall(ns.Database.PersistBagContents, ns.Database)
+        end
+        if EasyFindDB then
+            for _, field in ipairs(RUNTIME_FIELDS) do
+                EasyFindDB[field] = nil
+            end
+        end
+    end
+end)
+
+function EasyFind:ToggleSearchUI()
+    if ns.Search then ns.Search:Toggle() end
+end
+
+function EasyFind:FocusSearchUI()
+    if ns.Search then ns.Search:Focus() end
+end
+
+function EasyFind:ToggleFocusSearchUI()
+    if EasyFind.db.enableMapSearch ~= false and WorldMapFrame and WorldMapFrame:IsShown() and ns.MapTab then
+        ns.MapTab:Focus()
+    elseif ns.Search then
+        ns.Search:ToggleFocus()
+    end
+end
+
+function EasyFind:FocusMapSearch()
+    if EasyFind.db.enableMapSearch == false then return end
+    if ns.MapTab then ns.MapTab:Focus() end
+end
+
+-- Hide/show the whole chat cluster (windows, tabs, dock, chat buttons).
+-- WoW ships no binding or setting for this, so the "Toggle Chat Frame"
+-- search entry provides it. Kept across sessions (db.chatFramesHidden).
+local hiddenChatFrames
+local function HideChatFrames()
+    hiddenChatFrames = hiddenChatFrames or {}
+    local function stash(frame)
+        if frame and frame:IsShown() then
+            frame:Hide()
+            hiddenChatFrames[frame] = true
+        end
+    end
+    for i = 1, (_G.NUM_CHAT_WINDOWS or 10) do
+        stash(_G["ChatFrame" .. i])
+        stash(_G["ChatFrame" .. i .. "Tab"])
+        stash(_G["ChatFrame" .. i .. "ButtonFrame"])
+        stash(_G["ChatFrame" .. i .. "EditBox"])
+    end
+    stash(_G["GeneralDockManager"])
+    stash(_G["ChatFrameMenuButton"])
+    stash(_G["ChatFrameChannelButton"])
+    stash(_G["TextToSpeechButton"])
+    stash(_G["QuickJoinToastButton"])
+    -- What other addons put beside the chat (API.RegisterChatPiece).
+    for frame in pairs(ns.chatPieces or {}) do stash(frame) end
+end
+
+-- Hidden last session: hidden again once the game has set its chat
+-- windows up (it shows them as it does), and again if it redoes that.
+local chatHideWatch, editModeWatch
+local function RehideChatFrames()
+    if EasyFind.db.chatFramesHidden then ns.Utils.SafeAfter(0, HideChatFrames) end
+end
+local function KeepChatFramesHidden()
+    if not chatHideWatch then
+        chatHideWatch = CreateFrame("Frame")
+        chatHideWatch:SetScript("OnEvent", RehideChatFrames)
+    end
+    chatHideWatch:RegisterEvent("UPDATE_CHAT_WINDOWS")
+    -- Edit mode shows the chat again (it selects the dock's frame) and
+    -- leaves it so, tabs hidden: a child of ours under its manager hears
+    -- it close. Watched, never hooked.
+    local manager = _G["EditModeManagerFrame"]
+    if manager and not editModeWatch then
+        editModeWatch = CreateFrame("Frame", nil, manager.Border or manager)
+        editModeWatch:SetScript("OnHide", RehideChatFrames)
+    end
+    ns.Utils.SafeAfter(0, HideChatFrames)
+end
+
+function EasyFind:RestoreChatFramesHidden()
+    if EasyFind.db.chatFramesHidden then KeepChatFramesHidden() end
+end
+
+function EasyFind:ToggleChatFrames()
+    if hiddenChatFrames then
+        for frame in pairs(hiddenChatFrames) do frame:Show() end
+        hiddenChatFrames = nil
+        EasyFind.db.chatFramesHidden = nil
+        if chatHideWatch then chatHideWatch:UnregisterAllEvents() end
+        return
+    end
+    HideChatFrames()
+    EasyFind.db.chatFramesHidden = true
+    KeepChatFramesHidden()
+end
+
+-- Hide/show the game's objective tracker (the quest watch on the classic
+-- clients). No binding or setting ships for it, so the "Toggle Objective
+-- Tracker" search entry provides one. Kept across sessions.
+local function TrackerFrame()
+    -- Retail's tracker, Mists' watch frame, Era's quest watch (nothing
+    -- happened there, 2026-10-28).
+    return _G["ObjectiveTrackerFrame"] or _G["WatchFrame"] or _G["QuestWatchFrame"]
+end
+-- Trackers extensions register (API.RegisterTrackerPiece): frame -> its
+-- owner's show function, or true.
+local trackerPieces, pieceWatches = {}, {}
+-- What the toggle hid, shown again by the next one: a frame its owner keeps
+-- hidden (Era's quest watch under another tracker) stays so.
+local trackerStash = {}
+local trackerHideWatch, trackerEditModeWatch, trackerCombatWatch
+local ApplyTracker
+-- A tracker holding quest item buttons (secure) moves only out of combat.
+local function Locked(frame)
+    return InCombatLockdown() and frame:IsProtected()
+end
+local function AfterCombat()
+    if not trackerCombatWatch then
+        trackerCombatWatch = CreateFrame("Frame")
+        trackerCombatWatch:SetScript("OnEvent", function(self)
+            self:UnregisterAllEvents()
+            ApplyTracker()
+        end)
+    end
+    trackerCombatWatch:RegisterEvent("PLAYER_REGEN_ENABLED")
+end
+local function Stash(frame)
+    if not frame:IsShown() then return end
+    if Locked(frame) then return AfterCombat() end
+    frame:Hide()
+    trackerStash[frame] = true
+end
+local function HideTracker()
+    local manager = _G["EditModeManagerFrame"]
+    if manager and manager:IsShown() then return end
+    local t = TrackerFrame()
+    if t then Stash(t) end
+    for frame in pairs(trackerPieces) do Stash(frame) end
+    EasyFind.API.Fire("easyfind", "trackerChanged")
+end
+local function ShowTracker()
+    for frame in pairs(trackerStash) do
+        if Locked(frame) then
+            AfterCombat()
+        else
+            trackerStash[frame] = nil
+            local show = trackerPieces[frame]
+            if type(show) == "function" then xpcall(show, ns.Utils.ErrorHandler) else frame:Show() end
+        end
+    end
+    EasyFind.API.Fire("easyfind", "trackerChanged")
+end
+ApplyTracker = function()
+    if EasyFind.db.objectiveTrackerHidden then HideTracker() else ShowTracker() end
+end
+-- In the frame it shows: a frame later each show drew once, and in world
+-- quest zones the hidden tracker flickered while moving.
+local function RehideTracker()
+    if EasyFind.db.objectiveTrackerHidden then HideTracker() end
+end
+local function WatchTracker()
+    -- Quest changes and edit mode show the tracker again: a child of ours
+    -- under it hears each show, one under the edit mode manager its close.
+    -- Watched, never hooked; the hide was ours either way.
+    local t = TrackerFrame()
+    if t and not trackerHideWatch then
+        trackerHideWatch = CreateFrame("Frame", nil, t)
+        trackerHideWatch:SetScript("OnShow", RehideTracker)
+    end
+    -- An extension's tracker shown by its owner's update: hidden in that
+    -- same frame, so it never flashes.
+    for frame in pairs(trackerPieces) do
+        if not pieceWatches[frame] then
+            pieceWatches[frame] = CreateFrame("Frame", nil, frame)
+            pieceWatches[frame]:SetScript("OnShow", function()
+                if EasyFind.db.objectiveTrackerHidden then Stash(frame) end
+            end)
+        end
+    end
+    local manager = _G["EditModeManagerFrame"]
+    if manager and not trackerEditModeWatch then
+        trackerEditModeWatch = CreateFrame("Frame", nil, manager.Border or manager)
+        trackerEditModeWatch:SetScript("OnHide", RehideTracker)
+    end
+end
+
+function EasyFind:RestoreObjectiveTrackerHidden()
+    if not EasyFind.db.objectiveTrackerHidden then return end
+    WatchTracker()
+    ns.Utils.SafeAfter(0, HideTracker)
+end
+
+function ns.AddTrackerPiece(frame, show)
+    trackerPieces[frame] = show or true
+    if EasyFind.db and EasyFind.db.objectiveTrackerHidden then
+        WatchTracker()
+        HideTracker()
+    end
+end
+
+function EasyFind:ToggleObjectiveTracker()
+    if not TrackerFrame() then return end
+    if EasyFind.db.objectiveTrackerHidden then
+        EasyFind.db.objectiveTrackerHidden = nil
+        ShowTracker()
+        return
+    end
+    EasyFind.db.objectiveTrackerHidden = true
+    WatchTracker()
+    -- Now, not a frame later: the row draws its check mark again in this one.
+    HideTracker()
+end
+
+function EasyFind:OpenOptions()
+    if ns.RequestOptionsPanel() and ns.Options then ns.Options:Toggle() end
+end
+
+function EasyFind:ClearAll()
+    if ns.Highlight then
+        ns.Highlight:ClearAll()
+    end
+    if ns.MapSearch then
+        ns.MapSearch:ClearAll()
+        ns.MapSearch:ClearZoneHighlight()
+        ns.MapSearch.pendingWaypoint = nil
+    end
+end
+
+function EasyFind:StartGuide(guideData)
+    if ns.Utils.GuideBlockedInCombat and ns.Utils.GuideBlockedInCombat(guideData) then
+        return
+    end
+    local highlight = ns.RequestGuide()
+    if highlight then
+        highlight:StartGuide(guideData)
+    end
+end
+
+-- Shared by the minimap button and the data broker launcher, and mirrored by
+-- the TOC's IconTexture: one icon identifies the addon wherever it is hosted.
+local LAUNCHER_ICON = "Interface\\AddOns\\EasyFind\\textures\\SpyglassMinimap"
+-- The brand name, never localized, shown wherever the addon names itself.
+local ADDON_LABEL = "EasyFind"
+-- The logo opening every chat line: the launcher icon cropped to the
+-- spyglass, at the chat font's height.
+ns.CHAT_LOGO = "|T" .. LAUNCHER_ICON .. ":0:0:0:0:64:64:2:63:1:64|t "
+
+function EasyFind:Print(msg)
+    print(sformat("%s|cFF00FF00EasyFind:|r %s", ns.CHAT_LOGO, msg))
+end
+
+-- Display-owned buttons our data broker launcher has been clicked through.
+-- The search bar's outside-click close consults this so clicking a launcher
+-- toggles the bar instead of closing and immediately reopening it. Weak keys:
+-- a display rebuilding its bar must not keep dead frames alive.
+ns.brokerLauncherButtons = setmetatable({}, { __mode = "k" })
+
+local minimapButton
+
+local minimapShapes = {
+    ["ROUND"]                 = {true, true, true, true},
+    ["SQUARE"]                = {false, false, false, false},
+    ["CORNER-TOPLEFT"]        = {false, false, false, true},
+    ["CORNER-TOPRIGHT"]       = {false, false, true, false},
+    ["CORNER-BOTTOMLEFT"]     = {false, true, false, false},
+    ["CORNER-BOTTOMRIGHT"]    = {true, false, false, false},
+    ["SIDE-LEFT"]             = {false, true, false, true},
+    ["SIDE-RIGHT"]            = {true, false, true, false},
+    ["SIDE-TOP"]              = {false, false, true, true},
+    ["SIDE-BOTTOM"]           = {true, true, false, false},
+    ["TRICORNER-TOPLEFT"]     = {false, true, true, true},
+    ["TRICORNER-TOPRIGHT"]    = {true, false, true, true},
+    ["TRICORNER-BOTTOMLEFT"]  = {true, true, false, true},
+    ["TRICORNER-BOTTOMRIGHT"] = {true, true, true, false},
+}
+
+-- The x, y offset from the minimap's center for a button on its ring at
+-- `angle` degrees, honoring the minimap shape. Shared with the extension
+-- buttons that snap onto the ring (Search/ExtensionButtons.lua).
+function ns.MinimapEdgeOffset(angle)
+    local rad = mrad(angle)
+    local cx, cy = mcos(rad), msin(rad)
+    local q = 1
+    if cx < 0 then q = q + 1 end
+    if cy > 0 then q = q + 2 end
+    local w = (Minimap:GetWidth()  / 2) + 5
+    local h = (Minimap:GetHeight() / 2) + 5
+    local shape = GetMinimapShape and GetMinimapShape() or "ROUND"
+    local quadTable = minimapShapes[shape] or minimapShapes["ROUND"]
+    if quadTable[q] then
+        return cx * w, cy * h
+    end
+    local dw = msqrt(2 * w * w) - 10
+    local dh = msqrt(2 * h * h) - 10
+    return mmax(-w, mmin(cx * dw, w)), mmax(-h, mmin(cy * dh, h))
+end
+
+local function PositionMinimapButton(angle)
+    if not minimapButton then return end
+    local rad = mrad(angle)
+    local cx, cy = mcos(rad), msin(rad)
+
+    local q = 1
+    if cx < 0 then q = q + 1 end
+    if cy > 0 then q = q + 2 end
+
+    local w = (Minimap:GetWidth()  / 2) + 5
+    local h = (Minimap:GetHeight() / 2) + 5
+
+    local shape = GetMinimapShape and GetMinimapShape() or "ROUND"
+    local quadTable = minimapShapes[shape] or minimapShapes["ROUND"]
+
+    local x, y
+    if quadTable[q] then
+        x, y = cx * w, cy * h
+    else
+        local dw = msqrt(2 * w * w) - 10
+        local dh = msqrt(2 * h * h) - 10
+        x = mmax(-w, mmin(cx * dw, w))
+        y = mmax(-h, mmin(cy * dh, h))
+    end
+
+    minimapButton:ClearAllPoints()
+    minimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+-- Where a LibDBIcon button was last dragged wins, should its library leave.
+local function SavedMinimapAngle()
+    local icon = EasyFind.db.minimapIcon
+    return (type(icon) == "table" and icon.minimapPos) or EasyFind.db.minimapButtonAngle or 200
+end
+
+local function CreateMinimapButton()
+    if minimapButton then return minimapButton end
+
+    local mmBtn = CreateFrame("Button", "EasyFindMinimapButton", Minimap)
+    mmBtn:SetSize(31, 31)
+    mmBtn:SetFrameStrata("MEDIUM")
+    mmBtn:SetFrameLevel(8)
+
+    local border = mmBtn:CreateTexture(nil, "OVERLAY")
+    border:SetSize(50, 50)
+    border:SetTexture(136430)
+    border:SetPoint("TOPLEFT")
+
+    local background = mmBtn:CreateTexture(nil, "BACKGROUND")
+    background:SetSize(24, 24)
+    background:SetTexture(136467)
+    background:SetPoint("CENTER")
+
+    local icon = mmBtn:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(14, 14)
+    icon:SetTexture(LAUNCHER_ICON)
+    icon:SetPoint("CENTER")
+
+    mmBtn:SetHighlightTexture(136477)
+
+    mmBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    -- autoHide fires on GLOBAL_MOUSE_DOWN before our OnClick (mouseUp).
+    -- Set the flag synchronously in OnMouseDown so autoHide can skip
+    -- this click, otherwise toggle re-opens what autoHide just closed.
+    mmBtn:HookScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then
+            EasyFind._minimapClickActive = true
+        end
+    end)
+    mmBtn:HookScript("OnMouseUp", function(self, button)
+        if button == "LeftButton" then
+            EasyFind._minimapClickActive = nil
+        end
+    end)
+    mmBtn:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" then
+            EasyFind:ToggleSearchUI()
+        elseif button == "RightButton" then
+            EasyFind:OpenOptions()
+        end
+    end)
+
+    mmBtn:RegisterForDrag("LeftButton")
+    local DRAG_TICK = 0.03
+    local function MinimapDragTick(self, elapsed)
+        self._dragAccum = (self._dragAccum or 0) + elapsed
+        if self._dragAccum < DRAG_TICK then return end
+        self._dragAccum = 0
+        local mx, my = Minimap:GetCenter()
+        local cx, cy = GetCursorPosition()
+        local scale = Minimap:GetEffectiveScale()
+        cx, cy = cx / scale, cy / scale
+        local angle = mdeg(matan2(cy - my, cx - mx))
+        EasyFind.db.minimapButtonAngle = angle
+        if type(EasyFind.db.minimapIcon) == "table" then EasyFind.db.minimapIcon.minimapPos = angle end
+        PositionMinimapButton(angle)
+    end
+    mmBtn:SetScript("OnDragStart", function(self)
+        self._dragAccum = 0
+        self:SetScript("OnUpdate", MinimapDragTick)
+    end)
+    mmBtn:SetScript("OnDragStop", function(self)
+        self:SetScript("OnUpdate", nil)
+    end)
+
+    mmBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText(ADDON_LABEL)
+        GameTooltip:AddLine(L["MINIMAP_TT_LEFT_CLICK"], 1, 1, 1)
+        GameTooltip:AddLine(L["MINIMAP_TT_RIGHT_CLICK"], 1, 1, 1)
+        GameTooltip:AddLine(L["MINIMAP_TT_DRAG"], 0.7, 0.7, 0.7)
+        GameTooltip:Show()
+    end)
+    mmBtn:SetScript("OnLeave", GameTooltip_Hide)
+
+    minimapButton = mmBtn
+    PositionMinimapButton(SavedMinimapAngle())
+    return mmBtn
+end
+
+function EasyFind:UpdateMinimapButton()
+    local icon = ns.minimapIcon
+    if icon then
+        if EasyFind.db.showMinimapButton then icon:Show(ADDON_LABEL) else icon:Hide(ADDON_LABEL) end
+        if minimapButton then minimapButton:Hide() end
+        return
+    end
+    if EasyFind.db.showMinimapButton then
+        if not minimapButton then
+            CreateMinimapButton()
+        end
+        minimapButton:Show()
+        PositionMinimapButton(SavedMinimapAngle())
+    elseif minimapButton then
+        minimapButton:Hide()
+    end
+end
+
+-- Data broker launcher. Display bars that host broker objects can then launch
+-- the addon, so a minimalist UI does not need the minimap button.
+--
+-- Nothing is bundled: we only PUBLISH an object, and every display that shows
+-- one embeds the library itself, so asking for it is enough. The silent flag
+-- returns nil instead of erroring when no display is installed, in which case
+-- this does nothing at all. Registration happens at login rather than at load
+-- so a display that loads after us has already created the library; creating
+-- an object fires the library's own DataObjectCreated callback, which is how
+-- displays pick up late registrations. Clicks mirror the minimap button.
+function ns.RegisterDataBroker()
+    if not LibStub then return end
+    local ok, broker = pcall(LibStub, "LibDataBroker-1.1", true)
+    if not (ok and type(broker) == "table" and broker.NewDataObject) then return end
+    if broker.GetDataObjectByName and broker:GetDataObjectByName(ADDON_LABEL) then return end
+    pcall(broker.NewDataObject, broker, ADDON_LABEL, {
+        type = "launcher",
+        label = ADDON_LABEL,
+        icon = LAUNCHER_ICON,
+        OnClick = function(self, button)
+            -- Remember the display's button so the search bar's outside-click
+            -- close recognises it as one of ours (see brokerLauncherButtons in
+            -- SearchBar). Weak-keyed: a display may rebuild its buttons.
+            if self then ns.brokerLauncherButtons[self] = true end
+            if button == "RightButton" then
+                EasyFind:OpenOptions()
+            else
+                EasyFind:ToggleSearchUI()
+            end
+        end,
+        OnTooltipShow = function(tooltip)
+            if not (tooltip and tooltip.AddLine) then return end
+            tooltip:AddLine(ADDON_LABEL)
+            tooltip:AddLine(L["MINIMAP_TT_LEFT_CLICK"], 1, 1, 1)
+            tooltip:AddLine(L["MINIMAP_TT_RIGHT_CLICK"], 1, 1, 1)
+        end,
+    })
+end
+
+-- Minimap button gatherers and bags collect only LibDBIcon buttons, and each
+-- ships the library: with one loaded, the launcher above becomes a LibDBIcon
+-- button and the hand-made one steps aside. Its saved angle carries over as
+-- minimapPos once (both measure from the east, counter-clockwise).
+function ns.RegisterMinimapIcon()
+    if ns.minimapIcon then return true end
+    if not LibStub then return false end
+    local okIcon, icon = pcall(LibStub, "LibDBIcon-1.0", true)
+    local okBroker, broker = pcall(LibStub, "LibDataBroker-1.1", true)
+    if not (okIcon and type(icon) == "table" and icon.Register and okBroker and type(broker) == "table"
+            and broker.GetDataObjectByName) then
+        return false
+    end
+    local obj = broker:GetDataObjectByName(ADDON_LABEL)
+    if not obj then return false end
+    local db = EasyFind.db
+    if type(db.minimapIcon) ~= "table" then db.minimapIcon = { minimapPos = db.minimapButtonAngle or 200 } end
+    db.minimapIcon.hide = db.showMinimapButton == false
+    if not pcall(icon.Register, icon, ADDON_LABEL, obj, db.minimapIcon) then return false end
+    ns.minimapIcon = icon
+    -- Known before its first click, so that click toggles instead of blinking.
+    local btn = icon.GetMinimapButton and icon:GetMinimapButton(ADDON_LABEL)
+    if btn then ns.brokerLauncherButtons[btn] = true end
+    if minimapButton then minimapButton:Hide() end
+    return true
+end
+
+function EasyFind_OnAddonCompartmentClick(_, button)
+    if button == "LeftButton" then
+        EasyFind:ToggleSearchUI()
+    else
+        EasyFind:OpenOptions()
+    end
+end

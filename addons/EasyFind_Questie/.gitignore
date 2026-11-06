@@ -1,0 +1,12 @@
+*.zip
+release.conf
+release.sh
+dev/
+.claude/
+*.swp
+*~
+Thumbs.db
+.DS_Store
+ziptest.sh
+cf_upload.py
+process_changelog.py
