@@ -143,6 +143,7 @@ For each:
 - [ ] Scrolling works with the wheel, and rows do not bleed past the list's edge.
 - [ ] Tooltips stay on screen.
 - [ ] The HUD fits, drags when unlocked, and its position survives a reload.
+- [ ] The size sliders in Settings show a thumb you can drag. The test client cannot draw those.
 - [ ] Resize the window. Layout follows without a reload.
 
 ## 11. Living with it
