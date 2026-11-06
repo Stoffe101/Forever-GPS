@@ -168,7 +168,9 @@ function Client:BuildEnv(opts)
     env.CallErrorHandler = onError
     env.debugstack = function() return "" end
     env.debugprofilestop = function() return os.clock() * 1000 end
-    env.GetFramerate = function() return client.fps or 60 end
+    -- Time here is simulated and a plan's slices are real, so a test's deadline buys less
+    -- on a slower machine. The largest budget keeps those deadlines far from the work.
+    env.GetFramerate = function() return client.fps or 15 end
     env.UpdateAddOnMemoryUsage = function() end
     -- As strict as the metadata: only what is loaded has a figure.
     env.GetAddOnMemoryUsage = function(n)

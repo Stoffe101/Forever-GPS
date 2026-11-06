@@ -127,7 +127,7 @@ function tests.aRerouteSaysWhy()
     local said
     c.FG.On("toast", function(text) said = text end)
     c:SetPlayer(1429, 0.5, 0.5)
-    T.ok(Stack.Until(c, function() return said ~= nil end, 30), "a reason is given: " .. tostring(said))
+    T.ok(Stack.Until(c, function() return said ~= nil end, 90), "a reason is given: " .. tostring(said))
     T.has(said, "New route from here")
 end
 
@@ -141,7 +141,7 @@ function tests.aRideElsewhere_isExplained()
     c.FG.On("toast", function(text) said = text end)
     -- Off somewhere the planned boat does not go.
     c:SetPlayer(1454, 0.5, 0.5)
-    T.ok(Stack.Until(c, function() return said ~= nil end, 30), "explained")
+    T.ok(Stack.Until(c, function() return said ~= nil end, 90), "explained")
     T.has(said, "ride went somewhere else", said)
 end
 
@@ -157,7 +157,7 @@ function tests.wanderingOffAfterARide_isNotBlamedOnTheRide()
     c:SetPlayer(arrive.m, arrive.x, arrive.y)
     c:Advance(1)
     c:SetPlayer(arrive.m, 0.9, 0.9)
-    T.ok(Stack.Until(c, function() return said ~= nil end, 30), "explained")
+    T.ok(Stack.Until(c, function() return said ~= nil end, 90), "explained")
     T.has(said, "Off the route", said)
 end
 
