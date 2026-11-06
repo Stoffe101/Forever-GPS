@@ -203,10 +203,16 @@ function tests.finishingAnObjective_offersWhatComesNext()
     c:Fire("QUEST_LOG_UPDATE")
     c:Advance(1)
     T.no(c.FG.Bridge.ActiveRoute(), "the walk to it is over")
-    local hud = c.env.ForeverGPSHUD
-    T.ok(hud.toast:IsShown(), "something is offered")
-    T.has(hud.toast.text:GetText(), "Next:", "what comes next")
-    T.ok(hud.toast.action:IsShown(), "with a button, not a change of route")
+    local toast = c.FG.HUD.ToastFrame()
+    T.ok(toast:IsVisible(), "something is offered, with the route gone")
+    T.has(toast.text:GetText(), "Next:", "what comes next")
+    T.ok(toast.action:IsVisible(), "with a button, not a change of route")
+    toast.action:Click()
+    T.ok(Stack.Until(c, function()
+        local p = c.FG.Planner.Current()
+        return p and p.status == "ready"
+    end, 30), "which shows the route to it")
+    T.no(c.FG.Bridge.ActiveRoute(), "and still starts nothing")
     T.no(c.FG.Bridge.Route(), "nothing started by itself")
 end
 

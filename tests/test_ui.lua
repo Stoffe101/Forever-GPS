@@ -60,8 +60,8 @@ local function Visible(frame, visit, clipped)
     end
 end
 
-local function Check(c, name)
-    local window = c.env.ForeverGPSWindow
+local function Check(c, name, frame)
+    local window = frame or c.env.ForeverGPSWindow
     local screen = c.root._rect
     local box = Rect(window)
     T.ok(box, name .. ": the window resolves")
@@ -349,18 +349,22 @@ function tests.settings_everyControlIsThereToUse()
         local page = FG.Window.Frame().settingsPage
         local box = Rect(page)
         local seen = 0
-        for _, item in ipairs(page.items) do
-            local r = Rect(item.widget)
-            T.ok(r, screen[1] .. ": a settings row resolves")
-            if item.sizing ~= "own" then
-                T.ok(r.r - r.l >= 100, ("%s: a settings row is %d wide"):format(screen[1], r.r - r.l))
+        for index, group in ipairs(FG.SettingsView.Groups()) do
+            FG.SettingsView.Select(index)
+            for _, item in ipairs(group.items) do
+                FG.SettingsView.Reveal(item)
+                local r = Rect(item.widget)
+                T.ok(r, screen[1] .. ": a settings row resolves")
+                if item.sizing ~= "own" then
+                    T.ok(r.r - r.l >= 100, ("%s: a settings row is %d wide"):format(screen[1], r.r - r.l))
+                end
+                T.ok(r.t - r.b >= 8, screen[1] .. ": and has height")
+                T.ok(Inside(r, box), ("%s: %s on the page"):format(screen[1], group.label))
+                seen = seen + 1
             end
-            T.ok(r.t - r.b >= 8, screen[1] .. ": and has height")
-            T.ok(Inside(r, box), screen[1] .. ": on the page")
-            seen = seen + 1
         end
-        T.eq(seen, #page.items)
-        T.ok(seen >= 12, "the page has its controls")
+        T.ok(seen >= 25, "the page has its controls: " .. seen)
+        T.eq(#c.errors, 0, "and none of them raised")
     end
 end
 
@@ -369,16 +373,200 @@ function tests.settings_switchesDoWhatTheySay()
     local FG = c.FG
     FG.Window.Show("settings")
     c:Advance(0.3)
-    local page = FG.Window.Frame().settingsPage
     local hud
-    for _, item in ipairs(page.items) do
-        if item.widget.label and item.widget.label._text == FG.L["SET_HUD"] then hud = item.widget end
+    for index, group in ipairs(FG.SettingsView.Groups()) do
+        FG.SettingsView.Select(index)
+        for _, item in ipairs(group.items) do
+            if item.widget.label and item.widget.label._text == FG.L["SET_HUD"] then hud = item.widget end
+        end
+        if hud then break end
     end
     T.ok(hud, "the HUD switch is on the page")
     hud:Click()
     T.no(FG.db.hud.enabled, "off")
     hud:Click()
     T.ok(FG.db.hud.enabled, "and on")
+end
+
+-- Finds a slider by the heading above it.
+local function SliderUnder(FG, headingKey)
+    for index, group in ipairs(FG.SettingsView.Groups()) do
+        FG.SettingsView.Select(index)
+        for i, item in ipairs(group.items) do
+            if item.widget._text == FG.L[headingKey] then return group.items[i + 1], index end
+        end
+    end
+end
+
+function tests.sliders_haveAKnobAndAValueAndWork()
+    for _, screen in ipairs(SCREENS) do
+        local c = Start(screen)
+        local FG = c.FG
+        FG.Window.Show("settings")
+        c:Advance(0.3)
+        local item = SliderUnder(FG, "SET_HUD_SCALE")
+        T.ok(item, "the slider is there")
+        FG.SettingsView.Reveal(item)
+        local s = item.widget
+        local knob, track = Rect(s.knob), Rect(s.track)
+        T.ok(knob and knob.r - knob.l >= 8, screen[1] .. ": the knob can be seen")
+        T.ok(track and track.r - track.l >= 60, screen[1] .. ": the track has room")
+        T.ok(knob.l >= track.l - 8 and knob.r <= track.r + 8, screen[1] .. ": the knob sits on the track")
+        T.eq(s.value._text, "100%", "the value is written beside it")
+        s._scripts.OnMouseWheel(s, 1)
+        T.near(FG.db.hud.scale, 1.05, 0.001, "the wheel moves it")
+        local moved = Rect(s.knob)
+        T.ok(moved.l > knob.l, "and the knob with it")
+        T.eq(s.value._text, "105%")
+        -- A press at the far end of the track.
+        local scale = s:GetEffectiveScale()
+        c.env.GetCursorPosition = function() return (track.r + 50) * 1, 0 end
+        s._scripts.OnMouseDown(s, "LeftButton")
+        s._scripts.OnMouseUp(s, "LeftButton")
+        T.near(FG.db.hud.scale, 1.5, 0.001, "a press past the end stops at the end (scale " .. scale .. ")")
+        T.eq(#c.errors, 0)
+    end
+end
+
+function tests.settings_reachWhatTheySay()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Window.Show("settings")
+    c:Advance(0.3)
+    -- The rail changes the page, and what was on it leaves.
+    FG.SettingsView.Select(6)
+    local first = FG.SettingsView.Groups()[6].items[1].widget
+    T.ok(first:IsVisible(), "the group shows")
+    FG.SettingsView.Select(1)
+    T.no(first:IsVisible(), "and goes when another is chosen")
+    FG.Saved.AddRecent({ data = { name = "Somewhere", mapID = 1429, x = 0.5, y = 0.5 }, name = "Somewhere" })
+    T.eq(#FG.Saved.Recents(), 1)
+    FG.Saved.ClearRecents()
+    T.eq(#FG.Saved.Recents(), 0, "clearing recents clears them")
+end
+
+function tests.theHud_fitsInEveryMode()
+    for _, screen in ipairs(SCREENS) do
+        for _, mode in ipairs({ "compact", "standard", "detailed" }) do
+            local c = Start(screen)
+            local FG = c.FG
+            FG.db.hud.mode = mode
+            FG.Planner.Inspect({ data = { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 }, name = "Auberdine" })
+            Ready(c)
+            FG.Planner.Start()
+            c:Advance(0.5)
+            local hud = c.env.ForeverGPSHUD
+            T.ok(hud:IsVisible(), screen[1] .. " " .. mode .. ": shown")
+            Check(c, screen[1] .. " " .. mode, hud)
+            local r, s = Rect(hud), c.env.UIParent
+            T.ok(r.r - r.l <= s:GetWidth() * s:GetEffectiveScale() + 1, "no wider than the screen")
+            local text = 0
+            Visible(hud, function(obj)
+                if obj._kind == "FontString" and (obj._text or "") ~= "" then text = text + 1 end
+            end)
+            T.ok(text >= 2, mode .. " says something")
+        end
+    end
+end
+
+function tests.theHud_showsLessWhenCompactAndMoreWhenDetailed()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Planner.Inspect({ data = { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 }, name = "Auberdine" })
+    Ready(c)
+    FG.Planner.Start()
+    c:Advance(0.5)
+    local hud = c.env.ForeverGPSHUD
+    local function Set(mode)
+        FG.db.hud.mode = mode
+        FG.Emit("settings:changed")
+        return Rect(hud)
+    end
+    local compact = Set("compact")
+    T.no(hud.nextLine:IsShown(), "compact has no next step")
+    local detailed = Set("detailed")
+    T.ok(hud.nextLine:IsShown(), "detailed does")
+    T.ok(detailed.r - detailed.l > compact.r - compact.l, "and it is wider")
+    FG.db.hud.showEta = false
+    FG.Emit("settings:changed")
+    T.lacks(hud.meta._text, "left", "the time left can be turned off")
+end
+
+function tests.theHudArrow_turnsWithoutTwitching()
+    local c = Start(SCREENS[3])
+    c.FG.HUD.Render({ state = "moving", title = "x", icon = c.FG.ART .. "walk" })
+    local Eased = c.FG.HUD._Eased
+    T.near(Eased(1, 0.03), 1, 0.001, "starts on its aim")
+end
+
+function tests.news_outlivesTheRouteItSpeaksOf()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Emit("toast", "Something happened", nil, nil, true)
+    c:Advance(0.5)
+    local toast = FG.HUD.ToastFrame()
+    T.ok(toast:IsVisible(), "seen with no route and no HUD")
+    T.has(toast.text._text, "Something happened")
+    Check(c, "toast", toast)
+    c:Advance(7)
+    T.no(toast:IsVisible(), "and goes by itself")
+end
+
+function tests.quickNavigation_typesAndGoes()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Quick.Open("auberdine")
+    c:Advance(0.5)
+    local quick = c.env.ForeverGPSQuick
+    T.ok(quick:IsVisible(), "the box opens")
+    T.ok(#FG.Quick._Results() > 0, "and finds it")
+    Check(c, "quick", quick)
+    FG.Quick.Choose()
+    T.no(quick:IsVisible(), "goes away once chosen")
+    T.ok(Stack.Until(c, function() return FG.Bridge.ActiveRoute() ~= nil end, 30), "and navigation starts")
+    T.no(FG.Window.IsShown(), "without the window")
+end
+
+function tests.quickNavigation_canLookFirst()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Quick.Open("auberdine")
+    c:Advance(0.5)
+    FG.Quick.Choose(1, true)
+    c:Advance(1)
+    T.ok(FG.Window.IsShown(), "the journey to look over")
+    Ready(c)
+    T.no(FG.Bridge.ActiveRoute(), "and nothing has started")
+end
+
+function tests.theMinimapButton_doesWhatItSays()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    c:Advance(0.2)
+    local b = c.env.ForeverGPSMinimapButton
+    T.ok(b and b:IsVisible(), "there by default")
+    b._scripts.OnClick(b, "LeftButton")
+    T.ok(FG.Window.IsShown(), "left click opens")
+    b._scripts.OnClick(b, "RightButton")
+    T.ok(c.env.ForeverGPSQuick:IsVisible(), "right click goes quick")
+    FG.db.minimap.shown = false
+    FG.Emit("settings:changed")
+    T.no(b:IsVisible(), "and it can go")
+end
+
+function tests.theCopyBox_fitsAndHoldsNothingPersonal()
+    for _, screen in ipairs(SCREENS) do
+        local c = Start(screen)
+        local FG = c.FG
+        local text = FG.Diagnostics.Report()
+        FG.CopyBox.Show(text)
+        c:Advance(0.2)
+        Check(c, "copy box", c.env.ForeverGPSCopyBox)
+        T.has(text, "Forever-GPS report")
+        T.has(text, "Route engine ready")
+        T.lacks(text, c.env.UnitName("player"), "no character name")
+        T.lacks(text, c.env.GetRealmName(), "no realm name")
+    end
 end
 
 function tests.homeTiles_fitTheirLabels()

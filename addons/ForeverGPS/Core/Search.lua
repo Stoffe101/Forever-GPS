@@ -355,6 +355,7 @@ end
 -- Creatures and objects only Questie knows: common mobs, herbs, veins and chests.
 -- Read from the installed addon as asked for, never copied.
 local function WorldResults(query, listed, out)
+    if not FG.db.search.world then return end
     local found = Bridge.FindWorld(query, WORLD_ROWS)
     for _, entry in ipairs(found or {}) do
         if not (entry.kind == "npc" and Bridge.NpcKnown(entry.id)) and not listed[entry.name] then
@@ -526,6 +527,7 @@ end
 -- thing is then ordered by travel time, since any of them will do.
 function Search.Price(results, info, onUpdate)
     generation = generation + 1
+    if not FG.db.search.prices then return end
     local mine = generation
     local function Alive() return mine == generation end
     local pending = 0

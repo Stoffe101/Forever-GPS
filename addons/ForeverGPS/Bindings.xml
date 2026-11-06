@@ -2,6 +2,9 @@
     <Binding name="FOREVERGPS_TOGGLE" category="Forever-GPS">
         ForeverGPS.Toggle()
     </Binding>
+    <Binding name="FOREVERGPS_QUICK" category="Forever-GPS">
+        ForeverGPS.QuickOpen()
+    </Binding>
     <Binding name="FOREVERGPS_QUESTS" category="Forever-GPS">
         ForeverGPS.OpenQuests()
     </Binding>

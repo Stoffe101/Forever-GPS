@@ -250,6 +250,7 @@ end
 
 -- The other places a destination stands, to choose from on the map.
 local function AreaMarks(target, p, n)
+    if not FG.db.map.areas then return n end
     for _, area in ipairs(target and target.areas or {}) do
         if area ~= target.area and area.spot then
             local x, y = OnMapPoint(p, { m = area.spot.mapID, x = area.spot.x, y = area.spot.y })
@@ -410,9 +411,10 @@ end
 
 local function Sync(plan)
     local option = plan and plan.selected
-    if option and option.steps and not option.noWay then
+    local wanted = FG.db.map.preview or (shown and shown.asked)
+    if option and option.steps and not option.noWay and wanted then
         if not shown or shown.option ~= option or shown.target ~= plan.target then
-            shown = { option = option, target = plan.target }
+            shown = { option = option, target = plan.target, asked = shown and shown.target == plan.target and shown.asked }
         end
     else
         shown = nil
@@ -429,9 +431,20 @@ local function Sync(plan)
 end
 
 FG.On("plan:changed", Sync)
+FG.On("settings:changed", function()
+    wipe(drawn)
+    Sync(FG.Planner.Current())
+end)
 
 -- Turns the map to the whole journey, or to one step of it.
 function MapPreview.Open(index)
+    -- Asked for by name, it shows even with the automatic preview turned off.
+    if not shown then
+        local plan = FG.Planner.Current()
+        if not (plan and plan.selected) then return false end
+        shown = { option = plan.selected, target = plan.target, asked = true }
+        Sync(plan)
+    end
     if not shown then return false end
     local map = Map()
     if not map then return false end

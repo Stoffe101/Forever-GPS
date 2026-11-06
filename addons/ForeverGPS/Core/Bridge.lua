@@ -90,6 +90,75 @@ function Bridge.OnRide()
     return b and b.Carried and b.Carried() or false
 end
 
+local function SpotWorld(spot)
+    if spot.wx then return spot.ci, spot.wx, spot.wy end
+    return Bridge.WorldPos(spot.m, spot.x, spot.y)
+end
+
+-- Whether the player stands within yards of a step's spot.
+function Bridge.AtSpot(spot, yards)
+    local here = Bridge.PlayerStart()
+    if not (here and spot) then return false end
+    local ci, wx, wy = SpotWorld(spot)
+    return ci == here.ci and wx ~= nil and (wx - here.wx) ^ 2 + (wy - here.wy) ^ 2 <= yards * yards
+end
+
+-- Whether the player is on board a ride, docked or under way.
+function Bridge.Aboard(step)
+    local ns = NS()
+    local b = ns and ns.GPSBoats
+    local here = Bridge.PlayerStart()
+    if not (b and b.Aboard and here and step.go) then return false end
+    local ci, wx, wy = SpotWorld(step.go)
+    return b.Aboard(here.ci, here.wx, here.wy, ci, wx, wy) == true
+end
+
+-- Seconds until a ride next leaves, known only once a recent ride has timed its
+-- loop on this realm. nil otherwise: a guess here would be worse than saying so.
+function Bridge.LeavesIn(step)
+    local ns = NS()
+    local b = ns and ns.GPSBoats
+    if not (b and b.WaitAt and step.route and step.stop) then return nil end
+    return b.WaitAt(step.route, step.stop, 0)
+end
+
+local Atan2 = math.atan2 or math.atan
+
+-- The turn a walk takes within reach: { side = "left"|"right", yards }, or nil.
+function Bridge.TurnAhead(reach, sharp)
+    local f = Bridge.Follow()
+    local ns = NS()
+    local Follow = ns and ns.GPSFollow
+    if not (f and f.path and f.path.pts and f.along and Follow and Follow.PointAt) then return nil end
+    local path, seg = f.path, f.seg or 1
+    local x0, y0 = Follow.PointAt(path, f.along, seg)
+    local x1, y1 = Follow.PointAt(path, f.along + 8, seg)
+    local heading = Atan2(y1 - y0, x1 - x0)
+    local yards = 16
+    while yards <= reach do
+        local xa, ya = Follow.PointAt(path, f.along + yards - 8, seg)
+        local xb, yb = Follow.PointAt(path, f.along + yards, seg)
+        if xa ~= xb or ya ~= yb then
+            local gap = (Atan2(yb - ya, xb - xa) - heading + math.pi) % (2 * math.pi) - math.pi
+            if math.abs(gap) >= sharp then
+                -- World coordinates turn counterclockwise: more is to the left.
+                return { side = gap > 0 and "left" or "right", yards = yards - 8 }
+            end
+        end
+        yards = yards + 8
+    end
+    return nil
+end
+
+-- A real drop on a walk, as the engine words it; nil for a walk without one.
+function Bridge.DropNote(step)
+    local ns = NS()
+    local J = ns and ns.GPSJumps
+    if not (J and J.StepText and step.jumps) then return nil end
+    local ok, text = pcall(J.StepText, step)
+    return ok and text or nil
+end
+
 -- ==== destinations ==========================================================
 
 function Bridge.CanNavigate(data)
@@ -309,6 +378,8 @@ function Bridge.PlanOurs(build, done)
     marking = true
     GPS():Plan(nil, build, function(...)
         planIsOurs = false
+        -- Whoever asked may have moved on: the grid goes back all the same.
+        Bridge.RestoreNav()
         return done(...)
     end, true)
 end

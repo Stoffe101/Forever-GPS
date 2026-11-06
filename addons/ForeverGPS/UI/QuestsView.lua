@@ -467,6 +467,7 @@ end
 -- Questie may have finished loading since the list was last read.
 function View.Show()
     if Targets.QuestieChanged() then wipe(resolved) end
+    f.grouping:SetLabel(L[GROUP_LABEL[grouping]])
     View.Layout()
     View.Refresh(false)
 end

@@ -80,6 +80,113 @@ function tests.theHud_namesTheFlightWhileFlying()
     T.has(view.title, "Menethil", "says where to")
 end
 
+function tests.atTheDock_itWaitsAndInventsNoTime()
+    local c = Start()
+    local route = Go(c, nil)
+    Reach(c, route.steps[1])
+    c.ns.GPSBoats.Aboard = function() return false end
+    c:Advance(0.5)
+    local view = c.FG.Journey.View()
+    T.eq(view.kind, "boat", "at the boat step")
+    T.eq(view.state, "waiting", "standing at the dock")
+    T.has(view.title, "Waiting for the boat to Auberdine", "says so: " .. view.title)
+    T.no(view.leaves, "and no ride has timed this boat, so no countdown")
+    T.no(view.pointing, "nothing to point at")
+    local hud = c.env.ForeverGPSHUD
+    if hud then T.has(hud.meta._text, "not known", "the HUD says the time is unknown") end
+end
+
+function tests.aTimedRide_saysWhenItLeaves()
+    local c = Start()
+    local route = Go(c, nil)
+    Reach(c, route.steps[1])
+    c.ns.GPSBoats.Aboard = function() return false end
+    c:Advance(0.5)
+    c.ns.GPSBoats.WaitAt = function() return 80 end
+    local view = c.FG.Journey.View()
+    T.eq(view.leaves, 80, "a real timing is used")
+end
+
+function tests.aboard_isNotWaiting()
+    local c = Start()
+    local route = Go(c, nil)
+    Reach(c, route.steps[1])
+    c:Advance(0.5)
+    c.ns.GPSBoats.Aboard = function() return true end
+    local view = c.FG.Journey.View()
+    T.eq(view.state, "aboard", "on the deck")
+    T.no(view.pointing, "still no arrow")
+    T.has(view.title, "Stay on", "says to stay on")
+end
+
+function tests.aRerouteSaysWhy()
+    local c = Start()
+    local route = Go(c, nil)
+    T.ok(route, "under way")
+    c:Advance(0.5)
+    local said
+    c.FG.On("toast", function(text) said = text end)
+    c:SetPlayer(1429, 0.5, 0.5)
+    T.ok(Stack.Until(c, function() return said ~= nil end, 30), "a reason is given: " .. tostring(said))
+    T.has(said, "New route from here")
+end
+
+function tests.aRideElsewhere_isExplained()
+    local c = Start()
+    local route = Go(c, nil)
+    Reach(c, route.steps[1])
+    c:Advance(0.5)
+    T.eq(c.FG.Journey.View().kind, "boat", "at the boat")
+    local said
+    c.FG.On("toast", function(text) said = text end)
+    -- Off somewhere the planned boat does not go.
+    c:SetPlayer(1454, 0.5, 0.5)
+    T.ok(Stack.Until(c, function() return said ~= nil end, 30), "explained")
+    T.has(said, "ride went somewhere else", said)
+end
+
+function tests.wanderingOffAfterARide_isNotBlamedOnTheRide()
+    local c = Start()
+    local route = Go(c, nil)
+    Reach(c, route.steps[1])
+    c:Advance(0.5)
+    local said
+    c.FG.On("toast", function(text) said = text end)
+    -- Landed where the boat goes, then off across the zone.
+    local arrive = route.steps[2].arrive
+    c:SetPlayer(arrive.m, arrive.x, arrive.y)
+    c:Advance(1)
+    c:SetPlayer(arrive.m, 0.9, 0.9)
+    T.ok(Stack.Until(c, function() return said ~= nil end, 30), "explained")
+    T.has(said, "Off the route", said)
+end
+
+function tests.timeLeft_glidesInsteadOfLeaping()
+    local c = Start()
+    local Glide = c.FG.Journey._Glide
+    Glide(nil)
+    T.eq(Glide(300), 300, "starts where it is")
+    local next = Glide(60)
+    T.ok(next < 300, "heads for the new time")
+    T.ok(next > 290, "without a leap: " .. next)
+    for _ = 1, 400 do Glide(60) end
+    T.near(Glide(60), 60, 1, "and gets there")
+    T.no(Glide(nil), "nothing to show with no time")
+end
+
+function tests.thePathsNextTurn_isFound()
+    local c = Start()
+    Go(c, nil)
+    c:Advance(0.5)
+    c.FG.db.hud.mode = "detailed"
+    local path = c.FG.Bridge.Follow()
+    T.ok(path and path.path, "on a walk")
+    local turn = c.FG.Bridge.TurnAhead(4000, 0.5)
+    T.ok(turn, "a real walk bends somewhere")
+    T.ok(turn.side == "left" or turn.side == "right")
+    T.ok(turn.yards > 0)
+end
+
 function tests.nextStep_isTheNextOneNotThisOneAgain()
     local c = Start()
     Go(c, nil)

@@ -70,11 +70,12 @@ end
 -- ==== text ==================================================================
 
 -- A font that fails to load would leave the string unable to take text at all,
--- which would take the whole interface down with it.
-function Kit.SetStyle(fs, style)
+-- which would take the whole interface down with it. delta: points more or fewer.
+function Kit.SetStyle(fs, style, delta)
     local s = Theme.TEXT[style] or Theme.TEXT.body
-    if not fs:SetFont(Theme.FONT[s[1]], s[2], "") then
-        fs:SetFont(STANDARD_TEXT_FONT, s[2], "")
+    local size = s[2] + (delta or 0)
+    if not fs:SetFont(Theme.FONT[s[1]], size, "") then
+        fs:SetFont(STANDARD_TEXT_FONT, size, "")
     end
 end
 
@@ -398,31 +399,64 @@ function Kit.Choice(parent, choices, get, set)
     return f
 end
 
--- A slider drawn as a bar. step: its grain.
-function Kit.Scale(parent, low, high, step, get, set)
-    local s = CreateFrame("Slider", nil, parent)
-    s:SetOrientation("HORIZONTAL")
-    s:SetHeight(18)
-    s:SetMinMaxValues(low, high)
-    s:SetValueStep(step)
-    s:SetObeyStepOnDrag(true)
+-- A slider, every part of it drawn here: the track, how far along it is, a knob and
+-- the value in words. The game's Slider leaves its thumb to the client, and a thumb
+-- that fails to show leaves nothing to take hold of. step: its grain. shown(value):
+-- the value as text.
+function Kit.Scale(parent, low, high, step, get, set, shown)
+    local s = CreateFrame("Frame", nil, parent)
+    s:SetHeight(22)
     s:EnableMouse(true)
+    s:EnableMouseWheel(true)
+    s.value = Kit.Text(s, "small", "textDim")
+    s.value:SetPoint("RIGHT", s, "RIGHT", 0, 0)
+    s.value:SetJustifyH("RIGHT")
+    s.value:SetWidth(40)
     s.track = s:CreateTexture(nil, "BACKGROUND")
     s.track:SetHeight(4)
-    s.track:SetPoint("LEFT", s, "LEFT", 0, 0)
-    s.track:SetPoint("RIGHT", s, "RIGHT", 0, 0)
-    s.thumb = s:CreateTexture(nil, "ARTWORK")
-    s.thumb:SetTexture(FG.ART .. "circle")
-    s.thumb:SetSize(14, 14)
-    s:SetThumbTexture(s.thumb)
+    s.track:SetPoint("LEFT", s, "LEFT", 7, 0)
+    s.track:SetPoint("RIGHT", s, "RIGHT", -52, 0)
+    s.fill = s:CreateTexture(nil, "BORDER")
+    s.fill:SetHeight(4)
+    s.fill:SetPoint("LEFT", s.track, "LEFT", 0, 0)
+    s.knob = s:CreateTexture(nil, "ARTWORK")
+    s.knob:SetTexture(FG.ART .. "circle")
+    s.knob:SetSize(14, 14)
     Theme.Paint(function(c)
         s.track:SetColorTexture(c.line[1], c.line[2], c.line[3], 1)
-        Color(s.thumb, c.accent)
+        s.fill:SetColorTexture(c.accent[1], c.accent[2], c.accent[3], 1)
+        Color(s.knob, c.accent)
     end)
-    s:SetValue(get())
-    s:SetScript("OnValueChanged", function(_, value, user)
-        if user then set(math.floor(value / step + 0.5) * step) end
+    function s:Sync()
+        local value = get()
+        local width = self.track:GetWidth() or 0
+        local x = math.max(0, math.min(1, (value - low) / (high - low))) * width
+        self.knob:ClearAllPoints()
+        self.knob:SetPoint("CENTER", self.track, "LEFT", x, 0)
+        self.fill:SetWidth(math.max(1, x))
+        self.value:SetText(shown and shown(value) or tostring(value))
+    end
+    -- A value from outside: held to the step and the ends.
+    function s:Set(value)
+        value = math.max(low, math.min(high, math.floor(value / step + 0.5) * step))
+        if math.abs(value - get()) >= step / 2 then set(value) end
+        self:Sync()
+    end
+    local function FromCursor(self)
+        local left, width = self.track:GetLeft(), self.track:GetWidth()
+        if not left or width <= 0 then return end
+        local x = GetCursorPosition() / self:GetEffectiveScale()
+        self:Set(low + math.max(0, math.min(1, (x - left) / width)) * (high - low))
+    end
+    s:SetScript("OnMouseDown", function(self, button)
+        if button ~= "LeftButton" then return end
+        FromCursor(self)
+        self:SetScript("OnUpdate", FromCursor)
     end)
+    s:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
+    s:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+    s:SetScript("OnMouseWheel", function(self, delta) self:Set(get() + delta * step) end)
+    s:SetScript("OnSizeChanged", s.Sync)
     return s
 end
 

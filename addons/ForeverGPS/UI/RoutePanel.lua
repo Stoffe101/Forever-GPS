@@ -565,7 +565,7 @@ local function RenderActive(route)
     f.via:SetText(Kinds.Summary(route.steps))
     for i = 1, #f.modes do f.modes[i]:Hide() end
     f.place:Hide()
-    Stack(route.steps, nil, {})
+    Stack(route.steps, nil, { note = Planner.Tip(route.advice) })
     local active = route.active or 1
     stepList:SetItems(StepItems(route.steps, active, active), true)
     stepList:Reveal(active)

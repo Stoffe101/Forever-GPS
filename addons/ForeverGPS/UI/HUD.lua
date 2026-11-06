@@ -1,6 +1,7 @@
 -- The navigation HUD: what to do now, how far, how long, and what comes next. On
 -- a ride it stops pointing and says which ride it is. The arrow's aim is EasyFind
--- GPS's own, so it follows the walk around bends rather than straight at the end.
+-- GPS's own, so it follows the walk around bends rather than straight at the end;
+-- this only eases it, so it turns rather than twitches.
 local _, FG = ...
 local HUD = {}
 FG.HUD = HUD
@@ -9,15 +10,29 @@ local Kit, Theme, Format = FG.Kit, FG.Theme, FG.Format
 local Bridge, Journey = FG.Bridge, FG.Journey
 local L = FG.L
 
-local WIDTH, HOME_Y = 330, -96
-local MARGIN = 8
+local HOME_Y, MARGIN = -96, 8
 local ARROW_EVERY = 0.03
+local ARROW_RATE = 12        -- how quickly the arrow closes on its aim, per second
+local ARROW_STILL = 0.02     -- radians: closer than this it stays put
+local REDUCED_EVERY = 0.25   -- with reduced motion it turns in steps, this often
+local REDUCED_STEP = math.pi / 12
 local TOAST_SECONDS = 6
+local TWO_PI = math.pi * 2
 
-local f, view
+-- How much each size shows.
+local LAYOUT = {
+    compact = { width = 250, arrow = 24, pad = 7, lines = 1, text = 44 },
+    standard = { width = 330, arrow = 34, pad = 10, lines = 2, text = 56, next = true, bar = true },
+    detailed = { width = 390, arrow = 38, pad = 11, lines = 3, text = 62, next = true, bar = true, detail = true },
+}
+local FONT_DELTA = { small = -1, normal = 0, large = 2 }
+
+local f, toast, view
 local since = 0
+local aim                    -- the arrow's rotation now
 
 local function Enabled() return FG.db and FG.db.hud.enabled end
+local function Look() return LAYOUT[FG.db.hud.mode] or LAYOUT.standard end
 
 function HUD.Guiding()
     return f ~= nil and f:IsVisible() and f.arrow:IsShown()
@@ -48,7 +63,35 @@ end
 local function ApplyScale()
     local scale = FG.db.hud.scale or 1
     f:SetScale(scale)
-    f:SetWidth(math.min(WIDTH, (UIParent:GetWidth() - MARGIN * 2) / scale))
+    f:SetWidth(math.min(Look().width, (UIParent:GetWidth() - MARGIN * 2) / scale))
+end
+
+local function PaintBack()
+    local c = Theme.C.hud
+    f.back:SetColor({ c[1], c[2], c[3], FG.db and FG.db.hud.opacity or c[4] })
+end
+
+-- Sizes and text follow the settings.
+local function ApplyLook()
+    local look = Look()
+    local delta = FONT_DELTA[FG.db.hud.font] or 0
+    f.arrow:SetSize(look.arrow, look.arrow)
+    f.arrow:ClearAllPoints()
+    f.arrow:SetPoint("TOPLEFT", f, "TOPLEFT", look.pad, -look.pad)
+    f.arrow:SetIcon(FG.db.hud.arrowStyle == "chevron" and "nav-chevron" or "nav-arrow")
+    f.glyph:SetSize(look.arrow - 6, look.arrow - 6)
+    f.glyph:ClearAllPoints()
+    f.glyph:SetPoint("TOPLEFT", f, "TOPLEFT", look.pad + 3, -look.pad - 3)
+    f.title:ClearAllPoints()
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", look.text, -look.pad + 1)
+    f.title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -24, -look.pad + 1)
+    f.title:SetMaxLines(look.lines)
+    Kit.SetStyle(f.title, "heading", delta)
+    Kit.SetStyle(f.meta, "small", delta)
+    Kit.SetStyle(f.detail, "small", delta)
+    Kit.SetStyle(f.nextLine, "small", delta)
+    f.bar:SetShown(look.bar == true)
+    PaintBack()
 end
 
 local function ShowMenu()
@@ -108,6 +151,26 @@ local function SetCast(step)
     b:Show()
 end
 
+-- A line under the HUD, its own frame: it outlives the route it speaks of.
+local function BuildToast()
+    toast = CreateFrame("Frame", "ForeverGPSToast", UIParent)
+    toast:SetFrameStrata("MEDIUM")
+    toast:SetHeight(28)
+    toast:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -4)
+    toast:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", 0, -4)
+    toast.back = Kit.Shape(toast, 7, "BACKGROUND", 1)
+    Theme.Paint(function(c) toast.back:SetColor(c.hud) end)
+    toast.text = Kit.Text(toast, "small", "text")
+    toast.text:SetJustifyV("MIDDLE")
+    toast.action = Kit.Button(toast, { text = L["QUEST_SHOW_ROUTE"], height = 22, width = "fit", onClick = function()
+        local q = toast.questID and FG.Quests.Get(toast.questID)
+        if q then FG.QuestsView.GoNext(q) end
+        toast:Hide()
+    end })
+    toast.action:SetPoint("RIGHT", toast, "RIGHT", -3, 0)
+    toast:Hide()
+end
+
 local function Build()
     f = CreateFrame("Button", "ForeverGPSHUD", UIParent)
     f:SetFrameStrata("MEDIUM")
@@ -118,45 +181,24 @@ local function Build()
     f.back = Kit.Shape(f, 10, "BACKGROUND", 1)
     f.edge = Kit.Shape(f, 10, "BACKGROUND", 2, true)
     Theme.Paint(function(c)
-        f.back:SetColor(c.hud)
+        PaintBack()
         f.edge:SetColor(c.line)
     end)
     f.arrow = Kit.Icon(f, 34, "route")
-    f.arrow:SetIcon("nav-arrow")
-    f.arrow:SetPoint("TOPLEFT", f, "TOPLEFT", 11, -11)
     f.glyph = Kit.Icon(f, 28, "route")
-    f.glyph:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -14)
     f.title = Kit.Text(f, "heading", "text", 2)
-    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 56, -9)
-    f.title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -24, -9)
     f.meta = Kit.Text(f, "small", "textDim")
     f.meta:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -3)
     f.meta:SetPoint("TOPRIGHT", f.title, "BOTTOMRIGHT", 0, -3)
+    f.detail = Kit.Text(f, "small", "textDim")
+    f.detail:SetPoint("TOPLEFT", f.meta, "BOTTOMLEFT", 0, -2)
+    f.detail:SetPoint("TOPRIGHT", f.meta, "BOTTOMRIGHT", 0, -2)
     f.nextLine = Kit.Text(f, "small", "textFaint")
-    f.nextLine:SetPoint("TOPLEFT", f.meta, "BOTTOMLEFT", 0, -2)
-    f.nextLine:SetPoint("TOPRIGHT", f.meta, "BOTTOMRIGHT", 0, -2)
     f.bar = Kit.Bar(f, 3, "route")
     f.bar:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 10, 7)
     f.bar:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 7)
     f.close = Kit.IconButton(f, "close", 9, L["HUD_STOP"], function() Bridge.Stop() end)
     f.close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -3, -3)
-
-    f.toast = CreateFrame("Frame", nil, f)
-    f.toast:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -4)
-    f.toast:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", 0, -4)
-    f.toast:SetHeight(26)
-    f.toast.back = Kit.Shape(f.toast, 7, "BACKGROUND", 1)
-    Theme.Paint(function(c) f.toast.back:SetColor(c.hud) end)
-    f.toast.text = Kit.Text(f.toast, "small", "text")
-    f.toast.action = Kit.Button(f.toast, { text = L["QUEST_SHOW_ROUTE"], height = 20, width = "fit", onClick = function()
-        local q = f.toast.questID and FG.Quests.Get(f.toast.questID)
-        if q then FG.QuestsView.GoNext(q) end
-        f.toast:Hide()
-    end })
-    f.toast.action:SetPoint("RIGHT", f.toast, "RIGHT", -4, 0)
-    f.toast.text:SetPoint("LEFT", f.toast, "LEFT", 10, 0)
-    f.toast.text:SetPoint("RIGHT", f.toast.action, "LEFT", -6, 0)
-    f.toast:Hide()
 
     -- Dragged only when unlocked; a strip says so.
     f.grip = CreateFrame("Frame", nil, f)
@@ -180,6 +222,8 @@ local function Build()
     end)
     f:SetScript("OnUpdate", function(_, elapsed) HUD.Spin(elapsed) end)
 
+    BuildToast()
+    ApplyLook()
     ApplyScale()
     ApplyLock()
     Place()
@@ -188,44 +232,72 @@ end
 -- Stops pointing and shows the step's own icon.
 local function ShowGlyph(icon)
     f.arrow:Hide()
+    aim = nil
     f.glyph:SetIcon(icon)
     f.glyph:Show()
 end
 
+-- The next rotation on the way from where the arrow is to where it should be.
+local function Eased(goal, elapsed)
+    if not aim then return goal end
+    local gap = (goal - aim + math.pi) % TWO_PI - math.pi
+    if math.abs(gap) < ARROW_STILL then return aim end
+    return aim + gap * (1 - math.exp(-ARROW_RATE * elapsed))
+end
+HUD._Eased = Eased
+
 -- Turns the arrow; it only ever spins while it is on screen.
 function HUD.Spin(elapsed)
     since = since + elapsed
-    if since < ARROW_EVERY then return end
+    local reduced = FG.db.reducedMotion
+    if since < (reduced and REDUCED_EVERY or ARROW_EVERY) then return end
+    local step = since
     since = 0
     if not (view and view.pointing and view.state == "moving" and Journey.ArrowMode() == "hud") then return end
     local heading = Journey.Heading()
-    if heading then
-        f.glyph:Hide()
-        f.arrow:Show()
-        f.arrow:SetRotation(heading)
-    else
-        ShowGlyph(view.icon)
-    end
+    if not heading then return ShowGlyph(view.icon) end
+    f.glyph:Hide()
+    f.arrow:Show()
+    aim = reduced and math.floor(heading / REDUCED_STEP + 0.5) * REDUCED_STEP or Eased(heading, step)
+    f.arrow:SetRotation(aim)
 end
 
-local function Meta(v)
+local function Meta(v, look)
     local parts = {}
     if v.yards then parts[#parts + 1] = Format.Yards(v.yards) end
-    if v.state == "riding" and v.stepEta then parts[#parts + 1] = Format.Clock(v.stepEta) end
-    if v.eta then parts[#parts + 1] = L["HUD_LEFT_FMT"]:format(Format.Duration(v.eta)) end
-    if v.index and v.count then parts[#parts + 1] = L["HUD_STEP_FMT"]:format(v.index, v.count) end
-    return table.concat(parts, " · ")
+    if v.state == "waiting" then
+        parts[#parts + 1] = v.leaves and L["HUD_LEAVES_FMT"]:format(Format.Clock(v.leaves)) or L["HUD_NO_TIMETABLE"]
+    end
+    if v.state == "riding" and v.stepEta then parts[#parts + 1] = L["HUD_ABOUT_FMT"]:format(Format.Clock(v.stepEta)) end
+    if v.eta and FG.db.hud.showEta then parts[#parts + 1] = L["HUD_LEFT_FMT"]:format(Format.Duration(v.eta)) end
+    if v.index and v.count and look ~= LAYOUT.compact then parts[#parts + 1] = L["HUD_STEP_FMT"]:format(v.index, v.count) end
+    return table.concat(parts, " \194\183 ")
 end
 
-local function FitHeight()
-    local h = 9 + f.title:GetStringHeight() + 3 + 13
-    if f.nextLine:IsShown() then h = h + 15 end
-    f:SetHeight(math.max(62, h + 16))
+-- The extra line in the largest size: what the turn ahead is, or the ride.
+local function Detail(v)
+    if v.turn then return L[v.turn.side == "left" and "HUD_TURN_LEFT_FMT" or "HUD_TURN_RIGHT_FMT"]:format(Format.Yards(v.turn.yards)) end
+    if v.dest then return L["HUD_TO_FMT"]:format(v.dest) end
+    return nil
+end
+
+local function PlaceLines(look, nextShown)
+    f.nextLine:ClearAllPoints()
+    local over = f.detail:IsShown() and f.detail or f.meta
+    f.nextLine:SetPoint("TOPLEFT", over, "BOTTOMLEFT", 0, -2)
+    f.nextLine:SetPoint("TOPRIGHT", over, "BOTTOMRIGHT", 0, -2)
+    local h = look.pad - 1 + f.title:GetStringHeight() + 3 + f.meta:GetStringHeight()
+    if f.detail:IsShown() then h = h + 2 + f.detail:GetStringHeight() end
+    if nextShown then h = h + 2 + f.nextLine:GetStringHeight() end
+    h = h + look.pad + (look.bar and 6 or 0)
+    f:SetHeight(math.max(look.arrow + look.pad * 2, h))
 end
 
 function HUD.Render(v)
     view = v
-    if not (Enabled() and v) or (FG.db.hud.hideInCombat and InCombatLockdown()) then
+    local hidden = not (Enabled() and v) or (FG.db.hud.hideInCombat and InCombatLockdown())
+        or (v and v.state == "riding" and FG.db.hud.autoHide)
+    if hidden then
         if f then
             SetCast(nil)
             f:Hide()
@@ -233,10 +305,14 @@ function HUD.Render(v)
         return
     end
     if not f then Build() end
+    local look = Look()
     f.title:SetText(v.title)
     f.title:SetColorKey(v.hostile and "danger" or "text")
-    f.meta:SetText(Meta(v))
-    local showNext = v.nextText and FG.db.hud.showNext and v.state ~= "arrived"
+    f.meta:SetText(Meta(v, look))
+    local detail = look.detail and Detail(v) or nil
+    f.detail:SetShown(detail ~= nil)
+    f.detail:SetText(detail or "")
+    local showNext = look.next and v.nextText and FG.db.hud.showNext and v.state ~= "arrived"
     f.nextLine:SetShown(showNext and true or false)
     if showNext then f.nextLine:SetText(L["HUD_NEXT_FMT"]:format(v.nextText)) end
     f.bar:SetValue(v.progress or 0)
@@ -244,31 +320,41 @@ function HUD.Render(v)
     local arrow = v.pointing and v.state == "moving" and Journey.ArrowMode() == "hud"
     if not arrow then ShowGlyph(v.icon) end
     SetCast(v.state ~= "arrived" and v.step or nil)
-    FitHeight()
+    PlaceLines(look, showNext)
     f:Show()
 end
 
--- A line under the HUD; with a quest, a button to the route that comes next.
-function HUD.Toast(text, questID, detail)
+-- A line of news; with a quest, a button to the route that comes next. quiet: news
+-- of the moment, not worth a line in the chat as well.
+function HUD.Toast(text, questID, detail, quiet)
     if not f then Build() end
     if detail then text = text .. "  " .. detail end
-    f.toast.text:SetText(text)
-    f.toast.action:SetShown(questID ~= nil)
-    f.toast.questID = questID
-    f.toast:Show()
-    f:Show()
+    toast.text:ClearAllPoints()
+    toast.text:SetPoint("LEFT", toast, "LEFT", 10, 0)
+    if questID then
+        toast.text:SetPoint("RIGHT", toast.action, "LEFT", -6, 0)
+    else
+        toast.text:SetPoint("RIGHT", toast, "RIGHT", -10, 0)
+    end
+    toast.text:SetText(text)
+    toast.action:SetShown(questID ~= nil)
+    toast.questID = questID
+    toast:Show()
     local shown = text
-    FG.After(TOAST_SECONDS, function()
-        if f.toast.text:GetText() == shown then f.toast:Hide() end
+    FG.After(TOAST_SECONDS * (questID and 3 or 1), function()
+        if toast.text:GetText() == shown then toast:Hide() end
     end)
-    FG.Print(text)
+    if not quiet then FG.Print(text) end
 end
+
+function HUD.ToastFrame() return toast end
 
 FG.On("journey:view", HUD.Render)
 FG.On("toast", HUD.Toast)
 
 FG.On("settings:changed", function()
     if f then
+        ApplyLook()
         ApplyScale()
         ApplyLock()
     end

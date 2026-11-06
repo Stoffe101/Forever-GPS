@@ -84,6 +84,8 @@ function Eta.Request(dest, done, alive, from)
     runner:SetScript("OnUpdate", Pump)
 end
 
+function Eta.Size() return cached end
+
 -- Where the player can learn a new flight path, the known set moved.
 function Eta.Forget() cache, cached = {}, 0 end
 

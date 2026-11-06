@@ -246,6 +246,10 @@ def chevron_up(c: Canvas) -> None:
     c.line([(14, 40), (32, 22), (50, 40)], 6)
 
 
+def nav_chevron(c: Canvas) -> None:
+    c.line([(12, 46), (32, 14), (52, 46)], 9)
+
+
 def plus(c: Canvas) -> None:
     c.line([(32, 12), (32, 52)], 7)
     c.line([(12, 32), (52, 32)], 7)
@@ -367,7 +371,7 @@ GLYPHS = {
     "warning": warning, "shield": shield, "clock": clock, "nav-arrow": nav_arrow, "inn": inn, "bank": bank,
     "auction": auction, "mail": mail, "repair": repair, "trainer": trainer, "vendor": vendor, "logo": logo,
     "ring": ring, "dot": dot, "chevron-up": chevron_up, "plus": plus, "map": world_map, "locate": locate,
-    "fit": fit,
+    "fit": fit, "nav-chevron": nav_chevron,
 }
 
 

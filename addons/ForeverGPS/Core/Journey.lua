@@ -10,6 +10,12 @@ local Bridge, Kinds, Quests = FG.Bridge, FG.Kinds, FG.Quests
 local L = FG.L
 
 local TURN_IN_WINDOW = 3     -- seconds: a quest gone this soon after turning in was not abandoned
+local WAITING_YARDS = 30     -- this close to where a ride is boarded, the player is waiting for it
+local TURN_REACH = 60        -- yards ahead a turn is worth mentioning
+local TURN_SHARP = 0.7       -- radians: gentler than this is not a turn
+local REROUTE_NOTE_EVERY = 30
+local RIDE_MEMORY = 30       -- seconds a ride is still the likely reason for finding oneself elsewhere
+local LANDED_YARDS = 300     -- this close to where a ride lands, it went where it should
 
 -- ==== the view ==============================================================
 
@@ -25,6 +31,43 @@ local function NextText(route, index)
     return step and step.text or nil
 end
 
+-- Where the player stands with a ride: "riding", "aboard" a docked one, "waiting"
+-- at its stop, or nil while still on the way there. A flight is taken by talking to
+-- its master, so there is no waiting for one.
+local function RideState(step)
+    if not Kinds.IsRide(step) then return nil end
+    if Bridge.OnRide() or UnitOnTaxi("player") == true then return "riding" end
+    if step.kind == "taxi" then return nil end
+    if Bridge.Aboard(step) then return "aboard" end
+    if Bridge.AtSpot(step.go, WAITING_YARDS) then return "waiting" end
+    return nil
+end
+
+local function WaitingTitle(step)
+    local ride = step.reach or Kinds.Label(step)
+    return L["HUD_WAITING_FMT"]:format((ride:gsub("^%u", string.lower)))
+end
+
+local shownEta
+
+-- A time left that glides: one change of speed should not make the number leap.
+-- A reroute sets it straight at once, and says why.
+local function Glide(eta)
+    if not eta then
+        shownEta = nil
+        return nil
+    end
+    if not shownEta then
+        shownEta = eta
+    else
+        local most = math.max(1, shownEta * 0.01)
+        shownEta = shownEta + math.max(-most, math.min(most, eta - shownEta))
+    end
+    return shownEta
+end
+
+Journey._Glide = Glide
+
 -- What the HUD shows now; nil with no route.
 function Journey.View()
     local route = Bridge.Route()
@@ -37,18 +80,21 @@ function Journey.View()
     local index = route.active or 1
     local step = route.steps[index]
     if not step then return nil end
-    local riding = Kinds.IsRide(step) and (Bridge.OnRide() or UnitOnTaxi("player") == true)
+    local ride = RideState(step)
     local view = {
-        state = riding and "riding" or "moving",
-        title = Bridge.StepText(step, true), icon = Kinds.Icon(step), kind = step.kind, step = step,
+        state = ride or "moving",
+        title = ride == "waiting" and WaitingTitle(step) or Bridge.StepText(step, true),
+        icon = Kinds.Icon(step), kind = step.kind, step = step,
         index = index, count = #route.steps, nextText = NextText(route, index),
         eta = route.eta, stepEta = route.stepEta, total = route.total,
-        yards = not riding and Yards() or nil,
+        yards = not ride and Yards() or nil,
         dest = route.dest and route.dest.name,
         hostile = step.hostile,
     }
+    if ride == "waiting" then view.leaves = Bridge.LeavesIn(step) end
     -- A cast or a click ahead rather than ground to cover: nothing to point at.
-    view.pointing = not riding and step.kind ~= "teleport" and step.kind ~= "learn"
+    view.pointing = not ride and step.kind ~= "teleport" and step.kind ~= "learn"
+    if view.pointing and FG.db.hud.mode == "detailed" then view.turn = Bridge.TurnAhead(TURN_REACH, TURN_SHARP) end
     if route.total and route.total > 0 and route.eta then
         view.progress = math.max(0, math.min(1, 1 - route.eta / route.total))
     else
@@ -108,6 +154,7 @@ end)
 -- What this quest needs next, as a line to offer; nil when nothing is left to go
 -- to. Offered only: an unrelated route the player chose is never replaced.
 function Journey.NextFor(q)
+    if not FG.db.quests.offerNext then return nil end
     local target = FG.QuestTargets.FirstOpen(q, FG.QuestTargets.For(q))
     if not (target and target.status == "ok") then return nil end
     return target
@@ -152,9 +199,42 @@ end)
 local THROTTLE = 0.2
 local driver = CreateFrame("Frame")
 local since, lastKey = 0, nil
+local following                     -- the route being watched
+local lastRide                      -- the ride last on the route: where it lands, and when
+local notedAt = -math.huge
+
+-- The engine replaced the route under way: says why, once in a while. A route
+-- started on purpose announces itself and does not come through here.
+local function NoteReroute()
+    shownEta = nil
+    local now = GetTime()
+    local strayed = lastRide ~= nil and now - lastRide.at < RIDE_MEMORY and not Bridge.AtSpot(lastRide.arrive, LANDED_YARDS)
+    lastRide = nil
+    if not strayed and now - notedAt < REROUTE_NOTE_EVERY then return end
+    notedAt = now
+    FG.Emit("toast", L[strayed and "REROUTE_RIDE" or "REROUTE_PLAIN"], nil, nil, true)
+end
+
+local function Follow(view)
+    local route = Bridge.Route()
+    if following and route and route ~= following then NoteReroute() end
+    following = route
+    local step = view.step
+    if step and step.arrive and (Kinds.IsRide(step) or step.kind == "portal") then
+        lastRide = { arrive = step.arrive, at = GetTime() }
+    end
+    -- Landed where it should: whatever happens next is not the ride's doing.
+    if lastRide and Bridge.AtSpot(lastRide.arrive, LANDED_YARDS) then lastRide = nil end
+end
 
 local function Publish()
     local view = Journey.View()
+    if view then
+        Follow(view)
+        view.eta = Glide(view.eta)
+    else
+        following, lastRide, shownEta = nil, nil, nil
+    end
     FG.Emit("journey:view", view)
     if not view then
         driver:SetScript("OnUpdate", nil)
@@ -182,7 +262,10 @@ function Journey.Watch()
     Publish()
 end
 
-FG.On("route:started", Journey.Watch)
+FG.On("route:started", function()
+    following, shownEta = nil, nil
+    Journey.Watch()
+end)
 FG.On("route:committed", Journey.Watch)
 FG.On("route:cleared", function() FG.After(0, Journey.Watch) end)
 FG.On("login", function()

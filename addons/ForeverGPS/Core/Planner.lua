@@ -295,6 +295,27 @@ end
 -- Forgets remembered plans: the world they were worked out in has changed.
 function Planner.Forget() kept = {} end
 
+function Planner.KeptCount() return #kept end
+
+-- The one thing most worth knowing from the engine's advice, which it works out
+-- once a route is under way; nil with none.
+function Planner.Tip(advice)
+    if not advice then return nil end
+    local Duration = FG.Format.Duration
+    local learn = advice.learn
+    local pickup = advice.pickups and advice.pickups[1]
+    if pickup then
+        if learn and learn.id == pickup.id and learn.save then
+            return L["TIP_PICKUP_SAVE_FMT"]:format(pickup.name or "?", Duration(learn.save))
+        end
+        return L["TIP_PICKUP_FMT"]:format(pickup.name or "?")
+    end
+    if learn and learn.extra and learn.save then
+        return L["TIP_DETOUR_FMT"]:format(learn.name or "?", Duration(learn.extra), Duration(learn.save))
+    end
+    return nil
+end
+
 -- Whether a plan still holds from where the player stands now.
 local function Fresh(option)
     if not (option.steps and option.builtAt and option.from) then return false end

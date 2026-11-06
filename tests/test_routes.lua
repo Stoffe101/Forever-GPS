@@ -232,4 +232,46 @@ function tests.risk_saysWhatItKnowsAndClaimsNoMore()
     T.has(L["RISK_DISCLAIMER"], "Enemy players cannot be detected", "and the limits are stated")
 end
 
+function tests.contestedGround_isNamedAndNeverCalledSafe()
+    local c = Start({ mapID = 1429, x = 0.8, y = 0.7 })
+    local plan = Plan(c, { name = "Darkshire", mapID = 1431, x = 0.75, y = 0.45 })
+    T.eq(plan.status, "ready")
+    local risk = plan.selected.risk
+    T.ok(risk, "assessed")
+    local found
+    for _, reason in ipairs(risk.reasons) do
+        if reason:find("contested", 1, true) then found = reason end
+    end
+    T.ok(found, "says so: " .. table.concat(risk.reasons, "; "))
+    T.has(found, "Duskwood")
+    T.ok(risk.level ~= "low", "and that is not a low risk: " .. risk.level)
+    T.has(c.FG.L["RISK_DISCLAIMER"], "cannot be detected", "enemy players are never claimed to be accounted for")
+end
+
+function tests.aDangerousEnd_isCalledAnApproach()
+    local c = Start({ ui = false })
+    local Risk = c.FG.Risk
+    T.eq(Risk.Label("high", { approach = true }), "Dangerous approach")
+    T.eq(Risk.Label("high", {}), c.FG.L["RISK_HIGH"])
+    T.eq(Risk.Label("contested"), "Contested territory")
+    T.eq(Risk.Label("low"), "Low known environmental risk")
+end
+
+function tests.flightAdvice_readsAsATip()
+    local c = Start({ ui = false })
+    local P = c.FG.Planner
+    T.eq(P.Tip(nil), nil)
+    T.has(P.Tip({ pickups = { { id = 1, name = "Sentinel Hill" } } }), "Sentinel Hill")
+    T.has(P.Tip({ pickups = { { id = 1, name = "X" } }, learn = { id = 1, save = 300 } }), "5 min", "with what it saves")
+    T.has(P.Tip({ learn = { id = 2, name = "Y", extra = 60, save = 300 } }), "detour")
+end
+
+function tests.aSharedPlace_carriesNothingButWords()
+    local c = Start({ ui = false })
+    local line = c.FG.Saved.ShareLine("|cffff0000Bad|r |Hitem:1|h[link]|h name", "Elwynn Forest", 0.5, 0.25)
+    T.lacks(line, "|", "no color or link codes")
+    T.lacks(line, "[", "no brackets")
+    T.has(line, "/fgps way Elwynn Forest 50.0 25.0")
+end
+
 return tests

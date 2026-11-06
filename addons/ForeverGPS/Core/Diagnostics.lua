@@ -1,6 +1,8 @@
--- `/fgps diag`: the facts needed to tell what a client really is, what loaded,
--- and which game APIs answered. Everything Forever-GPS depends on is probed
--- here at runtime, so a client change shows up as a line rather than a mystery.
+-- `/fgps diag` and `/fgps report`: the facts needed to tell what a client really is,
+-- what loaded, how it is performing and which game APIs answered. Everything
+-- Forever-GPS depends on is probed here at runtime, so a client change shows up as a
+-- line rather than a mystery. Reports hold no character or realm name, so they can
+-- be posted as they are.
 local _, FG = ...
 local Diagnostics = {}
 FG.Diagnostics = Diagnostics
@@ -12,8 +14,8 @@ local Bridge = FG.Bridge
 Diagnostics.API = {
     "C_AddOns.GetAddOnMetadata", "C_Map.GetBestMapForUnit", "C_Map.GetMapInfo", "C_Map.GetUserWaypoint",
     "C_QuestLog.GetInfo", "C_QuestLog.GetNumQuestLogEntries", "C_QuestLog.GetQuestObjectives", "C_QuestLog.IsComplete",
-    "C_QuestLog.IsFailed", "C_Timer.After", "CreateFrame", "GetPlayerFacing", "UnitClass", "UnitFactionGroup",
-    "UnitLevel", "UnitOnTaxi", "debugprofilestop",
+    "C_QuestLog.IsFailed", "C_Timer.After", "CreateFrame", "GetCursorPosition", "GetPlayerFacing", "UnitClass",
+    "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "debugprofilestop",
 }
 
 local function Lookup(path)
@@ -32,13 +34,72 @@ local function AddonLine(name)
     return ("%s: %s%s"):format(name, loaded and "loaded" or "not loaded", version and (" (" .. version .. ")") or "")
 end
 
+local function MissingApi()
+    local absent = {}
+    for _, name in ipairs(Diagnostics.API) do
+        if Lookup(name) == nil then absent[#absent + 1] = name end
+    end
+    return absent
+end
+
+local function RouteData()
+    local ns = Bridge.NS()
+    return ns and ns.GPSData
+end
+
+-- What is right and wrong, worst first. Each: { "ok"|"limited"|"broken", text }.
+-- "limited" works with less; "broken" means navigation cannot be trusted.
+function Diagnostics.Checks()
+    local out = {}
+    local function Add(state, text) out[#out + 1] = { state, text } end
+    local missing, absent = Bridge.Missing(), MissingApi()
+    if not Bridge.Ready() then
+        Add("broken", "EasyFind GPS is not ready: no navigation")
+    else
+        Add("ok", "Route engine ready")
+    end
+    if #missing > 0 then Add("broken", "EasyFind internals missing: " .. table.concat(missing, ", ")) end
+    if #absent > 0 then Add("broken", "Game API missing: " .. table.concat(absent, ", ")) end
+    if FG.missingEvents then Add("limited", ("%d game events unknown to this client"):format(FG.missingEvents)) end
+    local data = RouteData()
+    local _, build = GetBuildInfo()
+    if data and data.build and tostring(data.build) ~= tostring(build) then
+        Add("limited", ("Route data is from build %s, this client is %s"):format(tostring(data.build), tostring(build)))
+    elseif data then
+        Add("ok", "Route data matches this client")
+    end
+    Add(FG.QuestTargets.HasQuestie() and "ok" or "limited",
+        FG.QuestTargets.HasQuestie() and "Questie data ready" or "No Questie data: objective places and world search are limited")
+    if not Bridge.PlayerStart() then Add("limited", "No position available here") end
+    table.sort(out, function(a, b)
+        local rank = { broken = 1, limited = 2, ok = 3 }
+        if a[1] ~= b[1] then return rank[a[1]] < rank[b[1]] end
+        return a[2] < b[2]
+    end)
+    return out
+end
+
+-- One word for the whole of it: "ready", "limited" or "broken".
+function Diagnostics.Status()
+    local worst = "ready"
+    for _, check in ipairs(Diagnostics.Checks()) do
+        if check[1] == "broken" then return "broken" end
+        if check[1] == "limited" then worst = "limited" end
+    end
+    return worst
+end
+
+local function CacheLine()
+    return ("Caches: %d travel estimates, %d plans kept"):format(FG.Eta.Size(), FG.Planner.KeptCount())
+end
+
 function Diagnostics.Lines()
     local out = {}
     local version, build, _, interface = GetBuildInfo()
+    out[#out + 1] = ("Forever-GPS %s: %s"):format(tostring(FG.VERSION), Diagnostics.Status())
     out[#out + 1] = ("Client %s build %s, interface %s, project %s, locale %s"):format(
         tostring(version), tostring(build), tostring(interface), tostring(WOW_PROJECT_ID), tostring(GetLocale()))
-    local ns = Bridge.NS()
-    local data = ns and ns.GPSData
+    local data = RouteData()
     out[#out + 1] = ("Route data built from client build %s"):format(tostring(data and data.build))
     for _, name in ipairs({ "EasyFind", "EasyFind_GPS", "EasyFind_Questie", "Questie", "TomTom" }) do
         out[#out + 1] = AddonLine(name)
@@ -46,10 +107,7 @@ function Diagnostics.Lines()
     out[#out + 1] = "Questie data: " .. (FG.QuestTargets.HasQuestie() and "ready" or "not available")
     local missing = Bridge.Missing()
     out[#out + 1] = #missing == 0 and "EasyFind internals: all present" or ("EasyFind internals MISSING: " .. table.concat(missing, ", "))
-    local absent = {}
-    for _, name in ipairs(Diagnostics.API) do
-        if Lookup(name) == nil then absent[#absent + 1] = name end
-    end
+    local absent = MissingApi()
     out[#out + 1] = #absent == 0 and ("Game API: all %d present"):format(#Diagnostics.API) or ("Game API MISSING: " .. table.concat(absent, ", "))
     local mapID = C_Map.GetBestMapForUnit("player")
     local start = Bridge.PlayerStart()
@@ -63,6 +121,8 @@ function Diagnostics.Lines()
         out[#out + 1] = "No route"
     end
     out[#out + 1] = ("Arrow: %s. Planning: %s"):format(FG.Journey.ArrowMode(), tostring(Bridge.IsPlanning()))
+    out[#out + 1] = CacheLine()
+    for _, line in ipairs(FG.Metrics.Lines()) do out[#out + 1] = line end
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
         UpdateAddOnMemoryUsage()
         out[#out + 1] = ("Memory: Forever-GPS %.1f MB, GPS %.1f MB, EasyFind %.1f MB"):format(
@@ -74,4 +134,21 @@ end
 function Diagnostics.Print()
     FG.Print("diagnostics")
     for _, line in ipairs(Diagnostics.Lines()) do print("  " .. line) end
+end
+
+-- All of it as text to paste into a report.
+function Diagnostics.Report()
+    local out = { "Forever-GPS report" }
+    for _, check in ipairs(Diagnostics.Checks()) do
+        out[#out + 1] = ("[%s] %s"):format(check[1], check[2])
+    end
+    out[#out + 1] = ""
+    for _, line in ipairs(Diagnostics.Lines()) do out[#out + 1] = line end
+    local notes = FG.Metrics.Notes()
+    if #notes > 0 then
+        out[#out + 1] = ""
+        out[#out + 1] = "Recent:"
+        for _, note in ipairs(notes) do out[#out + 1] = "  " .. tostring(note) end
+    end
+    return table.concat(out, "\n")
 end

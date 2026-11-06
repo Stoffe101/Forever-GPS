@@ -213,4 +213,20 @@ function tests.settingsFrom1_0_0_survive()
     T.eq(c.env.EasyFind.db.gpsArrow, nil, "1.0.0's write to EasyFind's arrow setting is undone")
 end
 
+function tests.startingMidPlan_leavesTheGridAsTheRouteNeedsIt()
+    local c = Stack.new({ ui = false, mapID = 1453, x = 0.6, y = 0.6 })
+    local P, Nav = c.FG.Planner, c.ns.GPSNav
+    P.Inspect({ data = { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 }, name = "Auberdine" })
+    T.ok(Stack.Until(c, function()
+        local plan = P.Current()
+        return plan.status == "partial"
+    end, 30), "the first way is found")
+    P.Start()
+    T.ok(Stack.Until(c, function() return not c.FG.Bridge.IsPlanning() end, 30), "and the rest wind down")
+    c:Advance(0.5)
+    local left = Nav.epoch
+    c.FG.Bridge.RestoreNav()
+    T.eq(left, Nav.epoch, "the grid is back on the route's settings")
+end
+
 return tests

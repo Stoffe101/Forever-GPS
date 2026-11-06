@@ -11,7 +11,7 @@ local L = FG.L
 local TOWN_YARDS = 350       -- a walk this close to an enemy flight master passes its town
 local SAMPLE_YARDS = 60      -- how often along a walk to look for one
 
-local RANK = { low = 1, moderate = 2, high = 3 }
+local RANK = { low = 1, contested = 2, moderate = 3, high = 4 }
 
 local ENEMY_TOWN_YARDS = 450 -- this close to a flight master, a spot is that town's
 
@@ -97,6 +97,14 @@ function Risk.Assess(route, walks)
     end
     local faction = UnitFactionGroup("player")
     local towns = {}
+    local contested, approach = {}, false
+    local lastWalk
+    for i = #route.steps, 1, -1 do
+        if route.steps[i].kind == "travel" then
+            lastWalk = i
+            break
+        end
+    end
     for i = 1, #route.steps do
         local step = route.steps[i]
         if step.hostile then
@@ -119,19 +127,27 @@ function Risk.Assess(route, walks)
                     if d.guard then Add("high", L["RISK_REASON_GUARDS"]) end
                     if d.skull then Add("high", L["RISK_REASON_SKULL"])
                     elseif (d.n or 0) > 0 then Add("moderate", L["RISK_REASON_RED"]) end
+                    if i == lastWalk and (d.guard or d.skull) then approach = true end
                 end
                 TownsAlong(path, EnemyNodes(ci, faction), towns)
             end
+            if Bridge.DropNote(step) then Add("moderate", L["RISK_REASON_DROP"]) end
+            local zone = step.mapID and Risk.ZoneControl(step.mapID, faction)
+            if zone == "contested" then contested[Bridge.MapName(step.mapID) or "?"] = true end
         elseif step.kind ~= "travel" then
             assessed = true
         end
     end
     for name in pairs(towns) do Add("moderate", L["RISK_REASON_TOWN_FMT"]:format(name)) end
+    for name in pairs(contested) do Add("contested", L["RISK_REASON_CONTESTED_FMT"]:format(name)) end
     table.sort(reasons)
     if not assessed then return { level = "unknown", reasons = {} } end
-    return { level = level, reasons = reasons }
+    return { level = level, reasons = reasons, approach = approach }
 end
 
-function Risk.Label(level)
-    return L[({ low = "RISK_LOW", moderate = "RISK_MODERATE", high = "RISK_HIGH" })[level] or "RISK_UNKNOWN"]
+local LABELS = { low = "RISK_LOW", contested = "RISK_CONTESTED", moderate = "RISK_MODERATE", high = "RISK_HIGH" }
+
+function Risk.Label(level, risk)
+    if level == "high" and risk and risk.approach then return L["RISK_HIGH_APPROACH"] end
+    return L[LABELS[level] or "RISK_UNKNOWN"]
 end

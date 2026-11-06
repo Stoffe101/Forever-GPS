@@ -40,6 +40,34 @@ function Saved.AddRecent(target)
     FG.Emit("saved:changed")
 end
 
+function Saved.ClearRecents()
+    FG.char.recents = {}
+    FG.Emit("saved:changed")
+end
+
+-- Keeps where the player stands as a place to come back to.
+function Saved.AddHere(name)
+    local mapID = C_Map.GetBestMapForUnit("player")
+    local pos = mapID and C_Map.GetPlayerMapPosition(mapID, "player")
+    if not pos then return false end
+    local x, y = pos:GetXY()
+    local zone = FG.Bridge.MapName(mapID) or "?"
+    name = name and name ~= "" and name or FG.L["SAVED_HERE_FMT"]:format(zone, FG.Format.Coords(x, y))
+    local target = { data = { name = name, mapID = mapID, x = x, y = y }, name = name, subtitle = zone, icon = "pin" }
+    if Saved.IsFavorite(target.data) then return false end
+    Saved.ToggleFavorite(target)
+    return true, name
+end
+
+-- A place as a line to hand to someone. Names come from the game and from the
+-- player, and a chat line is no place for links, colors or other markup.
+function Saved.ShareLine(name, zone, x, y)
+    local function Clean(text)
+        return ((tostring(text or ""):gsub("|", ""):gsub("[%c<>%[%]{}]", ""):sub(1, 40)))
+    end
+    return ("%s: /fgps way %s %.1f %.1f"):format(Clean(name), Clean(zone), x * 100, y * 100)
+end
+
 function Saved.Recents() return FG.char.recents end
 function Saved.Favorites() return FG.db.favorites end
 
