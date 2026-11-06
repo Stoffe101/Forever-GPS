@@ -61,7 +61,7 @@ end
 
 -- Never wider than the screen, at any UI scale.
 local function ApplyScale()
-    local scale = FG.db.hud.scale or 1
+    local scale = FG.Settings.HudScale()
     f:SetScale(scale)
     f:SetWidth(math.min(Look().width, (UIParent:GetWidth() - MARGIN * 2) / scale))
 end
@@ -155,13 +155,12 @@ end
 local function BuildToast()
     toast = CreateFrame("Frame", "ForeverGPSToast", UIParent)
     toast:SetFrameStrata("MEDIUM")
-    toast:SetHeight(28)
     toast:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -4)
     toast:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", 0, -4)
     toast.back = Kit.Shape(toast, 7, "BACKGROUND", 1)
     Theme.Paint(function(c) toast.back:SetColor(c.hud) end)
     toast.text = Kit.Text(toast, "small", "text")
-    toast.text:SetJustifyV("MIDDLE")
+    toast.detail = Kit.Text(toast, "small", "textDim")
     toast.action = Kit.Button(toast, { text = L["QUEST_SHOW_ROUTE"], height = 22, width = "fit", onClick = function()
         local q = toast.questID and FG.Quests.Get(toast.questID)
         if q then FG.QuestsView.GoNext(q) end
@@ -270,7 +269,9 @@ local function Meta(v, look)
     end
     if v.state == "riding" and v.stepEta then parts[#parts + 1] = L["HUD_ABOUT_FMT"]:format(Format.Clock(v.stepEta)) end
     if v.eta and FG.db.hud.showEta then parts[#parts + 1] = L["HUD_LEFT_FMT"]:format(Format.Duration(v.eta)) end
-    if v.index and v.count and look ~= LAYOUT.compact then parts[#parts + 1] = L["HUD_STEP_FMT"]:format(v.index, v.count) end
+    if v.state == "moving" and v.index and v.count and look ~= LAYOUT.compact then
+        parts[#parts + 1] = L["HUD_STEP_FMT"]:format(v.index, v.count)
+    end
     return table.concat(parts, " \194\183 ")
 end
 
@@ -328,15 +329,17 @@ end
 -- of the moment, not worth a line in the chat as well.
 function HUD.Toast(text, questID, detail, quiet)
     if not f then Build() end
-    if detail then text = text .. "  " .. detail end
+    local right = questID and -(toast.action:GetWidth() + 10) or -10
+    toast:SetHeight(detail and 44 or 28)
     toast.text:ClearAllPoints()
-    toast.text:SetPoint("LEFT", toast, "LEFT", 10, 0)
-    if questID then
-        toast.text:SetPoint("RIGHT", toast.action, "LEFT", -6, 0)
-    else
-        toast.text:SetPoint("RIGHT", toast, "RIGHT", -10, 0)
-    end
+    toast.text:SetPoint("TOPLEFT", toast, "TOPLEFT", 10, -7)
+    toast.text:SetPoint("TOPRIGHT", toast, "TOPRIGHT", right, -7)
+    toast.detail:ClearAllPoints()
+    toast.detail:SetPoint("TOPLEFT", toast.text, "BOTTOMLEFT", 0, -3)
+    toast.detail:SetPoint("TOPRIGHT", toast.text, "BOTTOMRIGHT", 0, -3)
     toast.text:SetText(text)
+    toast.detail:SetText(detail or "")
+    toast.detail:SetShown(detail ~= nil)
     toast.action:SetShown(questID ~= nil)
     toast.questID = questID
     toast:Show()
@@ -344,7 +347,7 @@ function HUD.Toast(text, questID, detail, quiet)
     FG.After(TOAST_SECONDS * (questID and 3 or 1), function()
         if toast.text:GetText() == shown then toast:Hide() end
     end)
-    if not quiet then FG.Print(text) end
+    if not quiet then FG.Print(detail and (text .. " " .. detail) or text) end
 end
 
 function HUD.ToastFrame() return toast end

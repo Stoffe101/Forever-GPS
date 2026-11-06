@@ -15,6 +15,26 @@ jobs:
       - name: Verify every vendored file against UPSTREAM.lock.json
         run: python3 tools/upstream.py verify
 
+  repository:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: TOC, textures, licenses and notices, version, stray paths
+        run: python3 tools/validate.py
+
+  syntax:
+    name: Lua 5.1 syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: '5.1.5'
+      - name: Compile every Forever-GPS file with the game's Lua version
+        run: |
+          find addons/ForeverGPS tools -name '*.lua' -print0 | xargs -0 -n1 luac -p
+
   luacheck:
     name: Luacheck
     runs-on: ubuntu-latest

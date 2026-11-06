@@ -47,7 +47,7 @@ end
 local function EtaLine(result)
     if result.quest then return nil, nil end
     if result.eta then
-        return L["ETA_SHORT_FMT"]:format(Format.Duration(result.eta.sec)), result.eta.transports
+        return Format.About(result.eta.sec), result.eta.transports
     end
     if result.priced then return nil, L["NO_ROUTE_SHORT"] end
     return nil, nil

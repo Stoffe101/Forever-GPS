@@ -45,12 +45,27 @@ On this machine that folder is `D:\Battle.net games\World of Warcraft\_forever_\
 - **Questie**: objective locations for From Your Quests. Install it as usual; Forever-GPS finds it on its own. Questie 12.6.2 was checked against this build.
 - **TomTom**: choose it under Settings, Direction arrow, if you prefer its arrow. Not required.
 
-## Updating and removing
+## Updating from 1.0.0
 
-To update, delete the folders above and unzip the new package. Settings live in `WTF` and survive that. To remove it, delete `ForeverGPS` and, if you do not want EasyFind either, the `EasyFind*` folders.
+1. Close the game. An addon cannot be replaced safely while the client is running.
+2. Keep a copy of `_forever_/WTF` if you want a way back.
+3. Delete the old `ForeverGPS` and `EasyFind*` folders from `Interface/AddOns`.
+4. Unzip the new package into `Interface/AddOns`.
 
-If you remove only Forever-GPS, two things it changed stay changed in EasyFind's own settings: EasyFind's search bar stays hidden, and EasyFind's arrow at the character may stay off. Both are in EasyFind's options.
+**Check the folders are not nested.** The result must be `Interface/AddOns/ForeverGPS/ForeverGPS.toc`, not `Interface/AddOns/ForeverGPS-2.0.0-forever/ForeverGPS/...`. If the game does not list the addon, this is the usual reason.
+
+Your preferences live in `WTF`, so they survive this. Favorites, recent places, positions, theme and arrow choice all carry over. On first load 2.0.0 undoes the one thing 1.0.0 should not have done, which was to write EasyFind's arrow setting, and sizes you never changed become sizes that suit your screen.
+
+## Rolling back
+
+Delete the folders and unzip the previous package. 1.0.0 ignores settings it does not know, so `WTF` need not change. If you kept a copy of `WTF`, restoring it puts everything back exactly.
+
+## Removing it
+
+Delete `ForeverGPS` and, if you do not want EasyFind either, the `EasyFind*` folders. If you are keeping EasyFind, first use Settings, Integrations, Restore EasyFind's settings, which puts back the search bar and welcome that first run changed.
 
 ## First run
 
-Forever-GPS is meant to be the way in, so on a new install it skips EasyFind's tutorial and hides EasyFind's own search bar. Settings has a switch to bring the bar back.
+Forever-GPS is meant to be the way in, so on a new install it skips EasyFind's tutorial and hides EasyFind's own search bar. If you already use EasyFind, it leaves all of that alone. Settings has a switch to bring the bar back.
+
+Then run the five-minute [first-run check](FIRST_RUN.md).

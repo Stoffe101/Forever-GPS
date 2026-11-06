@@ -634,7 +634,7 @@ function Panel.PickArea(anchor)
             end }
             break
         end
-        local time = area.sec and L["ETA_SHORT_FMT"]:format(Format.Duration(area.sec)) or nil
+        local time = Format.About(area.sec)
         rows[#rows + 1] = {
             label = time and ("%s  %s"):format(area.zone or "?", time) or (area.zone or "?"),
             onClick = function() FG.Search.GoToArea(target, area) end,

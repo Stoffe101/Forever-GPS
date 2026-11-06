@@ -28,7 +28,7 @@ local function Parent() return UIParent end
 
 -- The largest the window may be at its own scale.
 local function Limits()
-    local scale = FG.db.window.scale or 1
+    local scale = FG.Settings.WindowScale()
     return (Parent():GetWidth() - MARGIN * 2) / scale, (Parent():GetHeight() - MARGIN * 2) / scale
 end
 
@@ -210,7 +210,7 @@ end
 
 function Window.ApplyScale()
     if not f then return end
-    f:SetScale(FG.db.window.scale or 1)
+    f:SetScale(FG.Settings.WindowScale())
     local maxW, maxH = Limits()
     f:SetResizeBounds(math.min(MIN_W, maxW), math.min(MIN_H, maxH), maxW, maxH)
     Fit()

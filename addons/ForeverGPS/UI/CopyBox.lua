@@ -70,6 +70,8 @@ function CopyBox.Show(text)
     f:SetSize(math.min(WIDTH, UIParent:GetWidth() - MARGIN * 2), math.min(HEIGHT, UIParent:GetHeight() - MARGIN * 2))
     f.text, offset = text, 0
     f.box:SetText(text)
+    local width = f:GetWidth() - 28
+    f.box:SetHeight(math.max(f.clip:GetHeight(), FG.RoutePanel.TextHeight(text, width, "small") + 24))
     Scroll()
     f:Show()
     f.box:SetFocus()

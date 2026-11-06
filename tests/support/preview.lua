@@ -27,9 +27,26 @@ local function artName(path)
     return path and tostring(path):match("[\\/]Art[\\/]([%w%-]+)$")
 end
 
+-- A strip of a map line: a quad bent by its corners' offsets, which a browser can
+-- only draw as a polygon.
+local function strip(tex, x, y, w, h, out)
+    local v, eff = tex._vertex, tex:GetEffectiveScale()
+    local function Corner(i, cx, cy)
+        local o = v[i] or { 0, 0 }
+        return ("%.1f,%.1f"):format(x + cx + o[1] * eff, y + cy - o[2] * eff)
+    end
+    local c = tex._tint or { 1, 1, 1, 1 }
+    local dark = tostring(tex._tex):lower():find("edge", 1, true)
+    out[#out + 1] = ('<svg class="r" style="left:0;top:0;width:1px;height:1px;overflow:visible"><polygon points="%s %s %s %s" fill="%s"/></svg>')
+        :format(Corner(1, 0, 0), Corner(3, w, 0), Corner(4, w, h), Corner(2, 0, h),
+            css(dark and { 0, 0, 0, (c[4] or 1) * 0.55 } or c))
+end
+
 local function texture(tex, parentRect, out)
     local x, y, w, h = rectIn(tex, parentRect)
-    if not (x and tex._shown) or w <= 0 or h <= 0 then return end
+    if not (x and tex._shown) then return end
+    if tex._vertex and next(tex._vertex) then return strip(tex, x, y, w, h, out) end
+    if w <= 0 or h <= 0 then return end
     local style = ("left:%.1fpx;top:%.1fpx;width:%.1fpx;height:%.1fpx;"):format(x, y, w, h)
     if tex._rotation and tex._rotation ~= 0 then style = style .. ("transform:rotate(%.3frad);"):format(-tex._rotation) end
     local art = artName(tex._tex)
@@ -86,12 +103,17 @@ local function frameHtml(f, parentRect, out, scale)
     table.sort(regions, function(a, b)
         local la, lb = LAYER[a._layer or "ARTWORK"] or 3, LAYER[b._layer or "ARTWORK"] or 3
         if la ~= lb then return la < lb end
+        local sa, sb = a._sublevel or 0, b._sublevel or 0
+        if sa ~= sb then return sa < sb end
         return a._order < b._order
     end)
     for _, region in ipairs(regions) do
         if region._kind == "Texture" then texture(region, r, out) else fontString(region, r, out, scale) end
     end
-    if f._kind == "EditBox" and f._text and f._text ~= "" then
+    if f._kind == "EditBox" and f._multi and f._text then
+        out[#out + 1] = ('<div class="t" style="left:0;top:0;width:100%%;white-space:pre-wrap;font-size:%.1fpx;color:#f1f3f6">%s</div>')
+            :format((f._size or 11) * f:GetEffectiveScale(), escape(f._text))
+    elseif f._kind == "EditBox" and f._text and f._text ~= "" then
         out[#out + 1] = ('<div class="t" style="left:0;top:0;width:100%%;line-height:%.1fpx;font-size:%.1fpx;color:#f1f3f6">%s</div>')
             :format(h, (f._size or 13) * f:GetEffectiveScale(), escape(f._text))
     end

@@ -11,8 +11,8 @@ local DEFAULTS = {
     theme = "obsidian",
     arrow = "hud",              -- hud, character, tomtom or off
     hud = { enabled = true, mode = "standard", showNext = true, showEta = true, hideInCombat = false, autoHide = false,
-            locked = true, scale = 1, opacity = 0.86, font = "normal", arrowStyle = "solid" },
-    window = { scale = 1 },
+            locked = true, opacity = 0.86, font = "normal", arrowStyle = "solid" },
+    window = {},
     map = { preview = true, areas = true },
     search = { prices = true, world = true },
     quests = { offerNext = true },
@@ -68,8 +68,23 @@ local MIGRATIONS = {
     [1] = function(db)
         local ef = EasyFind and EasyFind.db
         if ef and ef.gpsArrow == false and db.arrow ~= "off" then ef.gpsArrow = nil end
+        -- 1.0.0 stored its default sizes; a size left at the default is no choice.
+        if db.hud and db.hud.scale == 1 then db.hud.scale = nil end
+        if db.window and db.window.scale == 1 then db.window.scale = nil end
     end,
 }
+
+-- A UI scale addon can leave UIParent as tall as the screen in pixels, where a
+-- window sized for 768 units reads small. Below that, sizes stay as they are.
+local ROOMY_HEIGHT, ROOMY_SCALE = 1000, 1.25
+
+local function ScaleFor(chosen)
+    if chosen then return chosen end
+    return UIParent:GetHeight() >= ROOMY_HEIGHT and ROOMY_SCALE or 1
+end
+
+function Settings.WindowScale() return ScaleFor(FG.db.window.scale) end
+function Settings.HudScale() return ScaleFor(FG.db.hud.scale) end
 
 local function Migrate(db)
     for from = (db.schema or 1), SCHEMA - 1 do

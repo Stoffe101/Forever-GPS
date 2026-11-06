@@ -1,10 +1,17 @@
 -- Draws the real interface for a person to look at, from the real addon code on
 -- the real engine and data, at each target screen.
 --
---     lua tools/ui_preview.lua            (from the repository root)
---     python tools/art_png.py             (once, for the icons)
+--     lua tools/ui_preview.lua [screen name]    (from the repository root)
+--     python tools/art_png.py                   (once, for the icons)
 --
--- Writes build/preview/*.html. Screens are pixels wide, tall, and UI scale.
+-- Writes build/preview/*.html, and build/preview/index.html to walk through them.
+-- These are renders of the addon's layout in a stand-in client, in a browser. They
+-- are not screenshots of the game.
+--
+-- A screen here is pixels wide, tall, and pixels per UI unit. In the game that last
+-- number is (height / 768) * uiScale, so a default 1080p screen is about 1.4 and
+-- UIParent is 1365 by 768. A UI scale addon can bring it down to 1: the 3440x1440
+-- setup this was built for runs UIParent at 3440 by 1440.
 package.path = "tests/?.lua;" .. package.path
 local Stack = require("support.stack")
 local Preview = require("support.preview")
@@ -35,72 +42,202 @@ local QUEST_LOG = {
 }
 
 local SCREENS = {
-    { "3440x1440-s2", 3440, 1440, 2 }, { "3440x1440-s3", 3440, 1440, 3 },
-    { "1920x1080-s2", 1920, 1080, 2 }, { "1920x1080-s3", 1920, 1080, 3 },
-    { "1920x1080-s1", 1920, 1080, 1 },
+    { "ultrawide-1px", 3440, 1440, 1, "3440x1440, one UI unit per pixel (a UI scale addon)" },
+    { "ultrawide-default", 3440, 1440, 1.875, "3440x1440, default UI scale: UIParent 1835x768" },
+    { "fullhd-default", 1920, 1080, 1.406, "1920x1080, default UI scale: UIParent 1365x768" },
+    { "fullhd-large", 1920, 1080, 1.617, "1920x1080, largest UI scale: UIParent 1187x668" },
+    { "fullhd-small", 1920, 1080, 0.9, "1920x1080, smallest UI scale: UIParent 2133x1200" },
+    { "fullhd-worst", 1920, 1080, 3, "1920x1080 at three pixels per unit, tighter than the game goes: 640x360" },
 }
+
+local BACKDROPS = {
+    { "snow", 0.86, 0.90, 0.93 }, { "sand", 0.78, 0.68, 0.48 }, { "forest", 0.25, 0.37, 0.23 }, { "dark", 0.11, 0.13, 0.19 },
+}
+
+local AUBERDINE = { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 }
+local DARKSHIRE = { name = "Darkshire", mapID = 1431, x = 0.75, y = 0.45 }
 
 os.execute(package.config:sub(1, 1) == "\\" and "mkdir build\\preview 2>nul" or "mkdir -p build/preview")
 
-local function Shot(c, name, title)
+local pages = {}
+
+local function Shot(c, screen, state, extra)
     local frames = {}
-    for _, f in ipairs({ c.env.ForeverGPSWindow, c.env.ForeverGPSHUD, c.env.ForeverGPSMenu }) do
+    -- In the order the game's frame strata would stack them.
+    for _, name in ipairs({ "ForeverGPSHUD", "ForeverGPSToast", "WorldMapFrame", "ForeverGPSWindow", "ForeverGPSQuick",
+                            "ForeverGPSCopyBox", "ForeverGPSMenu" }) do
+        local f = c.env[name]
         if f and f._shown then frames[#frames + 1] = f end
     end
-    Preview.Write("build/preview/" .. name .. ".html", title, c.root, frames)
+    for _, f in ipairs(extra or {}) do frames[#frames + 1] = f end
+    local name = screen[1] .. "-" .. state
+    Preview.Write("build/preview/" .. name .. ".html", state .. ": " .. screen[5], c.root, frames)
+    pages[#pages + 1] = { name = name, title = screen[5] }
 end
 
-local function Settle(c)
-    Stack.Until(c, function() return false end, 0.6)
+local function Settle(c, seconds)
+    Stack.Until(c, function() return false end, seconds or 0.6)
 end
 
-for _, s in ipairs(SCREENS) do
-    local name, w, h, scale = s[1], s[2], s[3], s[4]
-    local c = Stack.new({ screen = { w, h, scale }, mapID = 1453, x = 0.6, y = 0.6, questie = QUESTIE, quests = QUEST_LOG, level = 8 })
-    local FG = c.FG
-    FG.Bridge.WarmSearch()
+local function Planned(c)
+    Stack.Until(c, function()
+        local p = c.FG.Planner.Current()
+        return p and (p.status == "ready" or p.status == "failed" or p.status == "unreachable")
+    end, 30)
+    Settle(c, 0.3)
+end
+
+local function NewClient(screen, opts)
+    opts = opts or {}
+    opts.screen = { screen[2], screen[3], screen[4] }
+    opts.mapID, opts.x, opts.y = opts.mapID or 1453, opts.x or 0.6, opts.y or 0.6
+    opts.questie, opts.quests, opts.level = QUESTIE, QUEST_LOG, 8
+    local c = Stack.new(opts)
+    c.FG.Bridge.WarmSearch()
     Settle(c)
+    return c
+end
+
+local function Pages(c, screen)
+    local FG = c.FG
     FG.Window.Show("search")
     Settle(c)
-    Shot(c, name .. "-home", "Home " .. name)
+    Shot(c, screen, "home")
     FG.SearchView.Query("repair")
     Settle(c)
-    Shot(c, name .. "-search", "Search " .. name)
-    FG.Window.Show("search")
-    FG.SearchView.Query("auberdine")
+    Shot(c, screen, "search")
+    FG.SearchView.Query("auberdin")
     Settle(c)
+    Shot(c, screen, "search-spelling")
     local results = FG.SearchView._Results()
     if results[1] then FG.SearchView.Open(results[1]) end
-    Stack.Until(c, function()
-        local p = FG.Planner.Current()
-        return p and (p.status == "ready" or p.status == "failed" or p.status == "unreachable")
-    end, 15)
-    Settle(c)
-    Shot(c, name .. "-route", "Route " .. name)
+    Planned(c)
+    Shot(c, screen, "journey")
+    FG.Planner.Inspect({ data = DARKSHIRE, name = "Darkshire", subtitle = "Duskwood" })
+    Planned(c)
+    Shot(c, screen, "journey-contested")
+    FG.Planner.Clear()
     FG.Window.Show("quests")
     Settle(c)
     FG.QuestsView.Toggle(33)
     FG.QuestsView.Toggle(18)
     FG.QuestsView.Toggle(99)
+    Settle(c, 1)
+    Shot(c, screen, "quests")
+    FG.QuestsView.SetFilter("missing")
+    FG.QuestsView.NextGrouping()
     Settle(c)
-    Shot(c, name .. "-quests", "Quests " .. name)
+    Shot(c, screen, "quests-filtered")
+    FG.QuestsView.SetFilter("all")
+    FG.Trip.Add({ name = "Marshal Dughan", subtitle = "Elwynn Forest", mapID = 1429, x = 0.421, y = 0.659 })
+    FG.Trip.Add({ name = "Sentinel Hill", subtitle = "Westfall", mapID = 1436, x = 0.56, y = 0.47 })
+    FG.Trip.Add({ name = "A very long stop name that has to fit in the row somehow", subtitle = "Westfall", mapID = 1436, x = 0.4, y = 0.6 })
+    FG.Window.Show("trip")
+    Settle(c)
+    Shot(c, screen, "trip")
+    FG.Trip.Clear()
     FG.Window.Show("settings")
-    Settle(c)
-    Shot(c, name .. "-settings", "Settings " .. name)
+    for index, group in ipairs(FG.SettingsView.Groups()) do
+        FG.SettingsView.Select(index)
+        Settle(c, 0.1)
+        Shot(c, screen, "settings-" .. group.label:sub(6):lower())
+    end
     FG.Window.Show("search")
-    FG.SearchView.Query("auberdine")
-    Settle(c)
-    results = FG.SearchView._Results()
-    if results[1] then FG.SearchView.Open(results[1]) end
-    Stack.Until(c, function()
-        local p = FG.Planner.Current()
-        return p and p.status == "ready"
-    end, 15)
+end
+
+local function Journey(c, screen)
+    local FG = c.FG
     FG.db.autoClose = false
+    FG.Planner.Inspect({ data = AUBERDINE, name = "Auberdine", subtitle = "Darkshore" })
+    Planned(c)
+    FG.Window.Show("search")
     FG.RoutePanel.Go()
     Settle(c)
-    FG.Window.Hide()
+    FG.Window.Show("search")
     Settle(c)
-    Shot(c, name .. "-hud", "HUD " .. name)
-    print(name, #c.errors == 0 and "ok" or (#c.errors .. " errors"), c.errors[1] and c.errors[1]:sub(1, 300) or "")
+    Shot(c, screen, "navigating")
+    FG.Window.Hide()
+    for _, mode in ipairs({ "compact", "standard", "detailed" }) do
+        FG.db.hud.mode = mode
+        FG.Emit("settings:changed")
+        Settle(c, 0.3)
+        Shot(c, screen, "hud-" .. mode)
+    end
+    FG.db.hud.mode = "standard"
+    FG.Emit("settings:changed")
+    local route = FG.Bridge.ActiveRoute()
+    local dock = route.steps[1].go
+    c.ns.GPSBoats.Aboard = function() return false end
+    c:SetPlayer(dock.m, dock.x, dock.y)
+    Settle(c, 1)
+    Shot(c, screen, "hud-waiting")
+    FG.Emit("toast", "Objective done: Young Wolf slain: 8/8", 33, "Next: Turn in to Marshal Dughan", true)
+    Settle(c, 0.3)
+    Shot(c, screen, "hud-toast")
+    FG.Bridge.Stop()
+    Settle(c)
+    c.env.ForeverGPSToast:Hide()
+    c:SetPlayer(1453, 0.6, 0.6)
+    c:Advance(0.2)
+    c.ns.GPSBoats.Aboard = nil
 end
+
+local function Overlays(c, screen)
+    local FG = c.FG
+    FG.Quick.Open("repair")
+    Settle(c, 0.5)
+    Shot(c, screen, "quick")
+    c.env.ForeverGPSQuick:Hide()
+    FG.CopyBox.Show(FG.Diagnostics.Report())
+    Settle(c)
+    Shot(c, screen, "report")
+    c.env.ForeverGPSCopyBox:Hide()
+end
+
+-- The journey on the map, over each kind of ground it has to read on. The grounds
+-- are flat colors: the line and the marks are what is being looked at.
+local function Map(c, screen)
+    local FG = c.FG
+    local map = c.env.WorldMapFrame
+    local ground = map:CreateTexture(nil, "BACKGROUND")
+    ground:SetAllPoints(map)
+    map:Show()
+    FG.Planner.Inspect({ data = AUBERDINE, name = "Auberdine", subtitle = "Darkshore" })
+    Planned(c)
+    FG.MapPreview.Open()
+    Settle(c, 0.3)
+    for _, b in ipairs(BACKDROPS) do
+        ground:SetColorTexture(b[2], b[3], b[4], 1)
+        Shot(c, screen, "map-" .. b[1])
+    end
+    FG.MapPreview.Focus(2)
+    Settle(c, 0.3)
+    ground:SetColorTexture(0.25, 0.37, 0.23, 1)
+    Shot(c, screen, "map-focused")
+    FG.Planner.Clear()
+    map:Hide()
+    Settle(c, 0.2)
+end
+
+local only = arg and arg[1]
+for i, screen in ipairs(SCREENS) do
+    if not only or only == screen[1] then
+        local c = NewClient(screen)
+        Pages(c, screen)
+        Overlays(c, screen)
+        Journey(c, screen)
+        if i <= 3 then Map(c, screen) end
+        print(screen[1], #c.errors == 0 and "ok" or (#c.errors .. " errors"), c.errors[1] and c.errors[1]:sub(1, 300) or "")
+    end
+end
+
+local index = assert(io.open("build/preview/index.html", "w"))
+index:write("<!doctype html><meta charset=utf-8><title>Forever-GPS renders</title>",
+    "<style>body{font:14px system-ui;margin:24px;background:#14181e;color:#e8ecf1}a{color:#6db6ff}</style>",
+    "<h1>Forever-GPS renders</h1><p>Drawn from the addon's real layout code in a stand-in client. Not screenshots of the game.</p><ul>")
+for _, page in ipairs(pages) do
+    index:write(('<li><a href="%s.html">%s</a> <small>%s</small></li>'):format(page.name, page.name, page.title))
+end
+index:write("</ul>")
+index:close()
+print(#pages .. " renders")

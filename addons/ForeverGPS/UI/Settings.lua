@@ -12,6 +12,7 @@ local L = FG.L
 local PAD = 14
 local RAIL_W = 118           -- a rail of groups beside the page, on a wide enough window
 local RAIL_AT = 520
+local COLUMN_W = 440         -- controls stop growing here: a wide slider is no easier to use
 local WHEEL = 48
 
 local f
@@ -89,7 +90,7 @@ local GROUPS = {
             HudChanged()
         end)
         ui.heading("SET_HUD_SCALE")
-        ui.scale(0.7, 1.5, 0.05, function() return FG.db.hud.scale end, function(value)
+        ui.scale(0.7, 1.6, 0.05, FG.Settings.HudScale, function(value)
             FG.db.hud.scale = value
             HudChanged()
         end, Percent)
@@ -127,7 +128,7 @@ local GROUPS = {
                 Theme.Apply(value)
             end)
         ui.heading("SET_WINDOW_SCALE")
-        ui.scale(0.7, 1.3, 0.05, function() return FG.db.window.scale end, function(value)
+        ui.scale(0.7, 1.6, 0.05, FG.Settings.WindowScale, function(value)
             FG.db.window.scale = value
             FG.Window.ApplyScale()
         end, Percent)
@@ -219,7 +220,7 @@ end
 -- Places the group's controls at the current scroll; the clip hides what is past it.
 local function PlaceItems()
     local group = GROUPS[current]
-    local width = f.content:GetWidth() - PAD * 2
+    local width = math.min(COLUMN_W, f.content:GetWidth() - PAD * 2)
     local y = 0
     for _, item in ipairs(group.items) do
         local w = item.widget

@@ -246,6 +246,20 @@ function tests.aRememberedPlan_isForgottenWhenFlightsAreLearned()
     T.ok(c.FG.Planner.Current() ~= first, "planned afresh")
 end
 
+function tests.rides_areNamedOnTheMap()
+    local c = Start()
+    local plan = Plan(c, AUBERDINE)
+    c.FG.MapPreview.Open()
+    c:Advance(0.3)
+    T.eq(plan.status, "ready")
+    local tags = {}
+    for _, mark in ipairs(c.FG.MapPreview._Marks()) do
+        if mark:IsShown() and mark.tag:IsShown() then tags[#tags + 1] = mark.tag.text._text end
+    end
+    T.ok(#tags >= 1, "the boat's mark has words")
+    T.has(table.concat(tags, ";"), "Auberdine", "and says where it goes: " .. table.concat(tags, ";"))
+end
+
 function tests.alternatives_sayHowTheyDiffer()
     local c = Start()
     local P = c.FG.Planner

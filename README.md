@@ -8,15 +8,17 @@ Forever-GPS is the product layer on top of [EasyFind](https://github.com/falleng
 
 ## What it does
 
-- **Search** places, NPCs, trainers, services, dungeons, raids and coordinates. Results show zone, type, a travel time, and a warning for NPCs hostile to you. "Any inn" style searches are ordered by travel time.
+- **Search** places, NPCs, trainers, services, dungeons, raids, boats and coordinates, the way people type them: `nearest mailbox`, `bank stormwind`, `Westfall 56 47`. Misspellings are corrected out loud. Results show zone, type, a travel time, and a warning for NPCs hostile to you, and searches for a kind of thing are ordered by travel time. With Questie installed, its creatures and objects are searched too.
 - **From Your Quests** turns the quest log into destinations. Every unfinished objective can be chosen, not just the first. Spawns are grouped into areas and the closest *by travel time* leads. With Questie installed it knows objective locations; without it, it falls back to the game's quest marker. When no reliable location is known it says so and offers no route.
-- **Journey panel** compares Fastest, Safer and Roads routes, with each step, transport and wait, a plain risk label, and toggles to avoid flights, boats, zeppelins, portals or your hearth.
-- **HUD** shows what to do now, distance, time left and the next step. On a ride it stops pointing and names the ride.
+- **Quest Circuit** puts several objectives on one trip, in a sensible order from real travel times.
+- **Journey panel** compares ways of going and says how they differ, with each step, transport and wait, how sure the route is, a plain risk label, and toggles to avoid flights, boats, zeppelins, portals or your hearth.
+- **Map preview** shows the journey on the world map before anything starts.
+- **HUD** shows what to do now, distance, time left and the next step, in three sizes. At a dock it says it is waiting, and gives a departure only when a real ride has timed that boat. A hearth or teleport is offered as a button and never used for you.
 - **Automatic progress** recognizes arrivals, reroutes when you wander, leads a ghost to its corpse, and survives a reload. A route for a quest stops if you abandon the quest or finish that objective.
 
 Route lines on the world map and minimap, and the route's beacon, are EasyFind GPS's own.
 
-Risk labels describe known hazards only: creatures by level, enemy guards, enemy towns and enemy transport. **They cannot see enemy players and promise nothing about them.**
+Risk labels describe known hazards only: creatures by level, enemy guards, enemy towns, enemy transport, contested ground and drops. **They cannot see enemy players and promise nothing about them.**
 
 ## Install
 
@@ -26,18 +28,23 @@ See [docs/INSTALL.md](docs/INSTALL.md). In short:
 python tools/package.py
 ```
 
-Then unzip `dist/ForeverGPS-1.0.0-forever.zip` into `_forever_/Interface/AddOns`. In game, `/fgps` opens it.
+Then unzip `dist/ForeverGPS-2.0.0-forever.zip` into `_forever_/Interface/AddOns`. In game, `/fgps` opens it. The five-minute [first-run check](docs/FIRST_RUN.md) comes next.
 
 ## Using it
 
 | Command | |
 | --- | --- |
 | `/fgps` | Open or close |
+| `/fgps go [place]` | Quick navigation: type, Enter, go |
 | `/fgps quests` | From Your Quests |
+| `/fgps trip` | The stops of a trip |
 | `/fgps way [zone] <x> <y>` | Route to coordinates |
+| `/fgps save [name]` | Keep this spot |
+| `/fgps share` | A clean line to pass on the destination |
 | `/fgps stop` | Stop navigation |
 | `/fgps hud`, `/fgps hud unlock` | Show or hide the HUD, or move it |
-| `/fgps diag` | Report the client, addons and API state |
+| `/fgps diag` | Report the client, addons, API state and timings |
+| `/fgps report` | The same as text to copy |
 | `/fgps reset` | Reset window and HUD positions |
 
 Key bindings are under Forever-GPS in the game's key binding settings. Alt-click the world map for directions to any spot.
@@ -46,12 +53,12 @@ Key bindings are under Forever-GPS in the game's key binding settings. Alt-click
 
 ```
 addons/ForeverGPS/         The product: search, quests, planner, journey, HUD
-addons/EasyFind/           Vendored, byte-exact at its pin
-addons/EasyFind_GPS/       Vendored, with two declared patches
-addons/EasyFind_Questie/   Vendored, with one declared patch
+addons/EasyFind/           Vendored, with one declared patch
+addons/EasyFind_GPS/       Vendored, with three declared patches
+addons/EasyFind_Questie/   Vendored, with two declared patches
 tests/                     Forever-GPS's tests and the fake client
-tools/                     Packaging, pin verification, art, UI previews
-docs/                      Install, architecture, upstream, manual testing
+tools/                     Packaging, validation, pin verification, art, previews, baselines
+docs/                      Install, architecture, lifecycle, design, performance, testing
 ```
 
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it fits together, and [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for what it does not do yet.

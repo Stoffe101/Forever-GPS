@@ -21,6 +21,7 @@ local WALK_COLOR = { 0.98, 0.32, 0.86 }
 local FADED_ALPHA, BRIGHT_ALPHA = 0.45, 1
 local CROSSING = { taxi = true, boat = true, ferry = true, zeppelin = true, skyship = true, tram = true }
 local MARK, DEST_MARK, AREA_MARK = 26, 34, 15     -- sizes on screen
+local TAG_FONT = 11
 local THROTTLE = 0.1
 
 local overlay, lines, banner, driver
@@ -183,6 +184,13 @@ local function NewMark(i)
     m.glyph = m:CreateTexture(nil, "ARTWORK", nil, 3)
     m.glyph:SetPoint("TOPLEFT", m, "TOPLEFT", 0, 0)
     m.glyph:SetPoint("BOTTOMRIGHT", m, "BOTTOMRIGHT", 0, 0)
+    -- What a ride is, in words beside it: a line ending at a dock says nothing alone.
+    m.tag = CreateFrame("Frame", nil, m)
+    m.tag.back = Kit.Shape(m.tag, 4, "BACKGROUND", 1)
+    Theme.Paint(function(c) m.tag.back:SetColor(c.hud) end)
+    m.tag.text = Kit.Text(m.tag, "caption", "text")
+    m.tag.text:SetPoint("LEFT", m.tag, "LEFT", 0, 0)
+    m.tag:Hide()
     m:SetScript("OnEnter", function(self)
         if not self.tipTitle then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -215,6 +223,17 @@ local function PlaceMark(i, x, y, size, opts)
     m.glyph:SetPoint("TOPLEFT", m, "TOPLEFT", inset, -inset)
     m.glyph:SetPoint("BOTTOMRIGHT", m, "BOTTOMRIGHT", -inset, inset)
     m.tipTitle, m.tipBody, m.onClick = opts.title, opts.body, opts.onClick
+    m.tag:SetShown(opts.tag ~= nil)
+    if opts.tag then
+        local font = Px(TAG_FONT)
+        if not m.tag.text:SetFont(Theme.FONT.medium, font, "") then m.tag.text:SetFont(STANDARD_TEXT_FONT, font, "") end
+        m.tag.text:ClearAllPoints()
+        m.tag.text:SetPoint("LEFT", m.tag, "LEFT", Px(6), 0)
+        m.tag.text:SetText(opts.tag)
+        m.tag:SetSize(m.tag.text:GetStringWidth() + Px(12), Px(TAG_FONT + 8))
+        m.tag:ClearAllPoints()
+        m.tag:SetPoint("LEFT", m, "RIGHT", Px(4), 0)
+    end
     m:Show()
     return m
 end
@@ -237,13 +256,15 @@ local function LegMarks(option, i, p, n)
     local x, y = OnMapPoint(p, a)
     if x and step.kind ~= "teleport" then
         n = n + 1
-        PlaceMark(n, x, y, MARK, { icon = info.icon, line = color, title = title, body = body, onClick = onClick })
+        PlaceMark(n, x, y, MARK, { icon = info.icon, line = color, title = title, body = body, onClick = onClick,
+                                   tag = step.reach or step.text })
     end
     local ax, ay = OnMapPoint(p, b)
     if ax then
         n = n + 1
         local landing = L["MAP_LANDS_FMT"]:format(Kinds.Label(step))
-        PlaceMark(n, ax, ay, MARK * 0.8, { icon = info.icon, line = color, title = landing, body = step.text, onClick = onClick })
+        PlaceMark(n, ax, ay, MARK * 0.8, { icon = info.icon, line = color, title = landing, body = step.text, onClick = onClick,
+                                           tag = landing })
     end
     return n
 end
@@ -286,11 +307,13 @@ local function Draw()
     local mapID = map:GetMapID()
     local cw, ch = canvas:GetWidth(), canvas:GetHeight()
     local option = shown.option
+    local zoom = Px(1)
     if drawn.option == option and drawn.map == mapID and drawn.cw == cw and drawn.ch == ch and drawn.focus == shown.focus
-        and drawn.target == shown.target and drawn.area == shown.target.area then
+        and drawn.target == shown.target and drawn.area == shown.target.area and drawn.zoom == zoom then
         return
     end
     drawn.option, drawn.map, drawn.cw, drawn.ch, drawn.focus = option, mapID, cw, ch, shown.focus
+    drawn.zoom = zoom
     drawn.target, drawn.area = shown.target, shown.target.area
     FG.Metrics.Begin("mapDraw")
     local p = Projection(mapID)

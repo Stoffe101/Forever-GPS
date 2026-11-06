@@ -42,7 +42,8 @@ There is **no second routing engine**. Every time on screen comes from `Route:Bu
 | --- | --- |
 | `Core/Namespace.lua` | Topics, client events, safe calls |
 | `Core/Format.lua` | Times and distances as text |
-| `Core/Settings.lua` | Saved variables, first run |
+| `Core/Metrics.lua` | Timings of its own work, for `/fgps diag` |
+| `Core/Settings.lua` | Saved variables, migrations, first run |
 | `Core/Bridge.lua` | **Every** touch of EasyFind's internals |
 | `Core/Kinds.lua` | What each way of travel is called and drawn as |
 | `Core/Eta.lua` | Travel-time estimates, sliced and cached |
@@ -52,10 +53,15 @@ There is **no second routing engine**. Every time on screen comes from `Route:Bu
 | `Core/Quests.lua` | The quest log, read lazily |
 | `Core/QuestTargets.lua` | Areas from spawns; quest targets |
 | `Core/Search.lua` | One result list from all sources |
-| `Core/Journey.lua` | The route as the HUD reads it; quests kept in step |
+| `Core/Journey.lua` | The route as the HUD reads it; ride states; quests kept in step |
+| `Core/Trip.lua` | Several stops, and the order to visit them in |
 | `Core/TomTom.lua` | Optional mirror to TomTom |
-| `Core/Diagnostics.lua` | `/fgps diag` |
-| `UI/*` | Theme, widgets, list, panels, window, HUD |
+| `Core/Diagnostics.lua` | `/fgps diag` and the copyable report |
+| `UI/Theme.lua`, `UI/Kit.lua`, `UI/List.lua` | Tokens, widgets, a list that builds only what fits |
+| `UI/MapPreview.lua` | The journey on the world map, in a layer of its own |
+| `UI/RoutePanel.lua`, `UI/SearchView.lua`, `UI/QuestsView.lua`, `UI/TripView.lua` | The window's pages |
+| `UI/CopyBox.lua`, `UI/Settings.lua`, `UI/MainWindow.lua` | Text to copy, settings, the window |
+| `UI/HUD.lua`, `UI/Quick.lua`, `UI/MinimapButton.lua` | What stays out of the window |
 
 Modules talk through topics (`FG.On`, `FG.Emit`): `plan:changed`, `quests:changed`, `journey:view`, `journey:step`, `route:started`, `route:cleared` and so on.
 
@@ -67,12 +73,25 @@ Modules talk through topics (`FG.On`, `FG.Emit`): `plan:changed`, `quests:change
 4. `Bridge.RestoreNav()` puts the walking grid's settings back. This matters: the active route's drawn walks are keyed under those settings, so comparing routes without restoring would lose them.
 5. `Planner.Start` commits the selected steps, or plans again if the player has moved more than 120 yards or two minutes have passed.
 
-Only one plan runs at a time and a newer one silently replaces the old, so Forever-GPS never starts a plan while `IsPlanning()` is true, and a watchdog moves on if one is displaced.
+Only one plan runs at a time and a newer one silently replaces the old, so Forever-GPS waits out the engine's own plans, replaces only its own, and has a watchdog move on if one is displaced. Each plan owns the walks it found, so the map can draw any option at any time. Every stage is laid out in [LIFECYCLE.md](LIFECYCLE.md).
+
+## How search ranks
+
+In stages, so a list appears at once and improves:
+
+1. `Search.Run` understands the query (`nearest`, `any`, what players call things, a misspelling), gathers from EasyFind's map search, the NPC catalog, travel and Questie's world index, and orders by match.
+2. `Search.Price` puts a coarse travel time on the first results, from the route graph with straight-line walks, in small slices.
+3. For a kind of thing, the list reorders by that time, and a row for many places moves onto the quickest, passing over enemy towns.
+4. The selected result gets a full plan on the walking grid.
+
+## Why not Wowhead data
+
+Addons cannot reach the network, so Wowhead could only ever be static data shipped in the package. No official API was found, the terms could not be read, and the fetch was blocked, so whether scraping is allowed is unknown. It is not used. Questie's installed database has Forever's data, far more than the catalog, and is read at run time through `EasyFind_Questie`. Coverage is limited to what Questie knows, and it needs Questie installed.
 
 ## Performance
 
 - Nothing runs while the window is closed and no route exists: no `OnUpdate` scripts, no polling.
-- The Journey driver runs at 5 Hz, only while a route exists. The HUD arrow runs at about 30 Hz, only while the arrow is on screen.
+- The Journey driver runs at 5 Hz, only while a route exists. The HUD arrow runs at about 30 Hz, only while the arrow is on screen. Baselines are in [PERFORMANCE.md](PERFORMANCE.md).
 - Estimates run at most 4 ms a frame, only when the planner is idle, for at most ten results, and are cached for 60 seconds per 40-yard cell.
 - The quest log is read only after it changes, at most once per 0.3 seconds, however many `QUEST_LOG_UPDATE`s fire. A test holds 40 events to one read.
 - Lists create only the rows that fit.
@@ -86,7 +105,9 @@ Only one secure frame exists: the HUD's cast button for teleport steps. It hangs
 
 The test client (`tests/support/client.lua`) loads the real addons through their real TOC files, under the real load rules. Routing tests run the real engine on the real data and walking grid, and search tests run the real map search and NPC catalog. Only the player and the screen are pretended, plus a small stand-in Questie. Map geometry is exact, taken from the catalog's own map planes.
 
-`tests/support/fakeui.lua` really solves anchors, so layout can be tested. It estimates font widths on the wide side and refuses over-constrained anchors. `tools/ui_preview.lua` renders the same thing to HTML for a person to look at.
+`tests/support/fakeui.lua` really solves anchors, so layout can be tested. It estimates font widths on the wide side and refuses over-constrained anchors. `tools/ui_preview.lua` renders the same thing to HTML for a person to look at, and [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) sets out what they should see.
+
+`tests/test_golden.lua` takes six journeys from typing to arriving. `tests/test_invariants.lua` holds what must be true for any input, with a fixed seed so a failure repeats.
 
 The limits of this are in [MANUAL_TESTING.md](MANUAL_TESTING.md): none of it is the game.
 

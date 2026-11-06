@@ -22,7 +22,7 @@ Addon Lua files carry binary blobs inside strings, and upstream's tests match ex
 
 ## Patches
 
-Every change to vendored code. All are additive except the bug fix.
+Every change to vendored code, as declared in `tools/upstream.py`. All are additive except the two bug fixes.
 
 ### `EasyFind_GPS/Npcs.lua`: two read-only accessors
 
@@ -37,9 +37,20 @@ Adds `N.SpotsOf(npcID)` and `N.ReactionOf(npcID, horde)`, for offering a creatur
 
 The fix restores the character's own limit after the trial. It is worth sending upstream.
 
+### `EasyFind_GPS/GPS.lua`: trips survive a reroute
+
+`GPS.Rerouted` built a new route table without `stops` or `skipLearn`, so one wrong turn on a trip turned it into a route to the last stop. It now keeps both. `GPS.StopsAhead(route)` works out which stops are still ahead, by what they are, since saved routes come back as copies, and `Reroute` goes on from those instead of back round the ones already reached. Worth sending upstream.
+
+### `EasyFind/MapSearch/Search/Results.lua`: every instance on the row
+
+The row for a service with many locations kept only the nearest. It now carries `allInstances` too, so Forever-GPS can choose the quickest by travel time and pass over enemy towns. Additive: one field.
+
 ### `EasyFind_Questie/Quests.lua`: public actions
 
-Adds the `isReady` and `questSpots` actions through EasyFind's API, so all Questie reading stays in this one addon. `questSpots` returns each objective's spots by the log's index, as Questie itself indexes them, plus the turn-in. Guarded for an EasyFind without `RegisterAction`.
+Adds actions through EasyFind's API, so all Questie reading stays in this one addon. Guarded for an EasyFind without `RegisterAction`.
+
+- `isReady` and `questSpots`: each objective's spots by the log's index, as Questie itself indexes them, plus the turn-in.
+- `warmWorld`, `findWorld` and `worldSpots`: a name index over Questie's creatures and objects, built in slices at run time from the installed addon. Nothing from Questie's database enters this repository.
 
 ### `EasyFind_Questie/tools/tests/smoke_test.lua`
 

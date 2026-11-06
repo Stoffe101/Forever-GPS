@@ -17,6 +17,13 @@ function Format.Duration(sec)
     return L["TIME_HR_MIN"]:format(hours, rest)
 end
 
+-- An estimate for a list: "~12 min", or "<1 min", which needs no tilde.
+function Format.About(sec)
+    if not sec then return nil end
+    if sec < 60 then return L["TIME_LESS_MIN"] end
+    return L["ETA_SHORT_FMT"]:format(Format.Duration(sec))
+end
+
 -- A countdown for what is happening now: "0:45", "12:05".
 function Format.Clock(sec)
     if not sec then return nil end

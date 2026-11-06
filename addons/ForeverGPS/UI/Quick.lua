@@ -33,7 +33,7 @@ local function Fill()
             row.icon:SetIcon(result.iconArt or result.icon or "pin")
             row.name:SetText(result.name)
             row.sub:SetText(result.subtitle or "")
-            row.eta:SetText(result.eta and L["ETA_SHORT_FMT"]:format(Format.Duration(result.eta.sec)) or "")
+            row.eta:SetText(result.eta and Format.About(result.eta.sec) or "")
         end
     end
     f:SetHeight(HEAD_H + shown * ROW_H + (shown > 0 and 6 or 0))

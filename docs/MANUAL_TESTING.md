@@ -1,6 +1,6 @@
 # Manual testing in game
 
-**Nothing in this repository has been run in the WoW client.** Automated tests run the real addon code against a fake client. That proves logic and layout, not that the game agrees. This list covers what only the game can show.
+**Nothing in this repository has been run in the WoW client.** Automated tests run the real addon code against a fake client. That proves logic and layout, not that the game agrees. This list covers what only the game can show. Start with the five-minute [first-run check](FIRST_RUN.md).
 
 ## Before you start
 
@@ -18,7 +18,7 @@ Then check the client and addons:
 /fgps diag
 ```
 
-Save that output. Expected: client `1.60.1`, interface `16001`, `EasyFind internals: all present`, `Game API: all 17 present`, and `Questie data: ready` if Questie is enabled. If anything says MISSING, stop there and send that output first, since most of what follows depends on it.
+Save that output. `/fgps report` gives the same as text to copy, with no character or realm name. Expected: client `1.60.1`, interface `16001`, `EasyFind internals: all present`, `Game API: all 18 present`, and `Questie data: ready` if Questie is enabled. If anything says MISSING, stop there and send that output first, since most of what follows depends on it.
 
 These help if a route looks wrong:
 
@@ -129,12 +129,12 @@ Then disable Questie and repeat quickly:
 
 At each of these, check the home, results, journey, quests and settings views, and the HUD:
 
-- [ ] 3440×1440, GUI scale 2
-- [ ] 3440×1440, GUI scale 3
-- [ ] 1920×1080, GUI scale 2
-- [ ] 1920×1080, GUI scale 3
+- [ ] 3440×1440, your usual setup
+- [ ] 3440×1440, default UI scale
+- [ ] 1920×1080, default UI scale
+- [ ] 1920×1080, largest UI scale
 
-"Scale" was modelled as pixels per UI unit, so 1920×1080 at 3 leaves 640 by 360 units. If your GUI scale setting means something else, tell me what `/dump UIParent:GetSize()` and `/dump UIParent:GetEffectiveScale()` report.
+In the game, UI units per pixel come from the UI scale: UIParent's height is 768 divided by that scale, unless a UI scale addon sets it. Your EllesmereUI setting of 0.5333 leaves UIParent at 3440 by 1440 units, one per pixel. The tests cover that, the default range, and 640 by 360 units as a worst case tighter than the game goes. To check what you have, `/dump UIParent:GetSize()` and `/dump UIParent:GetEffectiveScale()`.
 
 For each:
 
@@ -143,10 +143,24 @@ For each:
 - [ ] Scrolling works with the wheel, and rows do not bleed past the list's edge.
 - [ ] Tooltips stay on screen.
 - [ ] The HUD fits, drags when unlocked, and its position survives a reload.
-- [ ] The size sliders in Settings show a thumb you can drag. The test client cannot draw those.
+- [ ] The sliders in Settings show a knob you can drag, with the value beside them. The mouse wheel moves them too.
+- [ ] On a tall interface the window and HUD open at 125%, until you choose a size.
 - [ ] Resize the window. Layout follows without a reload.
 
-## 11. Living with it
+## 11. New in 2.0
+
+- [ ] **Map preview**: open a journey with the world map open. A magenta line follows the roads, with a labeled boat mark. Nothing starts. Read it over snow, sand, forest and dark ground if you can.
+- [ ] Click a step in the panel. The map turns to it and picks it out. The fit and return buttons on the banner work.
+- [ ] With a route under way, preview somewhere else. The HUD does not change, and closing the preview leaves the route as it was.
+- [ ] **Waiting**: stand at a dock. The HUD says it is waiting and says the time is not known. After one ride on that boat, it should give a real departure.
+- [ ] **Trip**: add three stops, press Best order, plan it, start it. Skip a stop from the panel.
+- [ ] **Quick**: bind the key, press it, type, press Enter.
+- [ ] **Quest filters**: each filter and grouping shows what it says.
+- [ ] Finish an objective while heading to it. An offer appears with Show route, and no route starts by itself.
+- [ ] **HUD sizes**, opacity, text size and arrow style in Settings, HUD.
+- [ ] **Reduce motion**: the arrow steps rather than swings.
+
+## 12. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.

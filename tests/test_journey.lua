@@ -187,6 +187,42 @@ function tests.thePathsNextTurn_isFound()
     T.ok(turn.yards > 0)
 end
 
+function tests.tomtom_keepsToItsOwnWaypoint()
+    local points = {}
+    local nextID = 0
+    local TomTom = {
+        AddWaypoint = function(_, m, x, y, opts)
+            nextID = nextID + 1
+            points[nextID] = { m = m, x = x, y = y, from = opts and opts.from }
+            return nextID
+        end,
+        RemoveWaypoint = function(_, uid) points[uid] = nil end,
+    }
+    TomTom.AddWaypoint(TomTom, 1429, 0.5, 0.5, { from = "the player" })
+    local c = Start({ tomtom = TomTom })
+    c.FG.db.arrow = "tomtom"
+    c.FG.Journey.ApplyArrow()
+    local route = Go(c, nil)
+    local ours = 0
+    for _, p in pairs(points) do
+        if p.from == "Forever-GPS" then ours = ours + 1 end
+    end
+    T.eq(ours, 1, "one of ours, however often the view is drawn")
+    c:Advance(3)
+    ours = 0
+    for _, p in pairs(points) do
+        if p.from == "Forever-GPS" then ours = ours + 1 end
+    end
+    T.eq(ours, 1, "still one")
+    Reach(c, route.steps[1])
+    c.FG.StopNavigation()
+    c:Advance(0.5)
+    local left = {}
+    for _, p in pairs(points) do left[#left + 1] = p end
+    T.eq(#left, 1, "ours gone")
+    T.eq(left[1].from, "the player", "and the player's own untouched")
+end
+
 function tests.nextStep_isTheNextOneNotThisOneAgain()
     local c = Start()
     Go(c, nil)

@@ -115,7 +115,7 @@ local function PlaceLine(target)
     local best = target.best
     if not best then return target.reason end
     local parts = { best.zone or "?" }
-    if best.sec then parts[#parts + 1] = L["ETA_SHORT_FMT"]:format(Format.Duration(best.sec)) end
+    if best.sec then parts[#parts + 1] = Format.About(best.sec) end
     if best.transports then parts[#parts + 1] = best.transports end
     if #target.areas > 1 then parts[#parts + 1] = L["QUEST_AREAS_FMT"]:format(#target.areas) end
     return table.concat(parts, " · ")

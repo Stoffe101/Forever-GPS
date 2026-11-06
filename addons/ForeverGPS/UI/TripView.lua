@@ -8,14 +8,18 @@ local Kit, Theme, List = FG.Kit, FG.Theme, FG.List
 local Trip = FG.Trip
 local L = FG.L
 
-local STOP_H, FOOT_H = 50, 30
+local STOP_H, FOOT_H, ROW_GAP = 50, 30, 6
 
 local f, list
 local working = false
 
 local function MakeStop(parent)
     local row = CreateFrame("Frame", nil, parent)
-    row.back = Kit.Shape(row, 7, "BACKGROUND", 1)
+    -- A card a little shorter than its row, so the cards stand apart.
+    row.card = CreateFrame("Frame", nil, row)
+    row.card:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+    row.card:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, ROW_GAP)
+    row.back = Kit.Shape(row.card, 7, "BACKGROUND", 1)
     Theme.Paint(function(c) row.back:SetColor(c.card) end)
     row.number = Kit.Text(row, "label", "accent")
     row.number:SetPoint("LEFT", row, "LEFT", 12, 0)
@@ -66,7 +70,7 @@ local function Bind(row, item, index)
     row.down:SetShown(index < count)
 end
 
-local function Height(item) return item.kind == "stop" and STOP_H + 4 or 90 end
+local function Height(item) return item.kind == "stop" and STOP_H + ROW_GAP or 90 end
 
 local function Items()
     local items = {}

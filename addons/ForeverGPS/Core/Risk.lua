@@ -131,7 +131,8 @@ function Risk.Assess(route, walks)
                 end
                 TownsAlong(path, EnemyNodes(ci, faction), towns)
             end
-            if Bridge.DropNote(step) then Add("moderate", L["RISK_REASON_DROP"]) end
+            -- Worth a word, not a warning: walks only take drops a fall survives.
+            if Bridge.DropNote(step) then Add("low", L["RISK_REASON_DROP"]) end
             local zone = step.mapID and Risk.ZoneControl(step.mapID, faction)
             if zone == "contested" then contested[Bridge.MapName(step.mapID) or "?"] = true end
         elseif step.kind ~= "travel" then

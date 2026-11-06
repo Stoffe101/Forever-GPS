@@ -47,8 +47,9 @@ local function RouteData()
     return ns and ns.GPSData
 end
 
--- What is right and wrong, worst first. Each: { "ok"|"limited"|"broken", text }.
--- "limited" works with less; "broken" means navigation cannot be trusted.
+-- What is right and wrong, worst first. Each: { "ok"|"note"|"limited"|"broken", text }.
+-- "limited" works with less; "broken" means navigation cannot be trusted; "note" is
+-- worth knowing and changes nothing.
 function Diagnostics.Checks()
     local out = {}
     local function Add(state, text) out[#out + 1] = { state, text } end
@@ -64,7 +65,7 @@ function Diagnostics.Checks()
     local data = RouteData()
     local _, build = GetBuildInfo()
     if data and data.build and tostring(data.build) ~= tostring(build) then
-        Add("limited", ("Route data is from build %s, this client is %s"):format(tostring(data.build), tostring(build)))
+        Add("note", ("Route data is from build %s, this client is %s"):format(tostring(data.build), tostring(build)))
     elseif data then
         Add("ok", "Route data matches this client")
     end
@@ -72,7 +73,7 @@ function Diagnostics.Checks()
         FG.QuestTargets.HasQuestie() and "Questie data ready" or "No Questie data: objective places and world search are limited")
     if not Bridge.PlayerStart() then Add("limited", "No position available here") end
     table.sort(out, function(a, b)
-        local rank = { broken = 1, limited = 2, ok = 3 }
+        local rank = { broken = 1, limited = 2, note = 3, ok = 4 }
         if a[1] ~= b[1] then return rank[a[1]] < rank[b[1]] end
         return a[2] < b[2]
     end)

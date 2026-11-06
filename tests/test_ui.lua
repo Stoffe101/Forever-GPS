@@ -1,16 +1,22 @@
 -- The real interface in the layout-solving fake, at every screen the brief names.
--- GUI scale here is pixels per UI unit, so 1920x1080 at scale 3 leaves 640 by 360
--- units to work in. Text widths are estimates on the wide side: a pass means the
--- layout has room, not that it matches the game to the pixel.
+-- The third number is pixels per UI unit. In the game that is (height / 768) times
+-- the UI scale, which runs from 0.64 to 1.15, and an addon can set less: the 3440x1440
+-- install this was built for keeps UIParent at 3440 by 1440. So the real range is
+-- covered, and the reading of "GUI scale 3" as three pixels per unit is kept as a
+-- worst case tighter than the game goes. Text widths are estimates on the wide side:
+-- a pass means the layout has room, not that it matches the game to the pixel.
 local T = require("support.t")
 local Stack = require("support.stack")
 
 local UI = require("support.fakeui")
 
 local SCREENS = {
-    { "3440x1440 scale 2", 3440, 1440, 2 }, { "3440x1440 scale 3", 3440, 1440, 3 },
-    { "1920x1080 scale 2", 1920, 1080, 2 }, { "1920x1080 scale 3", 1920, 1080, 3 },
-    { "1920x1080 scale 1", 1920, 1080, 1 }, { "2560x1440 scale 1", 2560, 1440, 1 },
+    { "3440x1440 at 2 px per unit", 3440, 1440, 2 }, { "3440x1440 at 3 px per unit", 3440, 1440, 3 },
+    { "1920x1080 at 2 px per unit", 1920, 1080, 2 }, { "1920x1080 at 3 px per unit", 1920, 1080, 3 },
+    { "1920x1080 at 1 px per unit", 1920, 1080, 1 }, { "2560x1440 at 1 px per unit", 2560, 1440, 1 },
+    { "3440x1440 at 1 px per unit", 3440, 1440, 1 },
+    { "3440x1440 default", 3440, 1440, 1.875 }, { "1920x1080 default", 1920, 1080, 1.406 },
+    { "1920x1080 largest", 1920, 1080, 1.617 }, { "1920x1080 smallest", 1920, 1080, 0.9 },
 }
 
 local QUESTIE = {
@@ -412,18 +418,19 @@ function tests.sliders_haveAKnobAndAValueAndWork()
         T.ok(knob and knob.r - knob.l >= 8, screen[1] .. ": the knob can be seen")
         T.ok(track and track.r - track.l >= 60, screen[1] .. ": the track has room")
         T.ok(knob.l >= track.l - 8 and knob.r <= track.r + 8, screen[1] .. ": the knob sits on the track")
-        T.eq(s.value._text, "100%", "the value is written beside it")
+        local start = FG.Settings.HudScale()
+        T.eq(s.value._text, ("%d%%"):format(start * 100 + 0.5), "the value is written beside it")
         s._scripts.OnMouseWheel(s, 1)
-        T.near(FG.db.hud.scale, 1.05, 0.001, "the wheel moves it")
+        T.near(FG.db.hud.scale, start + 0.05, 0.001, "the wheel moves it")
         local moved = Rect(s.knob)
         T.ok(moved.l > knob.l, "and the knob with it")
-        T.eq(s.value._text, "105%")
+        T.eq(s.value._text, ("%d%%"):format(start * 100 + 5.5))
         -- A press at the far end of the track.
         local scale = s:GetEffectiveScale()
         c.env.GetCursorPosition = function() return (track.r + 50) * 1, 0 end
         s._scripts.OnMouseDown(s, "LeftButton")
         s._scripts.OnMouseUp(s, "LeftButton")
-        T.near(FG.db.hud.scale, 1.5, 0.001, "a press past the end stops at the end (scale " .. scale .. ")")
+        T.near(FG.db.hud.scale, 1.6, 0.001, "a press past the end stops at the end (scale " .. scale .. ")")
         T.eq(#c.errors, 0)
     end
 end
@@ -567,6 +574,16 @@ function tests.theCopyBox_fitsAndHoldsNothingPersonal()
         T.lacks(text, c.env.UnitName("player"), "no character name")
         T.lacks(text, c.env.GetRealmName(), "no realm name")
     end
+end
+
+function tests.aTallInterface_getsLargerWindowsUntilTheyAreChosen()
+    local c = Start({ "1px", 3440, 1440, 1 })
+    local FG = c.FG
+    T.eq(FG.Settings.WindowScale(), 1.25, "a window for 768 units would read small at 1440")
+    FG.db.window.scale = 1
+    T.eq(FG.Settings.WindowScale(), 1, "and a chosen size is kept")
+    local normal = Start({ "default", 1920, 1080, 1.406 })
+    T.eq(normal.FG.Settings.WindowScale(), 1, "a default interface stays as it is")
 end
 
 function tests.homeTiles_fitTheirLabels()

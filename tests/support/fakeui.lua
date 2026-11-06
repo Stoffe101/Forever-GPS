@@ -403,9 +403,9 @@ function Frame:RegisterUnitEvent(e) self._events[e] = true UI.track(self) end
 function Frame:UnregisterEvent(e) self._events[e] = nil end
 function Frame:UnregisterAllEvents() self._events = {} end
 function Frame:IsEventRegistered(e) return self._events[e] == true end
-function Frame:CreateTexture(name, layer)
+function Frame:CreateTexture(name, layer, _, sublevel)
     local t = setmetatable(newObject("Texture", self, name), UI.mt.Texture)
-    t._layer = layer
+    t._layer, t._sublevel = layer, sublevel
     return t
 end
 function Frame:CreateMaskTexture(name) return self:CreateTexture(name) end
@@ -516,7 +516,7 @@ function EditBox:ClearFocus()
 end
 function EditBox:HasFocus() return self._focused == true end
 function EditBox:SetMaxLetters() end
-function EditBox:SetMultiLine() end
+function EditBox:SetMultiLine(on) self._multi = on end
 function EditBox:SetTextInsets() end
 function EditBox:SetJustifyH() end
 function EditBox:SetAltArrowKeyMode() end

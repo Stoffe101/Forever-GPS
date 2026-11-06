@@ -204,7 +204,7 @@ function tests.settingsFrom1_0_0_survive()
     local db, char = c.FG.db, c.FG.char
     T.eq(db.theme, "glacier", "theme kept")
     T.eq(db.hud.enabled, false, "HUD choice kept")
-    T.eq(db.hud.scale, 1.2)
+    T.eq(db.hud.scale, 1.2, "a chosen size kept")
     T.eq(db.window.width, 700)
     T.eq(#db.favorites, 1, "favorites kept")
     T.eq(#char.recents, 1, "recents kept")
