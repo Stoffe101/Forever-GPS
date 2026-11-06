@@ -75,7 +75,7 @@ function Journey.View()
     if route.arrived then
         local name = route.dest and route.dest.name or "?"
         return { state = "arrived", title = L["HUD_ARRIVED_FMT"]:format(name), icon = FG.ART .. "flag", progress = 1, count = #route.steps,
-                 index = #route.steps }
+                 index = #route.steps, took = Journey.Took() }
     end
     local index = route.active or 1
     local step = route.steps[index]
@@ -115,6 +115,44 @@ function Journey.Heading()
     if not bearing then return nil end
     return bearing - facing
 end
+
+-- ==== how the journey went ===================================================
+
+local underway                  -- { name, at, planned }, from start to arrival
+local tookSeconds
+
+function Journey.Took() return tookSeconds end
+
+local function Begin()
+    local route = Bridge.Route()
+    tookSeconds = nil
+    if route and route.dest then
+        underway = { name = route.dest.name, at = GetTime(), planned = route.total }
+    end
+    FG.Saved.SetResume(nil)
+end
+
+FG.On("route:arrived", function()
+    if underway then
+        tookSeconds = GetTime() - underway.at
+        FG.Saved.LogJourney(underway.name, tookSeconds, underway.planned)
+    end
+    underway = nil
+    FG.Saved.SetResume(nil)
+    FG.Emit("journey:arrived", tookSeconds)
+end)
+
+-- Stopped short: the way back to it stays on offer for a while.
+local function Stopped()
+    local route = Journey.lastRoute
+    Journey.lastRoute = nil
+    if underway and route and route.dest then
+        FG.Saved.SetResume(route.dest.name, { name = route.dest.name, mapID = route.dest.mapID, x = route.dest.x, y = route.dest.y }, route.stops)
+    end
+    underway = nil
+end
+
+FG.On("route:cleared", Stopped)
 
 -- ==== quests in step with the route =========================================
 
@@ -230,6 +268,7 @@ end
 local function Publish()
     local view = Journey.View()
     if view then
+        Journey.lastRoute = Bridge.Route()
         Follow(view)
         view.eta = Glide(view.eta)
     else
@@ -264,6 +303,7 @@ end
 
 FG.On("route:started", function()
     following, shownEta = nil, nil
+    Begin()
     Journey.Watch()
 end)
 FG.On("route:committed", Journey.Watch)

@@ -29,6 +29,15 @@ Theme.PALETTES = {
         good = Hex("56DDB0"), warn = Hex("F4C15C"), danger = Hex("FF7A70"), dangerSoft = Hex("FF7A70", 0.16),
         hud = Hex("0D1622", 0.86), glyph = Hex("C6D6E5"),
     },
+    -- For reading at a glance: the strongest contrast the rest of the design allows.
+    contrast = {
+        window = Hex("000000", 0.98), raised = Hex("0A0A0A"), card = Hex("161616"), cardHover = Hex("2A2A2A"),
+        field = Hex("000000"), line = Hex("6A6A6A"), lineStrong = Hex("A0A0A0"),
+        text = Hex("FFFFFF"), textDim = Hex("E0E0E0"), textFaint = Hex("B8B8B8"), onAccent = Hex("000000"),
+        accent = Hex("FFD400"), accentHover = Hex("FFE566"), route = Hex("5CC8FF"), routeSoft = Hex("5CC8FF", 0.26),
+        good = Hex("5CFFB0"), warn = Hex("FFC24D"), danger = Hex("FF8A7A"), dangerSoft = Hex("FF8A7A", 0.24),
+        hud = Hex("000000", 0.94), glyph = Hex("FFFFFF"),
+    },
     parchment = {
         window = Hex("F3ECDC", 0.98), raised = Hex("EADFC8"), card = Hex("FBF6EA"), cardHover = Hex("F1E7D2"),
         field = Hex("FFFCF4"), line = Hex("D5C7A9"), lineStrong = Hex("B9A77F"),

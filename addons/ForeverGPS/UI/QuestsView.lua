@@ -25,7 +25,6 @@ local GROUP_LABEL = { zone = "QGROUP_ZONE", status = "QGROUP_STATUS", distance =
 local f, list
 local filter, grouping = "all", "zone"
 local expanded = {}          -- questID -> true
-local resolved = {}          -- questID -> { sig, targets }: rebuilt only when the quest changed
 
 -- ==== rows ==================================================================
 
@@ -172,8 +171,24 @@ local function MakeEmpty(parent)
     return row
 end
 
+local function MakeCircuit(parent)
+    local row = CreateFrame("Frame", nil, parent)
+    row.back = Kit.Shape(row, 7, "BACKGROUND", 1)
+    Theme.Paint(function(c) row.back:SetColor(c.routeSoft) end)
+    row.icon = Kit.Icon(row, 16, "route")
+    row.icon:SetIcon("quest")
+    row.icon:SetPoint("LEFT", row, "LEFT", 10, 0)
+    row.go = Kit.Button(row, { text = L["QUEST_PLAN_CIRCUIT"], height = 24, width = "fit", onClick = function() FG.Trip.PlanNearby() end })
+    row.go:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.text = Kit.Text(row, "label", "text")
+    row.text:SetPoint("LEFT", row.icon, "RIGHT", 8, 0)
+    row.text:SetPoint("RIGHT", row.go, "LEFT", -8, 0)
+    return row
+end
+
 local function Bind(row, item)
-    if item.kind == "quest" then BindQuest(row, item)
+    if item.kind == "circuit" then row.text:SetText(L["SUGGEST_CIRCUIT_FMT"]:format(item.count))
+    elseif item.kind == "quest" then BindQuest(row, item)
     elseif item.kind == "zone" then row.label:SetText(item.text)
     elseif item.kind == "target" then BindTarget(row, item)
     elseif item.kind == "note" then row.text:SetText(item.text)
@@ -188,37 +203,19 @@ local function Height(item, width)
     if item.kind == "zone" then return ZONE_H end
     if item.kind == "target" then return TargetHeight(item, width) end
     if item.kind == "empty" then return 70 end
+    if item.kind == "circuit" then return 40 end
     if item.kind == "note" then return 14 + FG.RoutePanel.TextHeight(item.text, width - 20, "small") end
     return QUEST_H
 end
 
 -- ==== content ===============================================================
 
--- What makes a quest's targets out of date: its parts finishing, not its counters.
-local function Signature(q)
-    local parts = { q.complete and "c" or "o" }
-    for i = 1, #q.objectives do parts[#parts + 1] = q.objectives[i].finished and "1" or "0" end
-    return table.concat(parts)
-end
-
--- A quest's targets, worked out once for as long as they hold. A busy quest log
--- does not cost a scan of every quest at each kill.
-local function EntryOf(q)
-    local sig = Signature(q)
-    local entry = resolved[q.questID]
-    if not entry or entry.sig ~= sig then
-        entry = { sig = sig, targets = Targets.For(q) }
-        resolved[q.questID] = entry
-    end
-    return entry
-end
-
 -- Prices a target once. The answer always arrives in a later frame: this runs
 -- while the list is being built, which must not rebuild itself.
 local function Settle(target, q, entry)
     if target.settled or target.resolving or target.status ~= "ok" then return end
     target.resolving = true
-    local function Alive() return resolved[q.questID] == entry end
+    local function Alive() return Targets.Current(q, entry) end
     Targets.Resolve(target, function()
         target.resolving = nil
         FG.After(0, function()
@@ -229,7 +226,7 @@ end
 
 -- The rows under an open quest: what is left to do, and what is done.
 local function AddTargets(items, q)
-    local entry = EntryOf(q)
+    local entry = Targets.Of(q)
     local targets = entry.targets
     if q.failed then return end
     if not q.complete then
@@ -261,7 +258,7 @@ local function FactsAll(quests)
     local zone = mapID and FG.Bridge.MapName(mapID)
     local out = {}
     for _, q in ipairs(quests) do
-        local facts = Targets.Facts(q, EntryOf(q).targets, start, mapID)
+        local facts = Targets.Facts(q, Targets.Of(q).targets, start, mapID)
         facts.here = facts.here or (zone ~= nil and q.zone == zone)
         out[q.questID] = facts
     end
@@ -329,6 +326,8 @@ local function Items()
         items[#items + 1] = { kind = "note", text = L["QUEST_NO_QUESTIE"] }
     end
     local facts = FactsAll(quests)
+    local nearby = #FG.Trip.NearbyStops()
+    if nearby >= 2 then items[#items + 1] = { kind = "circuit", count = nearby } end
     local chosen = {}
     for _, q in ipairs(quests) do
         if PASSES[filter](q, facts[q.questID]) then chosen[#chosen + 1] = q end
@@ -439,7 +438,7 @@ end
 local function Build(parent)
     f = CreateFrame("Frame", nil, parent)
     list = List.New(f, {
-        make = { zone = MakeZone, quest = MakeQuest, target = MakeTarget, note = MakeNote, empty = MakeEmpty },
+        make = { zone = MakeZone, quest = MakeQuest, target = MakeTarget, note = MakeNote, empty = MakeEmpty, circuit = MakeCircuit },
         bind = Bind, height = Height,
     })
     f.list = list
@@ -453,20 +452,13 @@ local function Build(parent)
     f.grouping = Kit.Chip(f, L[GROUP_LABEL[grouping]], function() View.NextGrouping() end)
     Kit.Tooltip(f.grouping, L["QGROUP_TT"])
     f.chips[#f.chips + 1] = f.grouping
-    FG.On("quests:changed", function()
-        if Targets.QuestieChanged() then wipe(resolved) end
-        -- Quests that left the log need not be kept.
-        for questID in pairs(resolved) do
-            if not Quests.Get(questID) then resolved[questID] = nil end
-        end
-        View.Refresh(true)
-    end)
+    FG.On("quests:changed", function() View.Refresh(true) end)
     return f
 end
 
 -- Questie may have finished loading since the list was last read.
 function View.Show()
-    if Targets.QuestieChanged() then wipe(resolved) end
+    if Targets.QuestieChanged() then Targets.ForgetAll() end
     f.grouping:SetLabel(L[GROUP_LABEL[grouping]])
     View.Layout()
     View.Refresh(false)

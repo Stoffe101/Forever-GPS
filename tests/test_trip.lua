@@ -216,6 +216,32 @@ function tests.finishingAnObjective_offersWhatComesNext()
     T.no(c.FG.Bridge.Route(), "nothing started by itself")
 end
 
+function tests.aTripList_survivesAReload()
+    local c = Start({ ui = false })
+    c.FG.Trip.Add(Stop("Close by", 1429, 0.44, 0.68))
+    c.FG.Trip.Add(Stop("Westfall", 1436, 0.56, 0.47))
+    local after = Start({ ui = false, saved = Stack.Saved(c) })
+    T.eq(after.FG.Trip.Count(), 2, "both stops come back")
+    T.eq(after.FG.Trip.List()[2].name, "Westfall", "in order")
+end
+
+function tests.aTrip_canBeKeptAndUsedAgain()
+    local c = Start({ ui = false })
+    local Trip = c.FG.Trip
+    Trip.Add(Stop("Close by", 1429, 0.44, 0.68))
+    Trip.Add(Stop("Westfall", 1436, 0.56, 0.47))
+    T.ok(Trip.Save())
+    T.eq(Trip.Saved()[1].name, "Close by to Westfall", "named by where it goes")
+    Trip.Clear()
+    T.eq(Trip.Count(), 0)
+    Trip.Load(1)
+    T.eq(Trip.Count(), 2, "back")
+    Trip.Remove(1)
+    T.eq(#Trip.Saved()[1].stops, 2, "and changing the list leaves what was kept")
+    Trip.Forget(1)
+    T.eq(#Trip.Saved(), 0, "until it is let go of")
+end
+
 function tests.aSearchResult_canBecomeAStop()
     local c = Start({ ui = false })
     local Trip = c.FG.Trip

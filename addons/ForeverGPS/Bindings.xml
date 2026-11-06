@@ -5,6 +5,9 @@
     <Binding name="FOREVERGPS_QUICK" category="Forever-GPS">
         ForeverGPS.QuickOpen()
     </Binding>
+    <Binding name="FOREVERGPS_TARGET" category="Forever-GPS">
+        ForeverGPS.DirectionsToTarget()
+    </Binding>
     <Binding name="FOREVERGPS_QUESTS" category="Forever-GPS">
         ForeverGPS.OpenQuests()
     </Binding>

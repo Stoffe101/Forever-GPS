@@ -12,7 +12,7 @@ local DEFAULTS = {
     theme = "obsidian",
     arrow = "hud",              -- hud, character, tomtom or off
     hud = { enabled = true, mode = "standard", showNext = true, showEta = true, hideInCombat = false, autoHide = false,
-            locked = true, opacity = 0.86, font = "normal", arrowStyle = "solid" },
+            locked = true, opacity = 0.86, font = "normal", arrowStyle = "solid", outline = false, sound = false },
     window = {},
     map = { preview = true, areas = true },
     search = { prices = true, world = true },
@@ -27,6 +27,9 @@ local CHAR_DEFAULTS = {
     schema = SCHEMA,
     recents = {},
     mode = "fastest",
+    trip = {},
+    savedTrips = {},
+    journeys = {},
 }
 
 local function Fill(into, from)

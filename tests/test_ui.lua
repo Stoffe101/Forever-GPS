@@ -604,6 +604,40 @@ function tests.aTallInterface_getsLargerWindowsUntilTheyAreChosen()
     T.eq(normal.FG.Settings.WindowScale(), 1, "a default interface stays as it is")
 end
 
+function tests.theHome_leadsWithWhatIsHappening()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Window.Show("search")
+    c:Advance(0.5)
+    FG.Planner.Inspect({ data = { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 }, name = "Auberdine" })
+    Ready(c)
+    FG.db.autoClose = false
+    FG.RoutePanel.Go()
+    c:Advance(1)
+    FG.Window.Show("search")
+    c:Advance(0.5)
+    local items = FG.SearchView.Get().list.items
+    T.eq(items[2].kind, "card", "under way comes first")
+    T.ok(items[2].result.active, "the journey itself")
+    Check(c, "home, under way")
+    FG.Bridge.Stop()
+    c:Advance(1)
+    FG.Window.Show("search")
+    c:Advance(0.5)
+    items = FG.SearchView.Get().list.items
+    T.ok(items[2].result and items[2].result.resume, "stopped, it offers to pick up again")
+    Check(c, "home, stopped")
+    T.eq(#c.errors, 0, tostring(c.errors[1]))
+end
+
+function tests.highContrast_isAFullTheme()
+    local c = Start(SCREENS[3])
+    local T2 = c.FG.Theme
+    for name, palette in pairs(T2.PALETTES) do
+        for key in pairs(T2.PALETTES.obsidian) do T.ok(palette[key], name .. " defines " .. key) end
+    end
+end
+
 function tests.homeTiles_fitTheirLabels()
     local c = Start(SCREENS[3])
     local FG = c.FG
@@ -621,7 +655,7 @@ function tests.themes_repaintEverything()
     local FG = c.FG
     FG.Window.Show("search")
     c:Advance(0.3)
-    for _, name in ipairs({ "glacier", "parchment", "obsidian" }) do
+    for _, name in ipairs({ "glacier", "parchment", "contrast", "obsidian" }) do
         FG.Theme.Apply(name)
         c:Advance(0.1)
     end

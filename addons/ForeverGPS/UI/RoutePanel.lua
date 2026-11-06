@@ -100,8 +100,12 @@ local function MakeStep(parent)
             self.back:SetColor(Theme.C.cardHover)
             self.back:SetShown(true)
         end
+        FG.MapPreview.Hover(self.item.number)
     end)
-    row:SetScript("OnLeave", function(self) Panel.PaintStep(self, self.item) end)
+    row:SetScript("OnLeave", function(self)
+        Panel.PaintStep(self, self.item)
+        FG.MapPreview.Hover(nil)
+    end)
     row:SetScript("OnClick", function(self) Panel.FocusStep(self.item.number) end)
     return row
 end

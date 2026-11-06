@@ -246,6 +246,54 @@ function tests.aRememberedPlan_isForgottenWhenFlightsAreLearned()
     T.ok(c.FG.Planner.Current() ~= first, "planned afresh")
 end
 
+function tests.theWaysNotChosen_showFaintly()
+    local c = Start({ mapID = 1429, x = 0.45, y = 0.7, level = 3 })
+    local plan = Plan(c, { name = "Gadgetzan", mapID = 1446, x = 0.52, y = 0.28 })
+    c.FG.MapPreview.Open()
+    c:Advance(0.3)
+    local distinct = 0
+    for _, option in ipairs(plan.options) do
+        if option.steps and not option.same and not option.noWay then distinct = distinct + 1 end
+    end
+    local alone = Strips(c)
+    T.ok(alone > 0, "the chosen way")
+    if distinct > 1 then
+        local one = plan.selected
+        for _, option in ipairs(plan.options) do
+            if option ~= one then option.walks = nil end
+        end
+        c.FG.MapPreview._Redraw()
+        T.ok(Strips(c) < alone, "with the others taken away there is less on the map")
+    end
+end
+
+function tests.hoveringAStep_picksItOutWithoutMovingAnything()
+    local c = Start()
+    Plan(c, AUBERDINE)
+    c.FG.MapPreview.Open()
+    c:Advance(0.3)
+    local viewed = c.env.WorldMapFrame:GetMapID()
+    c.FG.MapPreview.Hover(1)
+    T.eq(c.env.WorldMapFrame:GetMapID(), viewed, "the map stays where it is")
+    c.FG.MapPreview.Hover(nil)
+    T.eq(#c.errors, 0)
+end
+
+function tests.aJourneyAcrossContinents_canBeSteppedThrough()
+    local c = Start()
+    Plan(c, AUBERDINE)
+    c.FG.MapPreview.Open()
+    c:Advance(0.3)
+    local legs = c.FG.MapPreview.Legs()
+    T.eq(#legs, 2, "two lands")
+    T.ok(legs[1].ci ~= legs[2].ci)
+    local first = c.env.WorldMapFrame:GetMapID()
+    c.FG.MapPreview.NextLeg()
+    T.ok(c.env.WorldMapFrame:GetMapID() ~= first, "the map turns to the far side")
+    c.FG.MapPreview.NextLeg()
+    T.eq(c.env.WorldMapFrame:GetMapID(), legs[1].mapID, "and back round")
+end
+
 function tests.rides_areNamedOnTheMap()
     local c = Start()
     local plan = Plan(c, AUBERDINE)

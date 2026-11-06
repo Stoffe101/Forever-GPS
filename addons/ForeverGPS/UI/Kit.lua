@@ -71,11 +71,12 @@ end
 
 -- A font that fails to load would leave the string unable to take text at all,
 -- which would take the whole interface down with it. delta: points more or fewer.
-function Kit.SetStyle(fs, style, delta)
+-- flags: the font's, such as an outline for text over bright ground.
+function Kit.SetStyle(fs, style, delta, flags)
     local s = Theme.TEXT[style] or Theme.TEXT.body
     local size = s[2] + (delta or 0)
-    if not fs:SetFont(Theme.FONT[s[1]], size, "") then
-        fs:SetFont(STANDARD_TEXT_FONT, size, "")
+    if not fs:SetFont(Theme.FONT[s[1]], size, flags or "") then
+        fs:SetFont(STANDARD_TEXT_FONT, size, flags or "")
     end
 end
 

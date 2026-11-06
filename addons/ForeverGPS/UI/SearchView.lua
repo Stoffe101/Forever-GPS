@@ -89,6 +89,24 @@ local function MakeHint(parent)
     return row
 end
 
+-- A line of what might be useful now, from Core/Suggest.lua.
+local function MakeSuggest(parent)
+    local row = CreateFrame("Button", nil, parent)
+    row:RegisterForClicks("LeftButtonUp")
+    row.back = Kit.Shape(row, 6, "BACKGROUND", 1)
+    row.back:SetShown(false)
+    Theme.Paint(function(c) row.back:SetColor(c.cardHover) end)
+    row.icon = Kit.Icon(row, 15, "accent")
+    row.icon:SetPoint("LEFT", row, "LEFT", 12, 0)
+    row.text = Kit.Text(row, "body", "text")
+    row.text:SetPoint("LEFT", row.icon, "RIGHT", 10, 0)
+    row.text:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+    row:SetScript("OnEnter", function(self) self.back:SetShown(true) end)
+    row:SetScript("OnLeave", function(self) self.back:SetShown(false) end)
+    row:SetScript("OnClick", function(self) self.item.line.run() end)
+    return row
+end
+
 local function MakeTiles(parent)
     local row = CreateFrame("Frame", nil, parent)
     row.tiles = {}
@@ -135,13 +153,19 @@ local function Bind(row, item, index)
     elseif item.kind == "hint" then
         row.title:SetText(item.title or "")
         row.body:SetText(item.body or "")
-    elseif item.kind == "tiles" then BindTiles(row, item) end
+    elseif item.kind == "tiles" then BindTiles(row, item)
+    elseif item.kind == "suggest" then
+        row.icon:SetIcon(item.line.icon)
+        row.text:SetText(item.line.text)
+        row.back:SetShown(row:IsMouseOver())
+    end
 end
 
 local function Height(item, width)
     if item.kind == "card" then return CARD_H end
     if item.kind == "section" then return SECTION_H end
     if item.kind == "tiles" then return TILE_H end
+    if item.kind == "suggest" then return 30 end
     if item.kind == "hint" then
         local h = 18
         if item.title then h = h + FG.RoutePanel.TextHeight(item.title, width - 20, "label") end
@@ -153,11 +177,36 @@ end
 
 -- ==== what the list shows ===================================================
 
-local function SavedCards(items, heading, entries)
-    if #entries == 0 then return end
-    items[#items + 1] = { kind = "section", text = heading }
+local function SavedCards(items, heading, entries, most, skip)
+    local shown = {}
     for _, entry in ipairs(entries) do
+        if #shown >= (most or #entries) then break end
+        if not (skip and skip[Saved.Key(entry.data)]) then shown[#shown + 1] = entry end
+    end
+    if #shown == 0 then return {} end
+    items[#items + 1] = { kind = "section", text = heading }
+    local keys = {}
+    for _, entry in ipairs(shown) do
+        keys[Saved.Key(entry.data)] = true
         items[#items + 1] = { kind = "card", result = { name = entry.name, subtitle = entry.subtitle, icon = entry.icon, data = entry.data } }
+    end
+    return keys
+end
+
+-- What is under way, or was stopped: the first thing to see on opening the window.
+local function NowItems(items)
+    local route = Bridge.ActiveRoute()
+    if route then
+        items[#items + 1] = { kind = "section", text = L["HOME_NOW"] }
+        local left = Format.Duration(route.eta or route.total)
+        items[#items + 1] = { kind = "card", result = { name = route.dest and route.dest.name or "?", iconArt = "nav-arrow", active = true,
+            subtitle = left and L["HOME_NOW_LEFT_FMT"]:format(left) or L["ROUTE_ACTIVE"] } }
+        return
+    end
+    local stopped = Saved.Resume()
+    if stopped then
+        items[#items + 1] = { kind = "section", text = L["HOME_RESUME"] }
+        items[#items + 1] = { kind = "card", result = { name = stopped.name, iconArt = "nav-arrow", resume = true, subtitle = L["HOME_RESUME_SUB"] } }
     end
 end
 
@@ -172,6 +221,12 @@ end
 
 local function HomeItems()
     local items = {}
+    NowItems(items)
+    local lines = FG.Suggest.List()
+    if #lines > 0 then
+        items[#items + 1] = { kind = "section", text = L["HOME_SUGGEST"] }
+        for _, line in ipairs(lines) do items[#items + 1] = { kind = "suggest", line = line } end
+    end
     items[#items + 1] = { kind = "section", text = L["HOME_QUICK"] }
     TileRows(items, Search.QuickServices(), list:GetWidth())
     local pin = Search.MapPin()
@@ -179,7 +234,9 @@ local function HomeItems()
         items[#items + 1] = { kind = "card", result = pin }
     end
     SavedCards(items, L["HOME_FAVORITES"], Saved.Favorites())
-    SavedCards(items, L["HOME_RECENT"], Saved.Recents())
+    local regular = SavedCards(items, L["HOME_REGULAR"], Saved.Regulars(), 3)
+    SavedCards(items, L["HOME_RECENT"], Saved.Recents(), 6, regular)
+    if #Saved.Recents() == 0 then items[#items + 1] = { kind = "hint", title = L["HOME_TIPS_TITLE"], body = L["HOME_TIPS"] } end
     items[#items + 1] = { kind = "hint", body = L["MAP_HINT"] }
     return items
 end
@@ -196,6 +253,9 @@ local function ResultItems()
     local items = {}
     if info.corrected then
         items[1] = { kind = "hint", body = L["SEARCH_CORRECTED_FMT"]:format(info.corrected) }
+    end
+    if info.unknown then
+        items[#items + 1] = { kind = "hint", body = L["SEARCH_FLIGHT_UNKNOWN"] }
     end
     for i = 1, #results do
         items[#items + 1] = { kind = "card", result = results[i] }
@@ -235,6 +295,8 @@ end
 -- ==== acting on it ==========================================================
 
 function View.Open(result)
+    if result.active then return FG.Window.ShowRoute() end
+    if result.resume then return FG.Resume() end
     if result.quest then
         FG.Window.Show("quests")
         FG.QuestsView.Focus(result.quest.questID)
@@ -349,7 +411,7 @@ local function Build(parent)
     AddChip("saved", "CAT_SAVED")
 
     list = List.New(f, {
-        make = { card = MakeCard, section = MakeSection, hint = MakeHint, tiles = MakeTiles },
+        make = { card = MakeCard, section = MakeSection, hint = MakeHint, tiles = MakeTiles, suggest = MakeSuggest },
         bind = Bind, height = Height,
     })
     f.list = list

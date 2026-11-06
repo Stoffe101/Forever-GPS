@@ -345,6 +345,43 @@ function tests.theBrowser_groups()
     T.eq(view.Grouping(), "zone", "and back round")
 end
 
+function tests.thingsCloseBy_areOfferedAsACircuit()
+    local c, view = Browser()
+    local items = view.Get().list.items
+    local banner
+    for _, item in ipairs(items) do
+        if item.kind == "circuit" then banner = item end
+    end
+    T.ok(banner, "the browser offers it")
+    T.ok(banner.count >= 2, "with how many: " .. tostring(banner.count))
+    c.FG.Trip.PlanNearby()
+    T.ok(Stack.Until(c, function()
+        local p = c.FG.Planner.Current()
+        return p and p.status == "ready"
+    end, 60), "and one click plans it")
+    T.ok(c.FG.Planner.Current().stops, "as a trip")
+    T.no(c.FG.Bridge.ActiveRoute(), "which it does not start")
+end
+
+function tests.anObjectiveInsideAnInstance_goesToItsDoor()
+    local c = Start({ ui = false, questie = QUESTIE })
+    local B = c.FG.Bridge
+    local Places = B.SearchPlaces
+    B.SearchPlaces = function(text)
+        if text == "The Deadmines" then return { { name = "The Deadmines", isDungeonEntrance = true, mapID = 1436, x = 0.42, y = 0.72, category = "dungeon" } } end
+        return Places(text)
+    end
+    local Can = B.CanNavigate
+    B.CanNavigate = function(row) return row.isDungeonEntrance == true or (row.zone == nil and Can(row)) end
+    local t = { status = "ok", areas = { { spot = { mapID = 756, x = 0.5, y = 0.5 }, zone = "The Deadmines", ci = 0, wx = 0, wy = 0, n = 1, routable = false } } }
+    local done
+    c.FG.QuestTargets.Resolve(t, function() done = true end)
+    T.ok(done, "settled")
+    T.eq(t.status, "ok", "with somewhere to go")
+    T.ok(t.entrance, "its door")
+    T.has(t.best.zone, "entrance", "and it says so")
+end
+
 function tests.progress_doesNotRescanEveryQuest()
     local c, view = Browser()
     local calls = 0

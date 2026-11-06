@@ -187,6 +187,71 @@ function tests.thePathsNextTurn_isFound()
     T.ok(turn.yards > 0)
 end
 
+function tests.anArrival_saysHowLongItTook()
+    local c = Start()
+    local route = Go(c, nil)
+    c:Advance(30)
+    for i = 1, #route.steps do
+        local p = route.steps[i].arrive
+        c:SetPlayer(p.m, p.x, p.y)
+        c:Advance(2.5)
+    end
+    T.ok(c.FG.Bridge.Route().arrived, "there")
+    local view = c.FG.Journey.View()
+    T.ok(view.took and view.took >= 30, "how long it took: " .. tostring(view.took))
+    local log = c.FG.Saved.Journeys()
+    T.eq(#log, 1, "and it is kept")
+    T.eq(log[1].name, "Auberdine")
+    T.ok(log[1].planned > 0, "beside what was planned")
+end
+
+function tests.aJourneyStoppedShort_canBePickedUp()
+    local c = Start()
+    Go(c, nil)
+    c:Advance(1)
+    c.FG.StopNavigation()
+    c:Advance(1)
+    local entry = c.FG.Saved.Resume()
+    T.ok(entry, "kept")
+    T.eq(entry.name, "Auberdine")
+    c.FG.Resume()
+    T.ok(Stack.Until(c, function()
+        local p = c.FG.Planner.Current()
+        return p and p.status == "ready"
+    end, 30), "and planned again")
+    T.no(c.FG.Bridge.ActiveRoute(), "without starting by itself")
+    c.FG.Planner.Start()
+    c:Advance(1)
+    T.no(c.FG.Saved.Resume(), "once under way there is nothing to resume")
+end
+
+function tests.anArrival_leavesNothingToResume()
+    local c = Start()
+    local route = Go(c, nil)
+    for i = 1, #route.steps do
+        local p = route.steps[i].arrive
+        c:SetPlayer(p.m, p.x, p.y)
+        c:Advance(2.5)
+    end
+    c:Advance(10)
+    T.no(c.FG.Bridge.Route(), "the route put itself away")
+    T.no(c.FG.Saved.Resume(), "having got there")
+end
+
+function tests.directions_toWhatIsTargeted()
+    local c = Start()
+    c.env.UnitName = function(unit) return unit == "target" and "Auberdine Sentinel" or "Tester" end
+    c.FG.DirectionsToTarget()
+    T.ok(Stack.Until(c, function()
+        local p = c.FG.Planner.Current()
+        return p and p.status == "ready"
+    end, 40), "planned")
+    T.has(c.FG.Planner.Current().target.name, "Sentinel")
+    c.env.UnitName = function() return nil end
+    c.FG.DirectionsToTarget()
+    T.has(table.concat(c.printed, " "), "Target something first", "with no target, it says so")
+end
+
 function tests.tomtom_keepsToItsOwnWaypoint()
     local points = {}
     local nextID = 0

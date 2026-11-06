@@ -29,6 +29,7 @@ Core/QuestTargets.lua
 Core/Search.lua
 Core/Journey.lua
 Core/Trip.lua
+Core/Suggest.lua
 Core/TomTom.lua
 Core/Diagnostics.lua
 UI/Theme.lua

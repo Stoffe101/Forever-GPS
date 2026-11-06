@@ -544,6 +544,39 @@ function Bridge.FlightNodes()
     return ns and ns.GPSData and ns.GPSData.nodes or {}
 end
 
+-- The flight masters this character has been seen to know, or nil before any master
+-- has shown its map: the client's own listing marks every point as discovered here.
+function Bridge.KnownFlights()
+    local ns = NS()
+    local route = ns and ns.GPSRoute
+    return route and route.recordedKnown or nil
+end
+
+-- Flight masters of this side not yet learned.
+function Bridge.UnlearnedFlights()
+    local known = Bridge.KnownFlights() or {}
+    local faction = UnitFactionGroup("player")
+    local out = {}
+    for id, node in pairs(Bridge.FlightNodes()) do
+        if node.m and node.x and not known[id] and (not node.faction or node.faction == faction) then
+            out[#out + 1] = { id = id, name = node.n or "?", m = node.m, x = node.x, y = node.y, ci = node.ci, wx = node.wx, wy = node.wy }
+        end
+    end
+    table.sort(out, function(a, b) return a.name < b.name end)
+    return out
+end
+
+-- Where the hearthstone goes, once the engine has seen it set.
+function Bridge.HearthSpot()
+    local ns = NS()
+    local db = EasyFind and EasyFind.db
+    local key = ns and ns.CurrentCharacterKey and ns.CurrentCharacterKey()
+    local spot = db and db.gpsHearth and key and db.gpsHearth[key]
+    if not (spot and spot.m and spot.x) then return nil end
+    local name = spot.bind or (GetBindLocation and GetBindLocation()) or "?"
+    return { name = name, mapID = spot.m, x = spot.x, y = spot.y }
+end
+
 -- ==== other surfaces ========================================================
 
 -- Where the game itself puts a quest; nil where it gives no place.

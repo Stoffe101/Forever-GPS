@@ -9,6 +9,18 @@ function FG.OpenQuests() FG.Window.Show("quests") end
 function FG.StopNavigation() Bridge.Stop() end
 function FG.QuickOpen() FG.Quick.Toggle() end
 
+-- The journey last stopped short, looked at again.
+function FG.Resume()
+    local entry = FG.Saved.Resume()
+    if not entry then return FG.Print(L["RESUME_NOTHING"]) end
+    if entry.stops and #entry.stops > 1 then
+        Planner.Inspect({ stops = entry.stops, name = entry.name, data = entry.data, trip = true })
+    else
+        Planner.Inspect({ data = entry.data, name = entry.name })
+    end
+    FG.Window.ShowRoute()
+end
+
 -- ForeverGPS_OnCompartmentClick is named in the TOC.
 function ForeverGPS_OnCompartmentClick() FG.Toggle() end
 
@@ -36,6 +48,20 @@ local function Hud(rest)
     FG.Emit("settings:changed")
 end
 
+-- Directions to whatever is targeted, by name.
+function FG.DirectionsToTarget()
+    local name = UnitName("target")
+    if not name then return FG.Print(L["TARGET_NONE"]) end
+    local results = Search.Run(name, "all")
+    for _, result in ipairs(results) do
+        if result.data and result.name == name then
+            Search.Inspect(result)
+            return FG.Window.ShowRoute()
+        end
+    end
+    FG.Print(L["TARGET_UNKNOWN_FMT"]:format(name))
+end
+
 local function Save(rest)
     local ok, name = FG.Saved.AddHere(rest)
     FG.Print(ok and L["SAVED_DONE_FMT"]:format(name) or L["SAVED_FAILED"])
@@ -52,6 +78,8 @@ end
 
 local COMMANDS = {
     go = function(rest) FG.Quick.Open(rest) end,
+    target = FG.DirectionsToTarget,
+    resume = function() FG.Resume() end,
     save = Save,
     share = Share,
     trip = function() FG.Window.Show("trip") end,
@@ -66,7 +94,7 @@ local COMMANDS = {
 
 local function Help()
     FG.Print(L["HELP_HEADER"])
-    for _, key in ipairs({ "HELP_TOGGLE", "HELP_GO", "HELP_QUESTS", "HELP_TRIP", "HELP_WAY", "HELP_SAVE", "HELP_SHARE", "HELP_STOP",
+    for _, key in ipairs({ "HELP_TOGGLE", "HELP_GO", "HELP_TARGET", "HELP_QUESTS", "HELP_TRIP", "HELP_WAY", "HELP_SAVE", "HELP_SHARE", "HELP_RESUME", "HELP_STOP",
                            "HELP_HUD", "HELP_DIAG", "HELP_REPORT", "HELP_RESET" }) do
         print("  " .. L[key])
     end

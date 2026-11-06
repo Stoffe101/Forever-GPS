@@ -84,6 +84,11 @@ local GROUPS = {
             FG.db.hud.autoHide = on
             HudChanged()
         end)
+        ui.check("SET_HUD_OUTLINE", function() return FG.db.hud.outline end, function(on)
+            FG.db.hud.outline = on
+            HudChanged()
+        end)
+        ui.check("SET_HUD_SOUND", function() return FG.db.hud.sound end, function(on) FG.db.hud.sound = on end)
         ui.check("SET_HUD_LOCK", function() return FG.db.hud.locked end, function(on)
             FG.db.hud.locked = on
             HudChanged()
@@ -121,7 +126,8 @@ local GROUPS = {
     end },
     { label = "SETG_APPEARANCE", build = function(ui)
         ui.heading("SET_THEME")
-        ui.choice({ { "obsidian", L["THEME_OBSIDIAN"] }, { "glacier", L["THEME_GLACIER"] }, { "parchment", L["THEME_PARCHMENT"] } },
+        ui.choice({ { "obsidian", L["THEME_OBSIDIAN"] }, { "glacier", L["THEME_GLACIER"] }, { "parchment", L["THEME_PARCHMENT"] },
+                    { "contrast", L["THEME_CONTRAST"] } },
             function() return FG.db.theme end, function(value)
                 FG.db.theme = value
                 Theme.Apply(value)

@@ -60,14 +60,29 @@ local STOP_WORDS = { the = true, a = true, an = true, find = true, where = true,
 local PHRASES = {
     ah = "auction house", fp = "flight master", fm = "flight master", ["flight path"] = "flight master",
     flightpath = "flight master", ["flight point"] = "flight master", flights = "flight master", gryphon = "flight master",
-    hearth = "innkeeper", tavern = "innkeeper", rest = "innkeeper", post = "mailbox", mail = "mailbox",
-    smith = "blacksmith", anvil = "repair", repairs = "repair", shop = "vendor", store = "vendor",
-    profession = "trainer", skills = "trainer", xp = "trainer",
+    hearth = "innkeeper", hearthstone = "innkeeper", tavern = "innkeeper", rest = "innkeeper",
+    innkeep = "innkeeper", post = "mailbox", mail = "mailbox", letterbox = "mailbox", banker = "bank", vault = "bank",
+    auctioneer = "auction house", auction = "auction house", smith = "blacksmith", anvil = "repair", repairs = "repair",
+    shop = "vendor", store = "vendor", merchant = "vendor", goods = "general goods",
+    stable = "stable master", stablemaster = "stable master", wm = "weapon master", weaponmaster = "weapon master",
+    ship = "boat", zep = "zeppelin", subway = "tram", profession = "trainer", skills = "trainer", xp = "trainer",
 }
+
+-- Asking for what this character can use, not for a word. "my trainer" is a class trainer.
+local function OwnTrainer()
+    local _, class = UnitClass("player")
+    return class and (class:sub(1, 1) .. class:sub(2):lower() .. " trainer") or "trainer"
+end
+
+-- Flight paths not yet learned: a question about the player, not about a place.
+local LEARN_PHRASES = { ["flights to learn"] = true, ["flight paths to learn"] = true, ["learn flights"] = true,
+                        ["learn flight paths"] = true, ["unlearned flights"] = true, ["unlearned flight paths"] = true,
+                        ["new flight paths"] = true, ["new flights"] = true, ["flights i need"] = true }
 
 -- The query as the search should read it, and whether it asked for "the nearest".
 local function Normalize(text)
     text = text:lower():gsub("%s+", " ")
+    if text == "my trainer" or text == "class trainer" then return OwnTrainer():lower(), true end
     local words, nearest = {}, false
     for word in text:gmatch("%S+") do
         if NEAREST_WORDS[word] then nearest = true
@@ -76,7 +91,11 @@ local function Normalize(text)
     local phrase = table.concat(words, " ")
     if phrase == "" then return strtrim(text), false end
     if PHRASES[phrase] then return PHRASES[phrase], nearest end
-    for i = 1, #words do words[i] = PHRASES[words[i]] or words[i] end
+    for i = 1, #words do
+        -- "auction house" typed in full is already what "auction" would become.
+        local means, after = PHRASES[words[i]], words[i + 1]
+        if means and not (after and means:find(after, 1, true)) then words[i] = means end
+    end
     return table.concat(words, " "), nearest
 end
 Search._Normalize = Normalize
@@ -251,9 +270,14 @@ end
 
 -- ==== coordinates ===========================================================
 
--- "45.2 60.1", "45,60": on the player's map. A leading name picks a zone.
+-- "45.2 60.1", "45,60", "45.2/60.1", "/way 45 60": on the player's map. A name before or
+-- after them picks a zone.
 local function ParseCoords(text)
-    local name, a, b = text:match("^%s*(.-)[%s,]*(%d+%.?%d*)[%s,]+(%d+%.?%d*)%s*$")
+    text = text:gsub("^%s*/?way%s+", "")
+    local name, a, b = text:match("^%s*(.-)[%s,:]*(%d+%.?%d*)[%s,/]+(%d+%.?%d*)%s*$")
+    if not a then
+        a, b, name = text:match("^%s*(%d+%.?%d*)[%s,/]+(%d+%.?%d*)[%s,:]+(%a.-)%s*$")
+    end
     if not a then return nil end
     local x, y = tonumber(a), tonumber(b)
     if not (x and y) or x > 100 or y > 100 then return nil end
@@ -346,6 +370,18 @@ local function TransportResults(query, out)
         end
         if (all or anyMatch) and Bridge.CanNavigate(row.data) then
             out[#out + 1] = { name = row.name, group = row.group, iconArt = row.iconArt, subtitle = row.subtitle, data = row.data }
+        end
+    end
+end
+
+-- ==== flight paths to learn ==================================================
+
+local function LearnResults(out)
+    for _, node in ipairs(Bridge.UnlearnedFlights()) do
+        local data = { name = node.name, mapID = node.m, x = node.x, y = node.y }
+        if Bridge.CanNavigate(data) then
+            out[#out + 1] = { name = node.name:match("^[^,]+") or node.name, group = "travel", iconArt = "flight", data = data,
+                              subtitle = (Bridge.MapName(node.m) or "?") .. " \194\183 " .. L["SEARCH_FLIGHT_TO_LEARN"] }
         end
     end
 end
@@ -452,8 +488,20 @@ function Search.Run(text, filter)
     if text == "" and not Search.BROWSE[filter] then return {}, info end
     FG.Metrics.Begin("search")
     local query, nearest = Normalize(text ~= "" and text or Search.BROWSE[filter])
-    if #query < 2 then return {}, info end
+    if #query < 2 then
+        FG.Metrics.End("search")
+        return {}, info
+    end
     info.query, info.kind = query, nearest
+    if LEARN_PHRASES[text:lower()] then
+        local results = {}
+        LearnResults(results)
+        info.kind = true
+        info.learn = true
+        info.unknown = Bridge.KnownFlights() == nil
+        FG.Metrics.End("search")
+        return results, info
+    end
     local results = Gather(query, filter, info)
     if #results == 0 then
         local fixed = Corrected(query)

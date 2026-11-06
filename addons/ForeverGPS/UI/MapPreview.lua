@@ -22,6 +22,7 @@ local FADED_ALPHA, BRIGHT_ALPHA = 0.45, 1
 local CROSSING = { taxi = true, boat = true, ferry = true, zeppelin = true, skyship = true, tram = true }
 local MARK, DEST_MARK, AREA_MARK = 26, 34, 15     -- sizes on screen
 local TAG_FONT = 11
+local OTHER_COLOR, OTHER_ALPHA, OTHER_SPAN = { 0.92, 0.92, 0.98 }, 0.5, 0.55     -- the ways not chosen
 local THROTTLE = 0.1
 
 local overlay, lines, banner, driver
@@ -169,6 +170,25 @@ local function TraceWalk(p, path, ci, color, alpha)
     Bridge.TraceWalk(path, ci, trace, to)
 end
 
+-- The ways not chosen, thin and pale under the chosen one, so a choice can be seen.
+local function DrawOthers(p)
+    local plan = FG.Planner.Current()
+    if not plan then return end
+    local span = pen.span
+    pen.span = span * OTHER_SPAN
+    for _, other in ipairs(plan.options) do
+        if other ~= shown.option and other.walks and not other.same and not other.noWay then
+            for i in ipairs(other.steps or {}) do
+                local path = other.walks[i]
+                local ci = path and path.pts and World(StartOf(other, i))
+                if ci == p.ci then TraceWalk(p, path, ci, OTHER_COLOR, OTHER_ALPHA) end
+            end
+        end
+    end
+    PenUp()
+    pen.span = span
+end
+
 -- ==== marks =================================================================
 
 local function NewMark(i)
@@ -308,20 +328,29 @@ local function Draw()
     local cw, ch = canvas:GetWidth(), canvas:GetHeight()
     local option = shown.option
     local zoom = Px(1)
-    if drawn.option == option and drawn.map == mapID and drawn.cw == cw and drawn.ch == ch and drawn.focus == shown.focus
-        and drawn.target == shown.target and drawn.area == shown.target.area and drawn.zoom == zoom then
+    local plan = FG.Planner.Current()
+    local ways = plan and #plan.options or 0
+    local focus = shown.hover or shown.focus
+    if plan then
+        ways = 0
+        for _, o in ipairs(plan.options) do
+            if o.walks then ways = ways + 1 end
+        end
+    end
+    if drawn.option == option and drawn.map == mapID and drawn.cw == cw and drawn.ch == ch and drawn.focus == focus
+        and drawn.target == shown.target and drawn.area == shown.target.area and drawn.zoom == zoom and drawn.ways == ways then
         return
     end
-    drawn.option, drawn.map, drawn.cw, drawn.ch, drawn.focus = option, mapID, cw, ch, shown.focus
-    drawn.zoom = zoom
+    drawn.option, drawn.map, drawn.cw, drawn.ch, drawn.focus = option, mapID, cw, ch, focus
+    drawn.zoom, drawn.ways = zoom, ways
     drawn.target, drawn.area = shown.target, shown.target.area
     FG.Metrics.Begin("mapDraw")
     local p = Projection(mapID)
     pen.span, pen.round, pen.cw, pen.ch, pen.n = Px(Bridge.LineSpan()), Px(20), cw, ch, 0
     lines:Begin()
-    local focus = shown.focus
     local n = 0
     if p then
+        DrawOthers(p)
         for i, step in ipairs(option.steps) do
             local alpha = (not focus or focus == i) and BRIGHT_ALPHA or FADED_ALPHA
             if step.kind ~= "teleport" then
@@ -417,6 +446,8 @@ local function BuildBanner()
     banner.you:SetPoint("RIGHT", banner.go, "LEFT", -4, 0)
     banner.fit = Kit.IconButton(banner, "fit", 14, L["MAP_FIT"], function() MapPreview.Fit() end)
     banner.fit:SetPoint("RIGHT", banner.you, "LEFT", 0, 0)
+    banner.leg = Kit.IconButton(banner, "chevron-right", 12, L["MAP_NEXT_LEG"], function() MapPreview.NextLeg() end)
+    banner.leg:SetPoint("RIGHT", banner.fit, "LEFT", 0, 0)
     banner:Hide()
 end
 
@@ -426,7 +457,8 @@ local function ShowBanner()
     if not shown then return banner:Hide() end
     local option = shown.option
     banner.title:SetText(L["MAP_PREVIEW_FMT"]:format(shown.target.name or "?", Format.Duration(option.total) or "?"))
-    banner:SetWidth(mmin(mmax(380, banner.title:GetStringWidth() + banner.go:GetWidth() + 128), 680))
+    banner:SetWidth(mmin(mmax(400, banner.title:GetStringWidth() + banner.go:GetWidth() + 152), 700))
+    banner.leg:SetShown(#MapPreview.Legs() > 1)
     banner:Show()
 end
 
@@ -489,6 +521,45 @@ function MapPreview.Focus(index)
     shown.focus = shown.focus ~= index and index or nil
     MapPreview.Open(shown.focus)
     FG.Emit("preview:focus", shown.focus)
+end
+
+-- A step under the cursor in the panel, lit for as long as it is there.
+function MapPreview.Hover(index)
+    if not shown or shown.hover == index then return end
+    shown.hover = index
+    Draw()
+end
+
+-- The land each part of the journey stands on, in order: on a map of one continent the
+-- rest of a journey cannot be seen, so these are what to step through.
+function MapPreview.Legs()
+    local out, seen = {}, {}
+    if not shown then return out end
+    local option = shown.option
+    for i, step in ipairs(option.steps) do
+        if step.kind ~= "teleport" then
+            local _, b = Ends(option, i)
+            for _, point in ipairs({ StartOf(option, i) or false, b or false }) do
+                local ci = point and World(point)
+                if ci and not seen[ci] then
+                    seen[ci] = true
+                    out[#out + 1] = { ci = ci, index = i, mapID = point.m or MapForLeg(option, i) }
+                end
+            end
+        end
+    end
+    return out
+end
+
+-- On to the next land of the journey, round to the first.
+function MapPreview.NextLeg()
+    local legs = MapPreview.Legs()
+    if not shown or #legs < 2 then return end
+    shown.leg = (shown.leg or 1) % #legs + 1
+    local leg = legs[shown.leg]
+    local map = Map()
+    if map and leg.mapID then pcall(map.SetMapID, map, leg.mapID) end
+    Draw()
 end
 
 -- The whole journey again, with no step picked out.

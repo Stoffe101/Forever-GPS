@@ -10,10 +10,15 @@ local Bridge, Eta = FG.Bridge, FG.Eta
 local L = FG.L
 
 local MAX_STOPS = 8          -- beyond this the matrix stops being cheap and the trip stops being useful
+local MAX_SAVED = 8
+local NEARBY_YARDS = 700     -- close enough to take in on one walk
+local SAME_SPOT_YARDS = 40   -- two things this close are one stop
 local TWO_OPT_PASSES = 6
 local UNKNOWN = 1e6          -- a leg with no estimate: possible, but a last resort
 
+-- The list is kept with the character, so it survives a reload.
 local stops = {}
+FG.On("loaded", function() stops = FG.char.trip end)
 
 function Trip.List() return stops end
 function Trip.Count() return #stops end
@@ -65,6 +70,36 @@ end
 
 function Trip.Clear()
     stops = {}
+    FG.char.trip = stops
+    Changed()
+end
+
+-- Keeps the trip as it stands, by where it goes.
+function Trip.Save()
+    if #stops == 0 then return false end
+    local list = FG.char.savedTrips
+    local name = #stops == 1 and stops[1].name or L["TRIP_SAVED_FMT"]:format(stops[1].name, stops[#stops].name)
+    local copy = {}
+    for i, stop in ipairs(stops) do copy[i] = stop end
+    table.insert(list, 1, { name = name, stops = copy })
+    for i = #list, MAX_SAVED + 1, -1 do list[i] = nil end
+    Changed()
+    return true
+end
+
+function Trip.Saved() return FG.char.savedTrips end
+
+function Trip.Load(i)
+    local saved = FG.char.savedTrips[i]
+    if not saved then return end
+    stops = {}
+    for k, stop in ipairs(saved.stops) do stops[k] = stop end
+    FG.char.trip = stops
+    Changed()
+end
+
+function Trip.Forget(i)
+    table.remove(FG.char.savedTrips, i)
     Changed()
 end
 
@@ -178,7 +213,10 @@ function Trip.Optimize(done)
         local order = Trip.Order(n, Cost, Precedence(list))
         local sorted = {}
         for k, i in ipairs(order) do sorted[k] = list[i] end
-        if #sorted == n then stops = sorted end
+        if #sorted == n then
+            stops = sorted
+            FG.char.trip = stops
+        end
         FG.Metrics.End("circuit")
         Changed()
         if done then done() end
@@ -198,6 +236,64 @@ function Trip.Optimize(done)
         end
     end
     if waiting == 0 then Settle() end
+end
+
+-- What is open and close by, the nearest first: each as a stop. The closest area of each
+-- objective, and the turn-in of anything finished. Things side by side count once.
+function Trip.NearbyStops()
+    local Quests, Targets = FG.Quests, FG.QuestTargets
+    local start = Bridge.PlayerStart()
+    if not start then return {} end
+    local found = {}
+    local function Consider(q, target)
+        local best, bestYards
+        for _, area in ipairs(target.areas or {}) do
+            if area.ci == start.ci then
+                local yards = ((area.wx - start.wx) ^ 2 + (area.wy - start.wy) ^ 2) ^ 0.5
+                if not bestYards or yards < bestYards then best, bestYards = area, yards end
+            end
+        end
+        if not best or bestYards > NEARBY_YARDS then return end
+        for _, other in ipairs(found) do
+            if (other.area.wx - best.wx) ^ 2 + (other.area.wy - best.wy) ^ 2 < SAME_SPOT_YARDS ^ 2 then return end
+        end
+        found[#found + 1] = { yards = bestYards, area = best, q = q, target = target }
+    end
+    for _, q in ipairs(Quests.All()) do
+        if not q.failed then
+            local targets = Targets.Of(q).targets
+            if q.complete then
+                if targets.turnIn and targets.turnIn.status == "ok" then Consider(q, targets.turnIn) end
+            else
+                for i = 1, #q.objectives do
+                    local target = targets.objectives[i]
+                    if target and target.status == "ok" and not target.done then Consider(q, target) end
+                end
+            end
+        end
+    end
+    table.sort(found, function(a, b) return a.yards < b.yards end)
+    local out = {}
+    for i = 1, math.min(#found, MAX_STOPS) do
+        local f = found[i]
+        out[i] = Trip.FromTarget(Targets.Destination(f.q, f.target, f.area))
+    end
+    return out
+end
+
+-- Everything close by as a trip, in a sensible order, ready to look over.
+function Trip.PlanNearby()
+    local found = Trip.NearbyStops()
+    if #found == 0 then return end
+    stops = {}
+    FG.char.trip = stops
+    for _, stop in ipairs(found) do stops[#stops + 1] = stop end
+    Changed()
+    FG.Window.Show("trip")
+    Trip.Optimize(function()
+        Trip.Preview()
+        FG.Window.ShowRoute()
+    end)
 end
 
 -- Plans the trip as it stands, in the journey panel and on the map.

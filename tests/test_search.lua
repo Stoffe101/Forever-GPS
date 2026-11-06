@@ -261,6 +261,57 @@ function tests.nearest_meansAKindOfThing()
     T.eq(info.query, "mailbox", "and read as what is wanted")
 end
 
+function tests.aPhraseTypedInFull_isNotDoubled()
+    local N = C().FG.Search._Normalize
+    T.eq((N("auction house")), "auction house")
+    T.eq((N("stable master")), "stable master")
+    T.eq((N("ah stormwind")), "auction house stormwind", "a short word still expands")
+    T.eq((N("hearthstone")), "innkeeper")
+    T.eq((N("stable")), "stable master")
+end
+
+function tests.myTrainer_meansThisCharacters()
+    local c = C()
+    local query, nearest = c.FG.Search._Normalize("my trainer")
+    T.has(query, "trainer")
+    T.ok(nearest, "and any of them will do")
+    T.lacks(query, "my", "as a question, not a word")
+end
+
+function tests.coordinates_readTheWayPeopleWriteThem()
+    local P = C().FG.Search._ParseCoords
+    local function Reads(text, zone, x, y)
+        local name, a, b = P(text)
+        T.eq(name, zone, text .. " zone")
+        T.near(a, x, 0.0001, text .. " x")
+        T.near(b, y, 0.0001, text .. " y")
+    end
+    Reads("56 47", nil, 0.56, 0.47)
+    Reads("56.1, 47.2", nil, 0.561, 0.472)
+    Reads("56.1/47.2", nil, 0.561, 0.472)
+    Reads("Westfall 56 47", "Westfall", 0.56, 0.47)
+    Reads("Westfall: 56 47", "Westfall", 0.56, 0.47)
+    Reads("56 47 Westfall", "Westfall", 0.56, 0.47)
+    Reads("/way 56 47", nil, 0.56, 0.47)
+    Reads("way Westfall 56 47", "Westfall", 0.56, 0.47)
+    T.no(P("Westfall"), "no numbers, no coordinates")
+    T.no(P("150 47"), "off the map")
+end
+
+function tests.flightPathsToLearn_canBeAskedFor()
+    local c = C()
+    local results, info = c.FG.Search.Run("flights to learn", "all")
+    T.ok(#results > 0, "a list")
+    T.ok(info.kind, "in order of travel time")
+    T.ok(info.unknown, "and with no master seen yet, it says so")
+    c.ns.GPSRoute.recordedKnown = { [2] = true }
+    local before = #results
+    results, info = c.FG.Search.Run("flights to learn", "all")
+    T.no(info.unknown, "one seen, it knows")
+    T.eq(#results, before - 1, "and what is known leaves the list")
+    for _, r in ipairs(results) do T.lacks(r.subtitle or "", "Horde") end
+end
+
 function tests.whatPlayersCallThings_isUnderstood()
     local N = C().FG.Search._Normalize
     T.eq((N("ah")), "auction house")

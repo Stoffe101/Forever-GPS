@@ -4,7 +4,10 @@ local FG = ForeverGPS
 local Saved = {}
 FG.Saved = Saved
 
-local MAX_RECENT = 12
+local MAX_RECENT = 20
+local MAX_JOURNEYS = 30
+local FREQUENT_AFTER = 3     -- visits before a place counts as a regular one
+local RESUME_SECONDS = 12 * 3600
 local KEEP = { "name", "mapID", "x", "y", "isZone", "zoneMapID", "zoneMapType", "category", "icon", "zoneName", "isDungeonEntrance",
                "entranceMapID", "entranceX", "entranceY", "entranceCategory", "coordMapID", "npcID", "displayID", "pathPrefix" }
 
@@ -34,10 +37,48 @@ function Saved.AddRecent(target)
     if target.binding then return end    -- a quest lives in the quest log, not here
     local list = FG.char.recents
     local at = IndexIn(list, Saved.Key(target.data))
-    if at then table.remove(list, at) end
-    table.insert(list, 1, Entry(target))
+    local entry = Entry(target)
+    if at then
+        entry.count = (list[at].count or 1) + 1
+        table.remove(list, at)
+    end
+    entry.count, entry.at = entry.count or 1, time()
+    table.insert(list, 1, entry)
     for i = #list, MAX_RECENT + 1, -1 do list[i] = nil end
     FG.Emit("saved:changed")
+end
+
+-- The places gone to again and again, the most used first.
+function Saved.Regulars()
+    local out = {}
+    for _, entry in ipairs(FG.char.recents) do
+        if (entry.count or 1) >= FREQUENT_AFTER then out[#out + 1] = entry end
+    end
+    table.sort(out, function(a, b) return (a.count or 1) > (b.count or 1) end)
+    return out
+end
+
+-- Journeys taken, the newest first: how long each took against what was planned.
+function Saved.LogJourney(name, sec, planned)
+    local list = FG.char.journeys
+    table.insert(list, 1, { name = name, sec = sec, planned = planned, at = time() })
+    for i = #list, MAX_JOURNEYS + 1, -1 do list[i] = nil end
+end
+
+function Saved.Journeys() return FG.char.journeys end
+
+-- A journey stopped before it arrived, to pick up again.
+function Saved.SetResume(name, data, stops)
+    FG.char.resume = name and { name = name, data = data, stops = stops, at = time() } or nil
+end
+
+function Saved.Resume()
+    local entry = FG.char.resume
+    if entry and time() - entry.at > RESUME_SECONDS then
+        FG.char.resume = nil
+        return nil
+    end
+    return entry
 end
 
 function Saved.ClearRecents()

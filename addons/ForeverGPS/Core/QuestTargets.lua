@@ -220,6 +220,42 @@ function Targets.For(q)
     return out
 end
 
+-- What makes a quest's targets out of date: its parts finishing, not its counters.
+local function Signature(q)
+    local parts = { q.complete and "c" or "o" }
+    for i = 1, #q.objectives do parts[#parts + 1] = q.objectives[i].finished and "1" or "0" end
+    return table.concat(parts)
+end
+
+local entries = {}           -- questID -> { sig, targets }
+
+-- A quest's targets, worked out once for as long as they hold. A busy quest log does
+-- not cost a scan of every quest at each kill.
+function Targets.Of(q)
+    local sig = Signature(q)
+    local entry = entries[q.questID]
+    if not entry or entry.sig ~= sig then
+        entry = { sig = sig, targets = Targets.For(q) }
+        entries[q.questID] = entry
+    end
+    return entry
+end
+
+-- Whether an entry is still the one in use.
+function Targets.Current(q, entry) return entries[q.questID] == entry end
+
+function Targets.ForgetAll() entries = {} end
+
+-- The door to an instance, for what is done inside one: nowhere in it can be walked to,
+-- but the way in is a place like any other.
+local function EntranceOf(zone)
+    if not zone then return nil end
+    for _, row in ipairs(Bridge.SearchPlaces(zone)) do
+        if row.isDungeonEntrance and row.x and Bridge.CanNavigate(row) then return row end
+    end
+    return nil
+end
+
 -- Checks a target's areas, priced and ordered; done(target) when it is settled.
 function Targets.Resolve(target, done, alive)
     if target.status ~= "ok" then return done(target) end
@@ -228,8 +264,16 @@ function Targets.Resolve(target, done, alive)
         target.settled = true
         target.best, target.basis = best, basis
         if not best then
-            target.status = "instance"
-            target.reason = L["QUEST_INSTANCE_ONLY"]
+            local zone = target.areas[1] and target.areas[1].zone
+            local door = EntranceOf(zone)
+            if door then
+                local mapID = door.coordMapID or door.mapID
+                target.best = { spot = { mapID = mapID, x = door.x, y = door.y, name = door.name }, zone = L["QUEST_ENTRANCE_FMT"]:format(zone) }
+                target.entrance = true
+            else
+                target.status = "instance"
+                target.reason = L["QUEST_INSTANCE_ONLY"]
+            end
         end
         done(target)
     end, alive)
@@ -293,8 +337,12 @@ function Targets.FirstOpen(q, targets)
 end
 
 FG.On("quests:changed", function()
+    if Targets.QuestieChanged() then entries = {} end
     -- Spots do not change, but a quest that left the log need not stay.
     for questID in pairs(spotCache) do
         if not Quests.Get(questID) then spotCache[questID] = nil end
+    end
+    for questID in pairs(entries) do
+        if not Quests.Get(questID) then entries[questID] = nil end
     end
 end)

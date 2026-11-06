@@ -47,6 +47,32 @@ end
 -- to leave a gap would paint over the row's text.
 local function MakeGap(parent) return CreateFrame("Frame", nil, parent) end
 
+local function MakeHeading(parent)
+    local row = CreateFrame("Frame", nil, parent)
+    row.label = Kit.Text(row, "caption", "textFaint")
+    row.label:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 10, 6)
+    row.label:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -10, 6)
+    row.label:SetText(L["TRIP_SAVED_TITLE"])
+    return row
+end
+
+local function MakeSaved(parent)
+    local row = CreateFrame("Button", nil, parent)
+    row:RegisterForClicks("LeftButtonUp")
+    row.back = Kit.Shape(row, 6, "BACKGROUND", 1)
+    row.back:SetShown(false)
+    Theme.Paint(function(c) row.back:SetColor(c.cardHover) end)
+    row.remove = Kit.IconButton(row, "close", 9, L["TRIP_REMOVE"], function(self) Trip.Forget(self:GetParent().item.number) end)
+    row.remove:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    row.name = Kit.Text(row, "body", "text")
+    row.name:SetPoint("LEFT", row, "LEFT", 12, 0)
+    row.name:SetPoint("RIGHT", row.remove, "LEFT", -6, 0)
+    row:SetScript("OnEnter", function(self) self.back:SetShown(true) end)
+    row:SetScript("OnLeave", function(self) self.back:SetShown(false) end)
+    row:SetScript("OnClick", function(self) Trip.Load(self.item.number) end)
+    return row
+end
+
 local function MakeHint(parent)
     local row = CreateFrame("Frame", nil, parent)
     row.title = Kit.Text(row, "label", "text", 0)
@@ -61,6 +87,7 @@ local function MakeHint(parent)
 end
 
 local function Bind(row, item)
+    if item.kind == "saved" then row.name:SetText(item.saved.name) end
     if item.kind ~= "stop" then return end
     local stop, count = item.stop, Trip.Count()
     row.number:SetText(item.number)
@@ -70,7 +97,7 @@ local function Bind(row, item)
     row.down:SetShown(item.number < count)
 end
 
-local HEIGHTS = { stop = STOP_H, gap = ROW_GAP, hint = 90 }
+local HEIGHTS = { stop = STOP_H, gap = ROW_GAP, hint = 90, heading = 28, saved = 30 }
 
 local function Height(item) return HEIGHTS[item.kind] end
 
@@ -81,6 +108,9 @@ local function Items()
         items[#items + 1] = { kind = "stop", stop = stop, number = i }
     end
     if #items == 0 then items[1] = { kind = "hint" } end
+    local saved = Trip.Saved()
+    if #saved > 0 then items[#items + 1] = { kind = "heading" } end
+    for i, entry in ipairs(saved) do items[#items + 1] = { kind = "saved", saved = entry, number = i } end
     return items
 end
 
@@ -91,6 +121,7 @@ function View.Refresh()
     f.order:SetEnabled(count >= 2 and not working)
     f.plan:SetEnabled(count >= 1)
     f.clear:SetEnabled(count >= 1)
+    f.save:SetEnabled(count >= 1)
 end
 
 function View.Optimize()
@@ -107,7 +138,8 @@ end
 
 local function Build(parent)
     f = CreateFrame("Frame", nil, parent)
-    list = List.New(f, { make = { stop = MakeStop, gap = MakeGap, hint = MakeHint }, bind = Bind, height = Height })
+    list = List.New(f, { make = { stop = MakeStop, gap = MakeGap, hint = MakeHint, heading = MakeHeading, saved = MakeSaved },
+                         bind = Bind, height = Height })
     list:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     list:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, FOOT_H + 8)
     f.list = list
@@ -120,7 +152,10 @@ local function Build(parent)
     f.clear = Kit.Button(f, { text = L["TRIP_CLEAR"], height = FOOT_H, width = "fit", onClick = function() Trip.Clear() end })
     f.clear:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
     f.order:SetPoint("LEFT", f.clear, "RIGHT", 6, 0)
-    f.plan:SetPoint("BOTTOMLEFT", f.order, "BOTTOMRIGHT", 6, 0)
+    f.save = Kit.Button(f, { icon = "star-line", height = FOOT_H, width = FOOT_H, onClick = function() Trip.Save() end })
+    Kit.Tooltip(f.save, L["TRIP_SAVE"], L["TRIP_SAVE_TT"])
+    f.save:SetPoint("LEFT", f.order, "RIGHT", 6, 0)
+    f.plan:SetPoint("BOTTOMLEFT", f.save, "BOTTOMRIGHT", 6, 0)
     f.plan:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
     FG.On("trip:changed", View.Refresh)
     return f

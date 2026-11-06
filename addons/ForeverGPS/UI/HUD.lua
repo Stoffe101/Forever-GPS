@@ -86,10 +86,11 @@ local function ApplyLook()
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", look.text, -look.pad + 1)
     f.title:SetPoint("TOPRIGHT", f, "TOPRIGHT", -24, -look.pad + 1)
     f.title:SetMaxLines(look.lines)
-    Kit.SetStyle(f.title, "heading", delta)
-    Kit.SetStyle(f.meta, "small", delta)
-    Kit.SetStyle(f.detail, "small", delta)
-    Kit.SetStyle(f.nextLine, "small", delta)
+    local flags = FG.db.hud.outline and "OUTLINE" or ""
+    Kit.SetStyle(f.title, "heading", delta, flags)
+    Kit.SetStyle(f.meta, "small", delta, flags)
+    Kit.SetStyle(f.detail, "small", delta, flags)
+    Kit.SetStyle(f.nextLine, "small", delta, flags)
     f.bar:SetShown(look.bar == true)
     PaintBack()
 end
@@ -263,6 +264,7 @@ end
 
 local function Meta(v, look)
     local parts = {}
+    if v.took then parts[#parts + 1] = L["HUD_TOOK_FMT"]:format(Format.Duration(v.took)) end
     if v.yards then parts[#parts + 1] = Format.Yards(v.yards) end
     if v.state == "waiting" then
         parts[#parts + 1] = v.leaves and L["HUD_LEAVES_FMT"]:format(Format.Clock(v.leaves)) or L["HUD_NO_TIMETABLE"]
@@ -354,6 +356,11 @@ function HUD.ToastFrame() return toast end
 
 FG.On("journey:view", HUD.Render)
 FG.On("toast", HUD.Toast)
+
+-- A sound for having arrived, for anyone not watching the screen.
+FG.On("journey:arrived", function()
+    if FG.db.hud.sound and PlaySound then PlaySound(SOUNDKIT and SOUNDKIT.MAP_PING or 3175, "SFX") end
+end)
 
 FG.On("settings:changed", function()
     if f then
