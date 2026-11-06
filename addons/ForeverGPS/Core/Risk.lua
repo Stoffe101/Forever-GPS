@@ -86,7 +86,7 @@ end
 -- route: anything Bridge.WalkOf can read a walk's ends from ({ steps, from }).
 -- walks: its walks by step, when the caller holds them.
 function Risk.Assess(route, walks)
-    local level, reasons, assessed = "low", {}, false
+    local level, reasons, assessed, deadly = "low", {}, false, false
     local seen = {}
     local function Add(rank, text)
         level = Worse(level, rank)
@@ -123,6 +123,7 @@ function Risk.Assess(route, walks)
             if path then
                 assessed = true
                 local d = Bridge.DeadlyAlong(path, ci)
+                if d and (d.guard or d.skull or (d.n or 0) > 0) then deadly = true end
                 if d then
                     if d.guard then Add("high", L["RISK_REASON_GUARDS"]) end
                     if d.skull then Add("high", L["RISK_REASON_SKULL"])
@@ -143,7 +144,7 @@ function Risk.Assess(route, walks)
     for name in pairs(contested) do Add("contested", L["RISK_REASON_CONTESTED_FMT"]:format(name)) end
     table.sort(reasons)
     if not assessed then return { level = "unknown", reasons = {} } end
-    return { level = level, reasons = reasons, approach = approach }
+    return { level = level, reasons = reasons, approach = approach, deadly = deadly, assessed = true }
 end
 
 local LABELS = { low = "RISK_LOW", contested = "RISK_CONTESTED", moderate = "RISK_MODERATE", high = "RISK_HIGH" }

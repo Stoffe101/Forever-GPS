@@ -38,6 +38,7 @@ local PLAN_TIMEOUT = 20       -- a plan another replaced never reports back
 local SAME_SECONDS = 4        -- routes this close, with the same steps, are one route
 local KEPT_PLANS = 6          -- finished plans remembered, for going back and forth
 local KEPT_SECONDS = 45
+local SHORT_SECONDS = 45      -- a walk this short has no alternatives worth comparing
 
 local current
 local runID = 0
@@ -131,6 +132,9 @@ local function Finish()
     if chosen then
         current.selected, current.status = chosen, "ready"
         if current.key then Remember(current) end
+    elseif current.options[1] and current.options[1].estimate then
+        chosen = current.options[1]
+        current.selected, current.status = chosen, "ready"
     else
         current.status = "unreachable"
         current.message = L["ROUTE_NO_WAY"]
@@ -194,10 +198,51 @@ local function BuildOption(dest, option, stops)
     return steps, total, extra
 end
 
+local function UsesTransport(steps)
+    for _, step in ipairs(steps) do
+        for _, kind in ipairs(NO_TRANSPORT) do
+            if step.kind == kind then return true end
+        end
+    end
+    return false
+end
+
+-- Whether a way can be settled without planning it, from what the fastest found. Every
+-- other way is the fastest with something added or left out, so most of the time the
+-- answer is already known, and a long journey costs one plan rather than four.
+local function Settled(option, base)
+    if not base.builtAt then return nil end
+    -- Nothing reaches it with every way of travel open: less open cannot help.
+    if not base.steps or base.noWay then return "impossible" end
+    if base.estimate then return "impossible" end
+    if (base.total or 0) < SHORT_SECONDS then return "same" end
+    if option.mode.also and not UsesTransport(base.steps) then return "same" end
+    -- Ground the fastest never touches is ground it has no need to go around.
+    if option.mode.avoid == "danger" and base.risk and base.risk.assessed and not base.risk.deadly then return "same" end
+    return nil
+end
+
+local function SettleOption(option, base, verdict)
+    option.builtAt, option.from = GetTime(), base.from
+    if verdict == "same" then
+        option.steps, option.total, option.risk, option.walks = base.steps, base.total, base.risk, base.walks
+        option.yards, option.quality, option.same = base.yards, base.quality, base
+    else
+        option.noWay = true
+    end
+end
+
 RunNext = function(id, index)
     if id ~= runID or not current then return end
     local option = current.options[index]
     if not option then return Finish() end
+    local base = current.options[1]
+    local verdict = index > 1 and Settled(option, base)
+    if verdict then
+        SettleOption(option, base, verdict)
+        FG.Metrics.Note(("%s settled without planning"):format(option.mode.key))
+        return RunNext(id, index + 1)
+    end
     -- The engine's own work comes first; a plan of ours gone out of date gives way.
     if Bridge.IsPlanning() and not Bridge.PlanIsOurs() then
         FG.After(WAIT_SECONDS, function() RunNext(id, index) end)
@@ -327,6 +372,9 @@ end
 
 local function Started(option)
     local target = current.target
+    -- What is left of the comparison is no use now, and the engine has its own work to do.
+    runID = runID + 1
+    Bridge.CancelOurPlan()
     FG.Saved.AddRecent(target)
     FG.Journey.Bind(target.binding, target.bindings)
     FG.Emit("route:committed", current.dest, option)

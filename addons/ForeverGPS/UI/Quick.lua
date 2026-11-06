@@ -83,7 +83,8 @@ FG.On("plan:changed", function(plan)
         if not plan then startWhenReady = false end
         return
     end
-    if plan.status == "ready" then
+    -- The fastest way is the first answer. Waiting for the others would only be waiting.
+    if plan.status == "ready" or (plan.status == "partial" and FG.char.mode == "fastest") then
         startWhenReady = false
         Planner.Start()
     elseif plan.status == "failed" or plan.status == "unreachable" then

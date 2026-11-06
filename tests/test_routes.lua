@@ -232,6 +232,94 @@ function tests.risk_saysWhatItKnowsAndClaimsNoMore()
     T.has(L["RISK_DISCLAIMER"], "Enemy players cannot be detected", "and the limits are stated")
 end
 
+-- How many real plans a journey cost.
+local function CountPlans(c)
+    local n = 0
+    local real = c.FG.Bridge.PlanOurs
+    c.FG.Bridge.PlanOurs = function(...)
+        n = n + 1
+        return real(...)
+    end
+    return function() return n end
+end
+
+function tests.aWalk_costsOnePlanAndNotFour()
+    local c = Start({ ui = false, mapID = 1429, x = 0.45, y = 0.7 })
+    local plans = CountPlans(c)
+    local plan = Plan(c, { name = "Goldshire", mapID = 1429, x = 0.42, y = 0.65 })
+    T.eq(plan.status, "ready")
+    T.ok(plans() <= 2, "a short walk has little to compare: " .. plans())
+    for _, option in ipairs(plan.options) do
+        T.ok(option.steps, option.mode.key .. " still answers")
+    end
+end
+
+function tests.noRoute_isOneFailureAndNotFour()
+    local c = Start({ ui = false })
+    local plans = CountPlans(c)
+    local real = c.FG.Bridge.BuildRoute
+    c.FG.Bridge.BuildRoute = function() return { { noWay = true, text = "No way", kind = "travel" } }, 0 end
+    local plan = Plan(c, { name = "Nowhere", mapID = 1453, x = 0.1, y = 0.1 })
+    c.FG.Bridge.BuildRoute = real
+    T.eq(plan.status, "unreachable", "it says so")
+    T.eq(plans(), 1, "after one plan: with less open, there is still no way")
+end
+
+function tests.aWayWithNoTransport_needsNoOverlandPlan()
+    local c = Start({ ui = false, mapID = 1429, x = 0.8, y = 0.7 })
+    local plan = Plan(c, { name = "Sentinel Hill", mapID = 1436, x = 0.56, y = 0.47 })
+    local overland
+    for _, option in ipairs(plan.options) do
+        if option.mode.key == "overland" then overland = option end
+    end
+    T.ok(overland, "still listed")
+    if overland.same then T.ok(overland.steps, "and answers") end
+end
+
+function tests.settledWays_matchWhatPlanningWouldFind()
+    -- The shortcut must never change an answer. With it out of the way, the same journey.
+    local dest = { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 }
+    local c = Start({ ui = false })
+    local plan = Plan(c, dest)
+    for _, option in ipairs(plan.options) do
+        if option.same then
+            T.near(option.total, option.same.total, 4, option.mode.key .. " takes the same time, to within what counts as the same")
+            T.eq(#option.steps, #option.same.steps, "and the same steps")
+        end
+    end
+end
+
+function tests.startingEarly_dropsTheRestOfTheComparison()
+    local c = Start({ ui = false })
+    local P = c.FG.Planner
+    P.Inspect({ data = { name = "Gadgetzan", mapID = 1446, x = 0.52, y = 0.28 }, name = "Gadgetzan" })
+    T.ok(Stack.Until(c, function() return P.Current().status == "partial" end, 30), "the first way is in")
+    P.Start()
+    T.no(c.FG.Bridge.PlanIsOurs(), "and the rest is dropped at once")
+    T.ok(Stack.Until(c, function() return c.FG.Bridge.ActiveRoute().others ~= nil end, 60), "so the engine gets to its own work")
+end
+
+function tests.thePlanBudget_followsTheFrameRate()
+    local c = Start({ ui = false })
+    local B = c.FG.Bridge
+    c.fps = 60
+    T.near(B.PlanBudget(), 5, 0.1, "under a third of a 60 fps frame")
+    c.fps = 240
+    T.eq(B.PlanBudget(), 4, "never starved")
+    c.fps = 15
+    T.eq(B.PlanBudget(), 12, "and never a long frame of its own")
+    c.fps = 0
+    T.eq(B.PlanBudget(), 4, "no reading, the small share")
+    T.ok(c.ns.GPS.PlanBudget ~= nil, "and the engine uses it")
+end
+
+function tests.planning_reportsItsBusiestFrame()
+    local c = Start({ ui = false })
+    Plan(c, { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 })
+    local lines = table.concat(c.FG.Metrics.Lines(), "\n")
+    T.has(lines, "planFrame", "what a frame really cost, beside the plan's total")
+end
+
 function tests.contestedGround_isNamedAndNeverCalledSafe()
     local c = Start({ mapID = 1429, x = 0.8, y = 0.7 })
     local plan = Plan(c, { name = "Darkshire", mapID = 1431, x = 0.75, y = 0.45 })

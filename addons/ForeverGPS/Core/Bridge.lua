@@ -373,6 +373,31 @@ end
 
 function Bridge.PlanIsOurs() return planIsOurs and Bridge.IsPlanning() end
 
+-- Drops a plan of ours still running: a plan that does nothing takes its place, and
+-- finishes at once. A plan replaced is one the engine already knows how to let go of.
+function Bridge.CancelOurPlan()
+    if Bridge.PlanIsOurs() then Bridge.PlanOurs(function() end, function() end) end
+end
+
+-- A plan's share of each frame. Planning runs across frames, so a slow machine at a fixed
+-- few milliseconds waits many seconds. As a share of the frame it stays unnoticeable, and
+-- the answer comes in about the same time whatever the frame rate.
+local FRAME_SHARE, FEWEST_MS, MOST_MS = 0.3, 4, 12
+
+function Bridge.PlanBudget()
+    local fps = GetFramerate and GetFramerate() or 60
+    if not fps or fps <= 0 then return FEWEST_MS end
+    return math.max(FEWEST_MS, math.min(MOST_MS, 1000 / fps * FRAME_SHARE))
+end
+
+local function WatchPlans()
+    local g = GPS()
+    if not g then return end
+    g.PlanBudget = Bridge.PlanBudget
+    g.OnPlanSlice = function(ms) FG.Metrics.Sample("planFrame", ms) end
+end
+FG.On("login", WatchPlans)
+
 function Bridge.PlanOurs(build, done)
     MarkPlans()
     marking = true

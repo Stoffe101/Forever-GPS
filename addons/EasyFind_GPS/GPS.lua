@@ -609,10 +609,13 @@ local function PlanStep()
         return
     end
     local Nav = ns.GPSNav
-    if Nav then Nav.sliceEnd = debugprofilestop() + (GPS.planning and PLAN_BUDGET_MS or PLAN_BUDGET_BACK_MS) end
+    -- Forever-GPS: the budget can follow the frame rate, and a slice's real cost is reported.
+    local sliceStart = debugprofilestop()
+    if Nav then Nav.sliceEnd = sliceStart + (GPS.PlanBudget and GPS.PlanBudget() or (GPS.planning and PLAN_BUDGET_MS or PLAN_BUDGET_BACK_MS)) end
     local before = collectgarbage("count")
     local ok, a, b, c = coroutine.resume(co)
     if Nav then Nav.sliceEnd = nil end
+    if GPS.OnPlanSlice then GPS.OnPlanSlice(debugprofilestop() - sliceStart) end
     -- The collector keeps pace with the slice: what the plan left behind
     -- goes now, not once the heap has doubled.
     local grew = collectgarbage("count") - before

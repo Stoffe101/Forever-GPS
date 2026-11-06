@@ -24,5 +24,5 @@ read_globals = {
     "GetAddOnMemoryUsage", "GetAddOnMetadata", "GetBuildInfo", "GetLocale", "GetPlayerFacing", "GetTime", "InCombatLockdown",
     "STANDARD_TEXT_FONT", "UIParent", "UnitClass", "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "UpdateAddOnMemoryUsage",
     "WOW_PROJECT_ID", "debugprofilestop", "geterrorhandler", "issecretvalue", "strtrim", "tinsert", "wipe",
-    "ToggleWorldMap", "WorldMapFrame", "GetCursorPosition", "IsShiftKeyDown", "Minimap", "CANCEL", "ReloadUI", "StaticPopup_Show",
+    "ToggleWorldMap", "WorldMapFrame", "GetCursorPosition", "IsShiftKeyDown", "Minimap", "CANCEL", "ReloadUI", "StaticPopup_Show", "GetFramerate",
 }

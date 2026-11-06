@@ -78,7 +78,7 @@ local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent UISpecialFrames "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue ToggleWorldMap WorldMapFrame GetCursorPosition IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs "
+    .. "issecretvalue ToggleWorldMap WorldMapFrame GetCursorPosition IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate "
     .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}

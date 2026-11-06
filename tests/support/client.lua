@@ -168,6 +168,7 @@ function Client:BuildEnv(opts)
     env.CallErrorHandler = onError
     env.debugstack = function() return "" end
     env.debugprofilestop = function() return os.clock() * 1000 end
+    env.GetFramerate = function() return client.fps or 60 end
     env.GetTime = function() return client.now end
     env.GetServerTime = function() return math.floor(client.now) end
     env.time = function(t) return t and os.time(t) or math.floor(client.now) end
