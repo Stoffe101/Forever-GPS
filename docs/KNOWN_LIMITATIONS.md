@@ -2,7 +2,7 @@
 
 ## Not verified in the game
 
-Nothing has been run in the WoW client. All testing is against a fake client running the real addon code. In particular, these can only be judged in the game: fonts and text metrics, texture quality, secure button behaviour, real frame rate, and how it sits beside EllesmereUI. See [MANUAL_TESTING.md](MANUAL_TESTING.md).
+2.0 has run in the client. **2.1 has not**: the one-folder build and everything new in it were tested against a stand-in client running the real addon code. These can only be judged in the game: the single folder loading, fonts and text metrics, texture quality, secure button behaviour, real frame rate and memory, and how it sits beside EllesmereUI. See [FIRST_RUN.md](FIRST_RUN.md).
 
 ## Data age
 
@@ -18,7 +18,8 @@ Nothing has been run in the WoW client. All testing is against a fake client run
 - **Flight knowledge** comes from flight masters' own maps, so a fresh install knows no flights until you open one on each character. That is upstream's rule for Forever, because the client's map listing marks every point discovered.
 - **Questie's world search needs Questie**, and knows only what its database knows. Nothing is copied into this repository.
 - **A trip's order is good, not best**: nearest-first with limited refinement. Its legs are straight-line estimates until the trip is planned.
-- **A trip holds eight stops**, and a list not yet started is lost on a reload. A trip under way survives one, with the route.
+- **A trip holds eight stops.**
+- **Memory is reported as one figure now.** With one folder the game cannot separate navigation data from the search code around it. Saved memory from skipping the hidden bar's data can only be measured in the game.
 - **Wrong-ride detection is by where you end up.** Boarding the wrong boat is noticed once you are somewhere neither end of the planned crossing, usually on landing. A ride between the same two continents as the planned one is not told apart until then.
 
 ## Safety
@@ -39,7 +40,6 @@ The risk label knows creatures, guards, enemy towns (by flight master), enemy tr
 - English only. Other clients show English interface text, with route steps still localized by EasyFind GPS.
 - CJK clients fall back to the game's font.
 - On the default window the Saved chip wraps to a second row of its own. Cosmetic.
-- Removing Forever-GPS leaves EasyFind's bar as first run set it. Use Settings, Integrations, Restore EasyFind's settings first, or change it in EasyFind's options.
 - The world map preview was tested against a stand-in map. Its look over real map art, and at every zoom, is for the game to confirm.
 - The minimap button sits on a round minimap. A square or skinned minimap may need it hidden; the addon compartment and `/fgps` do the same job.
 
@@ -48,3 +48,5 @@ The risk label knows creatures, guards, enemy towns (by flight master), enemy tr
 - Forever only (interface 16001). The other clients EasyFind supports are out of scope for the Forever-GPS addon.
 - RestedXP is not integrated, by design.
 - Wowhead data is not used. See [ARCHITECTURE.md](ARCHITECTURE.md#why-not-wowhead-data).
+- **EasyFind cannot be installed beside it.** The two would be the same addon twice. Forever-GPS offers to turn the old folders off if it finds them.
+- `/ef` still answers, from the vendored code, and its options are gone with the companion apps. Use `/fgps`.

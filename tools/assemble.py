@@ -44,6 +44,15 @@ EXCLUDED_PREFIXES = {
     "EasyFind_GPS": ("tests/",),
     "EasyFind_Questie": ("tools/", "tests/"),
 }
+# Files a TOC lists that have no place in one folder.
+LEFT_OUT = {
+    # Asks the game about an addon called EasyFind, to check its version. There is none,
+    # and the version is the one built in.
+    "EasyFind_GPS": ("Guard.lua",),
+    # Tells players of a newer EasyFind, heard from guildmates. Every caller checks for
+    # it, and an update here is not theirs to announce.
+    "EasyFind": ("Core/VersionCheck.lua",),
+}
 LICENSE_FILES = ("LICENSE",)
 
 RULE = re.compile(r"\[(\w+)\s+([^\]]+)\]")
@@ -55,6 +64,13 @@ EDITS = [
     # cannot depend on which frame hears ADDON_LOADED first.
     ("EasyFind", "Core/Main.lua", "    EasyFind.db = EasyFindDB\n    -- The profile this character",
      "    EasyFind.db = EasyFindDB\n    ForeverGPSPreflight.Settle(EasyFindDB)\n    -- The profile this character", 1),
+    # Two seconds after login it loads every spell, toy, mount and setting for its search
+    # bar. That bar stays hidden here and navigation reads none of it.
+    ("EasyFind", "Core/Main.lua", "    if ns.Database and ns.Utils and ns.Utils.SafeAfter then\n        ns.Utils.SafeAfter(2, function()",
+     "    if EasyFind.db.visible ~= false and ns.Database and ns.Utils and ns.Utils.SafeAfter then\n        ns.Utils.SafeAfter(2, function()", 1),
+    # An EasyFind page in the game's addon settings, opening a panel that is not here.
+    ("EasyFind", "Core/Main.lua", "local regOk, regErr = xpcall(RegisterBlizzardOptionsStub, ErrorHandler)",
+     "local regOk, regErr = true, nil", 1),
     # Its version is its own, not the folder's: its upgrade notes compare against it.
     ("EasyFind", "Core/Main.lua", 'ns.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")',
      'ns.version = "{version}"', 1),
@@ -124,7 +140,7 @@ class Assembly:
         lines: list[str] = []
         listed = set()
         for file, rules in toc_entries(toc):
-            if not allowed_on_forever(rules):
+            if not allowed_on_forever(rules) or file in LEFT_OUT.get(addon, ()):
                 continue
             path = base / file
             if not path.exists():

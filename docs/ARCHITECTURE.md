@@ -34,6 +34,27 @@ There is **no second routing engine**. Every time on screen comes from `Route:Bu
 - **Following** is untouched: EasyFind GPS's ticker advances steps, reroutes, handles death and restores after a reload. Forever-GPS only reads that state.
 - **The HUD's arrow** uses the character arrow's own `_Aim` and `_Bearing`, so it follows bends in the walk.
 
+## One folder
+
+The package is one addon. `tools/assemble.py` builds it from the pinned vendored addons and Forever-GPS's own files, into `build/assembled/ForeverGPS`:
+
+```
+ForeverGPS/
+  ForeverGPS.toc     generated: Preflight, then the vendored files in their own order, then Forever-GPS
+  Bindings.xml
+  Core/  UI/  Art/  Locales/  Commands.lua    Forever-GPS
+  Vendor/
+    EasyFind/  EasyFind_GPS/  EasyFind_Questie/    the routing engine, map search and data, with their licenses
+```
+
+Keeping the parts apart in `addons/` is what keeps updates manageable: their suites run there, unchanged, and the Forever-GPS suite runs on the assembled folder, which is what ships. [UPSTREAM.md](UPSTREAM.md) lists every change assembly makes.
+
+All files of one addon share one private table. EasyFind's code owns it, and EasyFind GPS already shared it. Forever-GPS moved to its own global, `ForeverGPS`, and the Questie extension keeps a table inside the shared one.
+
+`Core/Preflight.lua` loads first. EasyFind calls `ForeverGPSPreflight.Settle` the moment it has its saved variables, so its search bar stays hidden and old data arrives before anything reads it, whichever frame hears `ADDON_LOADED` first.
+
+WoW hands an addon only what is saved under its own name, so what EasyFind GPS saved cannot follow by itself. `tools/migrate_saved.py` reads it and writes `Core/Imported.lua` into the installed folder, which is why going back to 2.0 stays exact: `WTF` is never written.
+
 ## Modules
 
 `addons/ForeverGPS`, in load order:
@@ -49,12 +70,13 @@ There is **no second routing engine**. Every time on screen comes from `Route:Bu
 | `Core/Eta.lua` | Travel-time estimates, sliced and cached |
 | `Core/Risk.lua` | Known hazards on a route, as a label |
 | `Core/Planner.lua` | Inspecting a journey before taking it |
-| `Core/Saved.lua` | Favorites and recents |
+| `Core/Saved.lua` | Favorites, recents, regular places, the journey log, resuming |
 | `Core/Quests.lua` | The quest log, read lazily |
 | `Core/QuestTargets.lua` | Areas from spawns; quest targets |
 | `Core/Search.lua` | One result list from all sources |
 | `Core/Journey.lua` | The route as the HUD reads it; ride states; quests kept in step |
-| `Core/Trip.lua` | Several stops, and the order to visit them in |
+| `Core/Trip.lua` | Several stops, the order to visit them in, saved trips, circuits |
+| `Core/Suggest.lua` | What might be useful now, for the home view |
 | `Core/TomTom.lua` | Optional mirror to TomTom |
 | `Core/Diagnostics.lua` | `/fgps diag` and the copyable report |
 | `UI/Theme.lua`, `UI/Kit.lua`, `UI/List.lua` | Tokens, widgets, a list that builds only what fits |
@@ -75,6 +97,8 @@ Modules talk through topics (`FG.On`, `FG.Emit`): `plan:changed`, `quests:change
 
 Only one plan runs at a time and a newer one silently replaces the old, so Forever-GPS waits out the engine's own plans, replaces only its own, and has a watchdog move on if one is displaced. Each plan owns the walks it found, so the map can draw any option at any time. Every stage is laid out in [LIFECYCLE.md](LIFECYCLE.md).
 
+The fastest way is planned first, and every other way is that with something added or left out. So `Planner.Settled` can often answer from it without a plan: nothing reaches the place, or the fastest uses no transport for Overland to leave out, or no dangerous ground for Safer to go around, or the walk is too short to compare. Roads is the one that always needs its own plan. Starting drops whatever is left.
+
 ## How search ranks
 
 In stages, so a list appears at once and improves:
@@ -91,6 +115,7 @@ Addons cannot reach the network, so Wowhead could only ever be static data shipp
 ## Performance
 
 - Nothing runs while the window is closed and no route exists: no `OnUpdate` scripts, no polling.
+- A plan takes about 30% of each frame, between 4 and 12 ms, so a slow machine is not left waiting. Its busiest frame is reported as `planFrame`.
 - The Journey driver runs at 5 Hz, only while a route exists. The HUD arrow runs at about 30 Hz, only while the arrow is on screen. Baselines are in [PERFORMANCE.md](PERFORMANCE.md).
 - Estimates run at most 4 ms a frame, only when the planner is idle, for at most ten results, and are cached for 60 seconds per 40-yard cell.
 - The quest log is read only after it changes, at most once per 0.3 seconds, however many `QUEST_LOG_UPDATE`s fire. A test holds 40 events to one read.

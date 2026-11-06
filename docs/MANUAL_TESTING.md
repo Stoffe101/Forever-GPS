@@ -160,7 +160,22 @@ For each:
 - [ ] **HUD sizes**, opacity, text size and arrow style in Settings, HUD.
 - [ ] **Reduce motion**: the arrow steps rather than swings.
 
-## 12. Living with it
+## 12. New in 2.1
+
+- [ ] **One folder**: one Forever-GPS in the AddOns list, no EasyFind, no error at login, nothing about EasyFind in chat.
+- [ ] Text uses Inter, and every icon and texture shows. A square of nothing means a path did not move with the code.
+- [ ] Questie and TomTom are found, in Settings, Integrations.
+- [ ] **Memory**: `/fgps diag` against 2.0's roughly 30 MB in total.
+- [ ] **Planning**: long journeys answer sooner. Compare `planFrame` in `/fgps diag`, the busiest frame, with `plan`, the total.
+- [ ] **Home**: under way, stopped, and suggestions as your character's situation changes.
+- [ ] **Plan a circuit** with several objectives close by.
+- [ ] **Instance quest**: an objective inside a dungeon routes to its door.
+- [ ] **Search**: `my trainer`, `flights to learn`, `56 47 Westfall`.
+- [ ] **Directions to target**: bind the key, target an NPC, press it.
+- [ ] **Map**: alternatives under the line, hovering a step, the next-continent arrow on a boat journey.
+- [ ] **Arrival**: the HUD says how long it took. Turn the sound on and listen for it.
+
+## 13. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.

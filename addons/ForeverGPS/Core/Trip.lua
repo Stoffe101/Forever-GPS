@@ -261,10 +261,11 @@ function Trip.NearbyStops()
     end
     for _, q in ipairs(Quests.All()) do
         if not q.failed then
-            local targets = Targets.Of(q).targets
-            if q.complete then
+            local entry = Targets.Peek(q)
+            local targets = entry and entry.targets
+            if targets and q.complete then
                 if targets.turnIn and targets.turnIn.status == "ok" then Consider(q, targets.turnIn) end
-            else
+            elseif targets then
                 for i = 1, #q.objectives do
                     local target = targets.objectives[i]
                     if target and target.status == "ok" and not target.done then Consider(q, target) end

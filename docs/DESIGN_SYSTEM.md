@@ -67,4 +67,4 @@ Sizes are in UI units, and a screen's units depend on its UI scale: the height i
 
 ## Checking it
 
-`tools/ui_preview.lua` draws every significant state from the real addon code at six screens, to `build/preview/`. `tools/shoot_previews.py` photographs them. These are renders in a stand-in client, not screenshots of the game. `tests/test_ui.lua` asserts that nothing leaves its window, that controls do not overlap, that labels fit, and that sliders have a knob on their track, across eleven screen setups.
+`tools/ui_preview.lua` draws every significant state from the real addon code at six screens, to `build/preview/`, 177 renders in all. `tools/shoot_previews.py` photographs them. These are renders in a stand-in client, not screenshots of the game. `tests/test_ui.lua` asserts that nothing leaves its window, that controls do not overlap, that labels fit, that no text is painted over, and that sliders have a knob on their track, across eleven screen setups.

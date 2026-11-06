@@ -28,9 +28,9 @@ local function Lookup(path)
 end
 
 local function AddonLine(name)
-    local Meta = C_AddOns.GetAddOnMetadata
     local loaded = C_AddOns.IsAddOnLoaded(name)
-    local version = Meta(name, "Version")
+    -- Asked only of what is loaded: the game need not answer for an addon it does not have.
+    local version = loaded and C_AddOns.GetAddOnMetadata(name, "Version")
     return ("%s: %s%s"):format(name, loaded and "loaded" or "not loaded", version and (" (" .. version .. ")") or "")
 end
 
@@ -136,8 +136,7 @@ function Diagnostics.Lines()
     for _, line in ipairs(FG.Metrics.Lines()) do out[#out + 1] = line end
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
         UpdateAddOnMemoryUsage()
-        out[#out + 1] = ("Memory: Forever-GPS %.1f MB, GPS %.1f MB, EasyFind %.1f MB"):format(
-            GetAddOnMemoryUsage("ForeverGPS") / 1024, GetAddOnMemoryUsage("EasyFind_GPS") / 1024, GetAddOnMemoryUsage("EasyFind") / 1024)
+        out[#out + 1] = ("Memory: %.1f MB"):format(GetAddOnMemoryUsage(FG.ADDON) / 1024)
     end
     return out
 end

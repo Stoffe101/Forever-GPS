@@ -20,6 +20,21 @@ python tools/upstream.py verify
 
 Addon Lua files carry binary blobs inside strings, and upstream's tests match exact source text. A CRLF conversion corrupts both, so `.gitattributes` turns all conversion off. Do not remove that line. On this machine `core.autocrlf` is on, and it broke 13 upstream tests until the checkout was made byte-exact.
 
+## One folder
+
+The vendored addons stay here as their authors wrote them, because this is where their test suites run and where an update lands. What ships is built from them by `tools/assemble.py`:
+
+- Their TOCs are read and merged in order, EasyFind first, then GPS, the Questie extension and Forever-GPS, with only what Forever's client can load.
+- Their files go under `Vendor/`, and `Interface\\AddOns\\EasyFind\\` paths are rewritten to match.
+- Companion apps, tutorial art, tests and other clients' data stay behind.
+- `EDITS` lists every exact change one folder needs. Each must match as many times as it says, so an upstream change that moves one of them fails the build rather than slipping past.
+- `LEFT_OUT` lists the two TOC entries with no place here: the GPS's guard, which asks the game about an addon called EasyFind, and EasyFind's update notices.
+- The Questie extension had a private table, as every addon does. In one addon all files share one, so it gets a table of its own inside it.
+
+Each LICENSE ships with its code under `Vendor/`.
+
+To take a new version: update as in [Taking a new upstream version](#taking-a-new-upstream-version), then run `python tools/assemble.py`. A failed edit names the file and the text it expected.
+
 ## Patches
 
 Every change to vendored code, as declared in `tools/upstream.py`. All are additive except the two bug fixes.
@@ -40,6 +55,8 @@ The fix restores the character's own limit after the trial. It is worth sending 
 ### `EasyFind_GPS/GPS.lua`: trips survive a reroute
 
 `GPS.Rerouted` built a new route table without `stops` or `skipLearn`, so one wrong turn on a trip turned it into a route to the last stop. It now keeps both. `GPS.StopsAhead(route)` works out which stops are still ahead, by what they are, since saved routes come back as copies, and `Reroute` goes on from those instead of back round the ones already reached. Worth sending upstream.
+
+`PlanStep` also takes its budget from `GPS.PlanBudget` when one is set, so it can follow the frame rate, and reports each slice's real cost to `GPS.OnPlanSlice`.
 
 ### `EasyFind/MapSearch/Search/Results.lua`: every instance on the row
 

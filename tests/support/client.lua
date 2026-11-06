@@ -169,6 +169,12 @@ function Client:BuildEnv(opts)
     env.debugstack = function() return "" end
     env.debugprofilestop = function() return os.clock() * 1000 end
     env.GetFramerate = function() return client.fps or 60 end
+    env.UpdateAddOnMemoryUsage = function() end
+    -- As strict as the metadata: only what is loaded has a figure.
+    env.GetAddOnMemoryUsage = function(n)
+        if not client.addons[n] then error("Invalid AddOn name " .. tostring(n), 2) end
+        return 30000
+    end
     env.GetTime = function() return client.now end
     env.GetServerTime = function() return math.floor(client.now) end
     env.time = function(t) return t and os.time(t) or math.floor(client.now) end
@@ -363,7 +369,11 @@ function Client:BuildEnv(opts)
         IsAddOnLoaded = function(n) return client.addons[n] == true end,
         IsAddOnLoadable = function(n) return client.addons[n] == true end,
         LoadAddOn = function(n) return client.addons[n] == true end,
-        GetAddOnMetadata = function(n, key) return client.meta and client.meta[n] and client.meta[n][key] end,
+        -- Strict on purpose: the real client need not answer for an addon it does not have.
+        GetAddOnMetadata = function(n, key)
+            if not (client.addons[n] or (client.meta and client.meta[n])) then error("Invalid AddOn name " .. tostring(n), 2) end
+            return client.meta and client.meta[n] and client.meta[n][key]
+        end,
         GetAddOnInfo = function(n) return n, n, "", client.addons[n] == true, client.addons[n] and "" or "MISSING" end,
         EnableAddOn = function() end, DisableAddOn = function() end, GetNumAddOns = function() return 0 end,
         DoesAddOnExist = function(n) return client.addons[n] == true end,

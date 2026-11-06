@@ -241,6 +241,32 @@ function Targets.Of(q)
     return entry
 end
 
+-- The same, when it is already worked out; nil rather than working it out now.
+function Targets.Peek(q)
+    local entry = entries[q.questID]
+    return entry and entry.sig == Signature(q) and entry or nil
+end
+
+local WARM_SLICE_MS = 3
+local warmer
+
+-- Works every quest's places out a few milliseconds a frame, so that opening the
+-- window never has to do it all at once.
+function Targets.Warm()
+    local list, i = Quests.All(), 1
+    warmer = warmer or CreateFrame("Frame")
+    warmer:SetScript("OnUpdate", function(self)
+        local stop = debugprofilestop() + WARM_SLICE_MS
+        while list[i] do
+            Targets.Of(list[i])
+            i = i + 1
+            if debugprofilestop() > stop then return end
+        end
+        self:SetScript("OnUpdate", nil)
+        FG.Emit("targets:warm")
+    end)
+end
+
 -- Whether an entry is still the one in use.
 function Targets.Current(q, entry) return entries[q.questID] == entry end
 
@@ -345,4 +371,8 @@ FG.On("quests:changed", function()
     for questID in pairs(entries) do
         if not Quests.Get(questID) then entries[questID] = nil end
     end
+    Targets.Warm()
 end)
+
+-- After login, once Questie has had time to be ready.
+FG.On("login", function() FG.After(8, Targets.Warm) end)

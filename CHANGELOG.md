@@ -1,10 +1,42 @@
 # Changelog
 
-## 2.1.0 (unreleased)
+## 2.1.0 (unreleased, not yet tested in the game)
 
 ### Changed
 
-- **One folder.** Forever-GPS installs as a single `ForeverGPS` addon. EasyFind, EasyFind GPS and the Questie extension are built into it under `Vendor/`, and the ten companion apps that served EasyFind's search bar are gone. Questie and TomTom stay separate and optional.
+- **One folder.** Forever-GPS installs as a single `ForeverGPS` addon: 389 files and 25 MB, down from 14 folders, 456 files and 41 MB. EasyFind, EasyFind GPS and the Questie extension are built into it under `Vendor/`. The ten companion apps served EasyFind's search bar and are gone. Questie and TomTom stay separate and optional.
+- **Planning stops doing work that cannot change the answer.** A way is settled without a plan when nothing reaches the place at all, when the fastest uses no transport for Overland to leave out, when it touches no dangerous ground for Safer to go around, or when the walk is too short to compare. Starting drops the rest of the comparison.
+- The plan budget follows the frame rate, so a slow machine waits about as long as a fast one, and quick navigation starts on the first answer.
+- EasyFind's search bar no longer loads its spells, toys, mounts and settings at login, since it stays hidden and navigation reads none of them.
+- Reopening the window after starting a journey shows that journey, not the old search.
+
+### Added
+
+- **Home leads with what matters:** the journey under way, or one stopped short to pick up again, then suggestions: quests ready to hand in, things to do close by, flight paths to learn, the way back to your hearth.
+- **Plan a circuit:** everything close by becomes a Quest Circuit in one click.
+- **Saved trips,** and a trip list that survives a reload.
+- **Instance quests** route to the entrance instead of stopping at "no route".
+- **Journey summaries:** an arrival says how long it took, and journeys are logged against what was planned.
+- **History:** places you go often rise above plain recents.
+- **Search:** `my trainer`, `flights to learn`, more of what players call things, and coordinates as people write them (`56.1/47.2`, `56 47 Westfall`, `/way 56 47`).
+- **Directions to your target,** with a key binding and `/fgps target`. `/fgps resume` picks up a stopped journey.
+- **Map:** the ways not chosen show faintly under the chosen one, hovering a step lights it, and a journey across continents can be stepped through from the banner.
+- **HUD:** outlined text for bright ground, and a sound on arrival.
+- A **high contrast** theme.
+- `/fgps diag` reports a plan's busiest frame beside its total. That total is time across many frames, not a freeze.
+- `tools/install_local.py` and `tools/migrate_saved.py`, which move an install across without losing anything.
+
+### Removed
+
+- The settings for EasyFind's own search bar and for restoring it. There is no separate EasyFind left to restore.
+- EasyFind's update notices, which would have told players to update something that is no longer installed separately.
+- The ten companion apps: calculator, clipboard, snippets, quicklists, item and icon browsers, EasyFind's options, tutorial, settings search and guide. None served navigation.
+
+### Fixed
+
+- Reports and diagnostics no longer ask the game about addons that are not installed.
+- Phrases typed in full, such as `auction house`, were doubled when read.
+- Rides are labeled on the map, and marks keep their size as the map zooms.
 
 ## 2.0.0 (unreleased, not yet tested in the game)
 

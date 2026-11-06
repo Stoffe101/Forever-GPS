@@ -74,7 +74,8 @@ def validate_art() -> int:
 
 def validate_notices() -> None:
     for name in ("NOTICE.md", "UPSTREAM.lock.json", "docs/UPSTREAM.md", "docs/ARCHITECTURE.md", "docs/INSTALL.md",
-                 "docs/MANUAL_TESTING.md", "docs/KNOWN_LIMITATIONS.md", "CHANGELOG.md", "README.md"):
+                 "docs/MANUAL_TESTING.md", "docs/KNOWN_LIMITATIONS.md", "docs/FIRST_RUN.md", "docs/LIFECYCLE.md", "docs/PERFORMANCE.md",
+                 "CHANGELOG.md", "README.md"):
         check((ROOT / name).exists(), f"missing: {name}")
     for folder in ("EasyFind", "EasyFind_GPS", "EasyFind_Questie"):
         base = ROOT / "addons" / folder

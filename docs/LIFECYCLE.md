@@ -20,7 +20,7 @@ What happens from typing a search to arriving, who owns each piece of state, and
 | Die | `GPS.LeadToCorpse` | A corpse step ahead of the current one | The rest of the route |
 | Reload | `CharDB.route` | Route restored by EasyFind GPS | Settings the route uses, restored at login by `Bridge` |
 | Objective finished | `Journey`, `Trip` | The route stops, or the stop drops out of a trip | Any route not bound to that quest |
-| Cancel | `Bridge.Stop` | Route cleared, binding cleared, TomTom waypoint removed | |
+| Cancel | `Bridge.Stop` | Route cleared, binding cleared, TomTom waypoint removed, the journey kept to resume | |
 
 ## Who owns what
 
@@ -43,6 +43,8 @@ What happens from typing a search to arriving, who owns each piece of state, and
 | A news line went with the HUD when the route ended | "Objective done" flashed and vanished | *Fixed.* The toast is its own frame |
 | A slider's thumb was left to the client | A setting with nothing to grab | *Fixed.* Sliders are drawn in full here |
 | `Jumps.ShopTip` left the grid at any drop height | Off-route detection stopped after nearly every start | *Fixed in 1.0.0*, a declared patch |
+| Reports asked the game about addons that may not exist | One folder removed them, and the client need not answer | *Fixed.* The test client now raises, as the real one may |
+| Reopening the window showed the old search | The journey under way was a click away | *Fixed.* Starting clears it |
 
 ## Client compatibility
 

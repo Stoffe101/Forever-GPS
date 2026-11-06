@@ -415,9 +415,14 @@ local function Build(parent)
         bind = Bind, height = Height,
     })
     f.list = list
-    FG.On("saved:changed", function()
+    local function HomeChanged()
         if f:IsVisible() and strtrim(f.box:GetText()) == "" then Run() end
-    end)
+    end
+    -- A search has done its job once the journey starts: the window next opens on that.
+    FG.On("route:committed", function() f.box:SetText("") end)
+    FG.On("saved:changed", HomeChanged)
+    FG.On("targets:warm", HomeChanged)
+    FG.On("route:cleared", HomeChanged)
     return f
 end
 

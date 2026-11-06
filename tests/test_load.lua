@@ -107,6 +107,33 @@ function tests.vendoredTextures_exist()
     T.eq(#list, 0, "named but not shipped: " .. table.concat(list, "; "))
 end
 
+function tests.aLogin_saysNothingAboutWhatIsGone()
+    local c = Stack.new({})
+    c:Advance(12)
+    local said = table.concat(c.printed, "\n")
+    T.lacks(said:lower(), "easyfind", "no talk of the old addons: " .. said)
+    T.lacks(said:lower(), "disabled", "or of parts switched off")
+    T.eq(#c.errors, 0, tostring(c.errors[1]))
+end
+
+function tests.noPartOfTheFolder_asksAfterAnAddonThatIsGone()
+    -- The client's answer for a missing addon is not to be relied on. A vendored file that
+    -- asks at load would stop there in the real game.
+    local c = Stack.new({})
+    c:Advance(2)
+    T.eq(#c.errors, 0, tostring(c.errors[1]))
+    local report = c.FG.Diagnostics.Report()
+    T.has(report, "Built on: EasyFind 5.2.0", "the parts, from the build")
+    T.has(report, "Memory:", "and the one addon's memory")
+end
+
+function tests.nothingListensForUpdatesThatAreNotOurs()
+    local _, files = Client.TocLines("ForeverGPS")
+    local joined = table.concat(files, " ")
+    T.lacks(joined, "VersionCheck", "EasyFind's update notices stay out")
+    T.lacks(joined, "EasyFind_GPS/Guard.lua", "and its version guard")
+end
+
 function tests.oldFoldersLeftBehind_areCaught()
     local c = Client.new({})
     c.addons.EasyFind = true

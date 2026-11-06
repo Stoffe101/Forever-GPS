@@ -13,6 +13,7 @@ Standard library only.
 """
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -28,6 +29,8 @@ OURS = ("EasyFind", "EasyFind_Calc", "EasyFind_Clipboard", "EasyFind_GPS", "Easy
 
 
 def game_running() -> bool:
+    if os.environ.get("FGPS_SKIP_GAME_CHECK"):      # tests, on a pretend install
+        return False
     try:
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Wow.exe"], capture_output=True, text=True, check=False).stdout
     except FileNotFoundError:

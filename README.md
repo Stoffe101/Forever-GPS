@@ -28,7 +28,7 @@ See [docs/INSTALL.md](docs/INSTALL.md). In short:
 python tools/package.py
 ```
 
-Then unzip `dist/ForeverGPS-2.0.0-forever.zip` into `_forever_/Interface/AddOns`. In game, `/fgps` opens it. The five-minute [first-run check](docs/FIRST_RUN.md) comes next.
+The zip holds one folder, `ForeverGPS`. Unzip `dist/ForeverGPS-2.1.0-forever.zip` into `_forever_/Interface/AddOns`. Coming from 2.0, the old folders must go first: [INSTALL.md](docs/INSTALL.md) has a script for it. In game, `/fgps` opens it. The five-minute [first-run check](docs/FIRST_RUN.md) comes next.
 
 ## Using it
 
@@ -36,6 +36,8 @@ Then unzip `dist/ForeverGPS-2.0.0-forever.zip` into `_forever_/Interface/AddOns`
 | --- | --- |
 | `/fgps` | Open or close |
 | `/fgps go [place]` | Quick navigation: type, Enter, go |
+| `/fgps target` | Directions to your target |
+| `/fgps resume` | Back to the journey you stopped |
 | `/fgps quests` | From Your Quests |
 | `/fgps trip` | The stops of a trip |
 | `/fgps way [zone] <x> <y>` | Route to coordinates |
@@ -56,6 +58,7 @@ addons/ForeverGPS/         The product: search, quests, planner, journey, HUD
 addons/EasyFind/           Vendored, with one declared patch
 addons/EasyFind_GPS/       Vendored, with three declared patches
 addons/EasyFind_Questie/   Vendored, with two declared patches
+build/assembled/           What ships: one folder, put together by tools/assemble.py
 tests/                     Forever-GPS's tests and the fake client
 tools/                     Packaging, validation, pin verification, art, previews, baselines
 docs/                      Install, architecture, lifecycle, design, performance, testing

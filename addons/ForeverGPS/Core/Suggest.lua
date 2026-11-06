@@ -6,7 +6,7 @@ local FG = ForeverGPS
 local Suggest = {}
 FG.Suggest = Suggest
 
-local Bridge, Quests, Targets, Trip = FG.Bridge, FG.Quests, FG.QuestTargets, FG.Trip
+local Bridge, Quests, Trip = FG.Bridge, FG.Quests, FG.Trip
 local L = FG.L
 
 local FLIGHT_NEAR_YARDS = 2500   -- a flight path this close is worth a detour

@@ -630,6 +630,22 @@ function tests.theHome_leadsWithWhatIsHappening()
     T.eq(#c.errors, 0, tostring(c.errors[1]))
 end
 
+function tests.startingAJourney_clearsTheSearchThatFoundIt()
+    local c = Start(SCREENS[3])
+    local FG = c.FG
+    FG.Window.Show("search")
+    FG.SearchView.Query("auberdine")
+    c:Advance(0.5)
+    FG.SearchView.Open(FG.SearchView._Results()[1])
+    Ready(c)
+    FG.RoutePanel.Go()
+    c:Advance(0.5)
+    T.no(FG.Window.IsShown(), "the window got out of the way")
+    FG.Window.Show("search")
+    c:Advance(0.5)
+    T.ok(FG.SearchView.Get().list.items[2].result.active, "and opens on the journey, not the old list")
+end
+
 function tests.highContrast_isAFullTheme()
     local c = Start(SCREENS[3])
     local T2 = c.FG.Theme
