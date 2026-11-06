@@ -18,7 +18,7 @@ Nothing has been run in the WoW client. All testing is against a fake client run
 - **Flight knowledge** comes from flight masters' own maps, so a fresh install knows no flights until you open one on each character. That is upstream's rule for Forever, because the client's map listing marks every point discovered.
 - **Questie's world search needs Questie**, and knows only what its database knows. Nothing is copied into this repository.
 - **A trip's order is good, not best**: nearest-first with limited refinement. Its legs are straight-line estimates until the trip is planned.
-- **A trip holds eight stops.**
+- **A trip holds eight stops**, and a list not yet started is lost on a reload. A trip under way survives one, with the route.
 - **Wrong-ride detection is by where you end up.** Boarding the wrong boat is noticed once you are somewhere neither end of the planned crossing, usually on landing. A ride between the same two continents as the planned one is not told apart until then.
 
 ## Safety
@@ -38,6 +38,7 @@ The risk label knows creatures, guards, enemy towns (by flight master), enemy tr
 
 - English only. Other clients show English interface text, with route steps still localized by EasyFind GPS.
 - CJK clients fall back to the game's font.
+- On the default window the Saved chip wraps to a second row of its own. Cosmetic.
 - Removing Forever-GPS leaves EasyFind's bar as first run set it. Use Settings, Integrations, Restore EasyFind's settings first, or change it in EasyFind's options.
 - The world map preview was tested against a stand-in map. Its look over real map art, and at every zoom, is for the game to confirm.
 - The minimap button sits on a round minimap. A square or skinned minimap may need it hidden; the addon compartment and `/fgps` do the same job.
