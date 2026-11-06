@@ -1,0 +1,3 @@
+# Addon sources carry binary blobs inside Lua strings, and upstream tests match
+# exact LF source text. Git must never touch line endings in this repository.
+* -text
