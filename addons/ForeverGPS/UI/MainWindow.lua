@@ -18,7 +18,7 @@ local PAD = 12
 local HEADER_H = 46
 
 local f
-local view = "search"            -- search, quests or settings
+local view = "search"            -- search, quests, trip or settings
 local showRoute = false          -- narrow layout: the journey has the screen
 local compact = false
 
@@ -71,6 +71,7 @@ local function Layout()
     right:SetShown(routeOn)
     f.searchPage:SetShown(view == "search" and listOn)
     f.questsPage:SetShown(view == "quests" and listOn)
+    f.tripPage:SetShown(view == "trip" and listOn)
 
     left:ClearAllPoints()
     left:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -HEADER_H)
@@ -94,15 +95,19 @@ local function Layout()
     end
     f.tabs.search:SetSelected(view == "search")
     f.tabs.quests:SetSelected(view == "quests")
+    f.tabs.trip:SetSelected(view == "trip")
+    Window.UpdateStatus()
 
     if view == "settings" then FG.SettingsView.Layout() end
     if f.searchPage:IsShown() then FG.SearchView.Layout() end
+    if f.questsPage:IsShown() then FG.QuestsView.Layout() end
 end
 
 local function ShowContent()
     Layout()
     if f.searchPage:IsVisible() then FG.SearchView.Show() end
     if f.questsPage:IsVisible() then FG.QuestsView.Show() end
+    if f.tripPage:IsVisible() then FG.TripView.Show() end
     if f.right:IsVisible() then FG.RoutePanel.Render() end
 end
 
@@ -148,6 +153,8 @@ local function Build()
     f.tabs.search = Kit.Chip(f.header, L["TAB_SEARCH"], function() Window.Show("search") end)
     f.tabs.quests = Kit.Chip(f.header, L["QUESTS_TITLE"], function() Window.Show("quests") end)
     f.tabs.quests:SetPoint("LEFT", f.tabs.search, "RIGHT", 6, 0)
+    f.tabs.trip = Kit.Chip(f.header, L["TRIP_TITLE"], function() Window.Show("trip") end)
+    f.tabs.trip:SetPoint("LEFT", f.tabs.quests, "RIGHT", 6, 0)
 
     f.close = Kit.IconButton(f.header, "close", 12, nil, function() Window.Hide() end)
     f.close:SetPoint("RIGHT", f.header, "RIGHT", -8, 0)
@@ -155,6 +162,9 @@ local function Build()
         Window.Show(view == "settings" and "search" or "settings")
     end)
     f.gear:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
+    f.status = Kit.Text(f.header, "small", "route")
+    f.status:SetPoint("RIGHT", f.gear, "LEFT", -8, 0)
+    f.status:SetJustifyH("RIGHT")
 
     f.left = CreateFrame("Frame", nil, f)
     f.right = CreateFrame("Frame", nil, f)
@@ -162,6 +172,8 @@ local function Build()
     f.searchPage:SetAllPoints(f.left)
     f.questsPage = FG.QuestsView.Get(f.left)
     f.questsPage:SetAllPoints(f.left)
+    f.tripPage = FG.TripView.Get(f.left)
+    f.tripPage:SetAllPoints(f.left)
     f.route = FG.RoutePanel.Get(f.right)
     f.route:SetAllPoints(f.right)
     f.settingsPage = FG.SettingsView.Get(f)
@@ -244,6 +256,25 @@ function Window.ShowList()
 end
 
 function Window.Frame() return f end
+
+-- A line in the header for the journey under way, where there is room for it.
+function Window.UpdateStatus()
+    if not (f and f:IsShown()) then return end
+    local route = Bridge.ActiveRoute()
+    local count = FG.Trip.Count()
+    f.tabs.trip:SetLabel(count > 0 and L["TRIP_COUNT_FMT"]:format(count) or L["TRIP_TITLE"])
+    local text
+    if route and f:GetWidth() >= 620 then
+        local left = FG.Format.Duration(route.eta or route.total)
+        text = left and L["STATUS_NAVIGATING_FMT"]:format(left) or L["ROUTE_ACTIVE"]
+    end
+    f.status:SetShown(text ~= nil)
+    if text and f.status:GetText() ~= text then f.status:SetText(text) end
+end
+
+FG.On("journey:view", Window.UpdateStatus)
+FG.On("route:cleared", Window.UpdateStatus)
+FG.On("trip:changed", Window.UpdateStatus)
 
 FG.On("places:reset", function()
     if not f then return end

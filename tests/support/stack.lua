@@ -69,7 +69,11 @@ function Stack.new(opts)
     local skip = opts.ui == false and function(file) return file:find("^UI/") end or nil
     c:LoadAddon("ForeverGPS", skip)
     c:Login()
-    for _, fn in ipairs(c.questieReady or {}) do fn() end
+    -- Questie's own database takes a while on a real login; questieLate holds it back.
+    function c:QuestieReady()
+        for _, fn in ipairs(self.questieReady or {}) do fn() end
+    end
+    if not opts.questieLate then c:QuestieReady() end
     c.env.EasyFind._ns.GPSNpcs.Load()
     c.env.EasyFind._ns.GPSNpcs.LoadGoods()
     c.FG = c.env.ForeverGPS

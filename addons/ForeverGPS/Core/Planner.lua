@@ -346,4 +346,66 @@ function Planner.Difference(option, base)
     return (diff > 0 and "+" or "-") .. FG.Format.Duration(math.abs(diff))
 end
 
+-- The way the others are measured against: the first that works.
+function Planner.Base(plan)
+    for _, option in ipairs(plan.options) do
+        if option.steps and not option.noWay then return option end
+    end
+    return nil
+end
+
+local RISK_RANK = { low = 1, moderate = 2, high = 3 }
+
+local function Has(list, value)
+    for i = 1, #list do
+        if list[i] == value then return true end
+    end
+    return false
+end
+
+-- How a way differs from another, as a line: time, transport, walking, hazards.
+-- Only what really differs, so a line this short means the ways are close.
+function Planner.Compare(option, base)
+    if not (base and option ~= base and option.steps and base.steps) then return nil end
+    local parts = { Planner.Difference(option, base) or L["CMP_SAME_TIME"] }
+    local mine, theirs = FG.Kinds.Labels(option.steps), FG.Kinds.Labels(base.steps)
+    for _, label in ipairs(theirs) do
+        if not Has(mine, label) then parts[#parts + 1] = L["CMP_NO_FMT"]:format(label:lower()) end
+    end
+    for _, label in ipairs(mine) do
+        if not Has(theirs, label) then parts[#parts + 1] = L["CMP_ADDS_FMT"]:format(label:lower()) end
+    end
+    local walked = (option.yards or 0) - (base.yards or 0)
+    if math.abs(walked) >= 100 then
+        parts[#parts + 1] = L[walked > 0 and "CMP_WALK_MORE_FMT" or "CMP_WALK_LESS_FMT"]:format(FG.Format.Yards(math.abs(walked)))
+    end
+    local a = option.risk and RISK_RANK[option.risk.level]
+    local b = base.risk and RISK_RANK[base.risk.level]
+    if a and b and a ~= b then parts[#parts + 1] = L[a < b and "CMP_FEWER_HAZARDS" or "CMP_MORE_HAZARDS"] end
+    return table.concat(parts, " \194\183 ")
+end
+
+-- Says which other ways came out the same as this one; nil if none did.
+function Planner.SameNote(plan, option)
+    local names = {}
+    for _, other in ipairs(plan.options) do
+        if other.same == option then names[#names + 1] = L[other.mode.label] end
+    end
+    if #names == 0 then return nil end
+    return L["CMP_SAME_ROUTE_FMT"]:format(table.concat(names, ", "))
+end
+
+local CONFIDENCE = {
+    detailed = { "QUALITY_DETAILED", "QUALITY_DETAILED_TT" },
+    partial = { "QUALITY_PARTIAL", "QUALITY_PARTIAL_TT" },
+    estimate = { "QUALITY_ESTIMATE", "QUALITY_ESTIMATE_TT" },
+}
+
+-- How far a route can be trusted, in words and a sentence of why.
+function Planner.Confidence(option)
+    local entry = CONFIDENCE[option.quality or (option.estimate and "estimate") or ""]
+    if not entry then return nil end
+    return L[entry[1]], L[entry[2]]
+end
+
 FG.OnEvent("TAXIMAP_OPENED", function() FG.After(0.2, Planner.Forget) end)

@@ -148,8 +148,14 @@ local function Build()
     f.toast.back = Kit.Shape(f.toast, 7, "BACKGROUND", 1)
     Theme.Paint(function(c) f.toast.back:SetColor(c.hud) end)
     f.toast.text = Kit.Text(f.toast, "small", "text")
+    f.toast.action = Kit.Button(f.toast, { text = L["QUEST_SHOW_ROUTE"], height = 20, width = "fit", onClick = function()
+        local q = f.toast.questID and FG.Quests.Get(f.toast.questID)
+        if q then FG.QuestsView.GoNext(q) end
+        f.toast:Hide()
+    end })
+    f.toast.action:SetPoint("RIGHT", f.toast, "RIGHT", -4, 0)
     f.toast.text:SetPoint("LEFT", f.toast, "LEFT", 10, 0)
-    f.toast.text:SetPoint("RIGHT", f.toast, "RIGHT", -10, 0)
+    f.toast.text:SetPoint("RIGHT", f.toast.action, "LEFT", -6, 0)
     f.toast:Hide()
 
     -- Dragged only when unlocked; a strip says so.
@@ -242,14 +248,15 @@ function HUD.Render(v)
     f:Show()
 end
 
-function HUD.Toast(text, questID)
-    if not f then
-        FG.Print(text)
-        return
-    end
+-- A line under the HUD; with a quest, a button to the route that comes next.
+function HUD.Toast(text, questID, detail)
+    if not f then Build() end
+    if detail then text = text .. "  " .. detail end
     f.toast.text:SetText(text)
+    f.toast.action:SetShown(questID ~= nil)
+    f.toast.questID = questID
     f.toast:Show()
-    f.toastFor = questID
+    f:Show()
     local shown = text
     FG.After(TOAST_SECONDS, function()
         if f.toast.text:GetText() == shown then f.toast:Hide() end

@@ -190,7 +190,11 @@ function Kit.Button(parent, opts)
     function b:Place()
         self.label:ClearAllPoints()
         local w = self.label:GetStringWidth()
-        if self.glyph then
+        if self.glyph and w == 0 then
+            self.glyph:ClearAllPoints()
+            self.glyph:SetPoint("CENTER", self, "CENTER", 0, 0)
+            self.label:SetPoint("CENTER", self, "CENTER", 0, 0)
+        elseif self.glyph then
             self.glyph:ClearAllPoints()
             self.glyph:SetPoint("CENTER", self, "CENTER", -(w + 6) / 2, 0)
             self.label:SetPoint("LEFT", self.glyph, "RIGHT", 6, 0)

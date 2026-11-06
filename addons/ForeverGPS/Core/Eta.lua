@@ -67,7 +67,7 @@ local function Pump()
         queue[head] = nil
         head = head + 1
         if job.alive() then
-            job.done(Eta.Now(job.dest))
+            job.done(Eta.Now(job.dest, nil, job.from))
         end
         if debugprofilestop() >= stop then return end
     end
@@ -76,11 +76,11 @@ local function Pump()
 end
 
 -- Asks for dest's estimate; done(value) comes in a later frame, while alive()
--- still says the asker cares.
-function Eta.Request(dest, done, alive)
+-- still says the asker cares. from: where the journey starts, the player if nil.
+function Eta.Request(dest, done, alive, from)
     if not runner then runner = CreateFrame("Frame") end
     tail = tail + 1
-    queue[tail] = { dest = dest, done = done, alive = alive or function() return true end }
+    queue[tail] = { dest = dest, done = done, alive = alive or function() return true end, from = from }
     runner:SetScript("OnUpdate", Pump)
 end
 

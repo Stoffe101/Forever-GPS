@@ -105,16 +105,26 @@ FG.OnEvent("QUEST_REMOVED", function(questID)
     if Bridge.ActiveRoute() then Stop() else FG.char.binding = nil end
 end)
 
--- An objective done while heading to it: no reason to keep going.
+-- What this quest needs next, as a line to offer; nil when nothing is left to go
+-- to. Offered only: an unrelated route the player chose is never replaced.
+function Journey.NextFor(q)
+    local target = FG.QuestTargets.FirstOpen(q, FG.QuestTargets.For(q))
+    if not (target and target.status == "ok") then return nil end
+    return target
+end
+
+-- An objective done while heading to it: no reason to keep going, and a good
+-- moment to say what comes next.
 FG.On("quests:changed", function()
     local binding = Journey.Binding()
     if not (binding and binding.kind == "objective" and Bridge.ActiveRoute()) then return end
     local q = Quests.Get(binding.questID)
     local objective = q and q.objectives[binding.index]
-    if objective and objective.finished then
-        FG.Emit("toast", L["QUEST_OBJECTIVE_FINISHED"]:format(objective.text), binding.questID)
-        Stop()
-    end
+    if not (objective and objective.finished) then return end
+    Stop()
+    local following = Journey.NextFor(q)
+    FG.Emit("toast", L["QUEST_OBJECTIVE_FINISHED"]:format(objective.text), following and q.questID or nil,
+        following and L["QUEST_NEXT_FMT"]:format(following.text or "?") or nil)
 end)
 
 FG.On("route:cleared", function()

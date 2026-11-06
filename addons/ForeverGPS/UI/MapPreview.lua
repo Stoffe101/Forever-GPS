@@ -121,12 +121,10 @@ MapPreview._MapForLeg = MapForLeg
 local function MapForJourney(option)
     local here = option.from
     local points = {}
-    for i, step in ipairs(option.steps) do
+    for i = 1, #option.steps do
         local a, b = Ends(option, i)
         if here and a and World(a) == here.ci then points[#points + 1] = a end
         if here and b and World(b) == here.ci then points[#points + 1] = b end
-        points[#points + 1] = nil
-        local _ = step
     end
     local first = option.steps[1]
     return SmallestMap(first.mapID or (here and here.m), points) or (here and here.m) or first.mapID
@@ -228,7 +226,7 @@ end
 
 -- The marks a leg needs: where a ride is boarded, where it lands, and for a leg
 -- whose far end is on another continent, what happens next.
-local function LegMarks(option, i, p, n, focus)
+local function LegMarks(option, i, p, n)
     local step = option.steps[i]
     if step.approach or step.kind == "travel" or step.kind == "seam" then return n end
     local info = Kinds.Info(step)
@@ -247,7 +245,6 @@ local function LegMarks(option, i, p, n, focus)
         local landing = L["MAP_LANDS_FMT"]:format(Kinds.Label(step))
         PlaceMark(n, ax, ay, MARK * 0.8, { icon = info.icon, line = color, title = landing, body = step.text, onClick = onClick })
     end
-    local _ = focus
     return n
 end
 
@@ -326,7 +323,7 @@ local function Draw()
     PenUp()
     lines:Finish()
     if p then
-        for i = 1, #option.steps do n = LegMarks(option, i, p, n, focus) end
+        for i = 1, #option.steps do n = LegMarks(option, i, p, n) end
         n = AreaMarks(shown.target, p, n)
         local start = option.from
         local sx, sy = OnMapPoint(p, start)
@@ -392,6 +389,10 @@ local function BuildBanner()
     banner.close = Kit.IconButton(banner, "close", 10, L["MAP_CLOSE_PREVIEW"], function() FG.Planner.Clear() end)
     banner.close:SetPoint("RIGHT", banner, "RIGHT", -6, 0)
     banner.go:SetPoint("RIGHT", banner.close, "LEFT", -4, 0)
+    banner.you = Kit.IconButton(banner, "locate", 14, L["MAP_RETURN"], function() MapPreview.ToPlayer() end)
+    banner.you:SetPoint("RIGHT", banner.go, "LEFT", -4, 0)
+    banner.fit = Kit.IconButton(banner, "fit", 14, L["MAP_FIT"], function() MapPreview.Fit() end)
+    banner.fit:SetPoint("RIGHT", banner.you, "LEFT", 0, 0)
     banner:Hide()
 end
 
@@ -401,7 +402,7 @@ local function ShowBanner()
     if not shown then return banner:Hide() end
     local option = shown.option
     banner.title:SetText(L["MAP_PREVIEW_FMT"]:format(shown.target.name or "?", Format.Duration(option.total) or "?"))
-    banner:SetWidth(mmin(mmax(320, banner.title:GetStringWidth() + banner.go:GetWidth() + 72), 640))
+    banner:SetWidth(mmin(mmax(380, banner.title:GetStringWidth() + banner.go:GetWidth() + 128), 680))
     banner:Show()
 end
 
@@ -452,6 +453,36 @@ function MapPreview.Focus(index)
     shown.focus = shown.focus ~= index and index or nil
     MapPreview.Open(shown.focus)
     FG.Emit("preview:focus", shown.focus)
+end
+
+-- The whole journey again, with no step picked out.
+function MapPreview.Fit()
+    if not shown then return end
+    shown.focus = nil
+    MapPreview.Open()
+    FG.Emit("preview:focus", nil)
+end
+
+-- Back to where the player stands; the preview stays.
+function MapPreview.ToPlayer()
+    local map = Map()
+    local mapID = C_Map.GetBestMapForUnit("player")
+    if map and mapID then pcall(map.SetMapID, map, mapID) end
+end
+
+-- The route under way, whose line EasyFind GPS draws itself.
+function MapPreview.OpenActive()
+    local map = Map()
+    local route = Bridge.ActiveRoute()
+    if not (map and route) then return false end
+    if not map:IsShown() then
+        if InCombatLockdown() then return false end
+        ToggleWorldMap()
+    end
+    local step = route.steps[route.active or 1]
+    local mapID = step and step.mapID or C_Map.GetBestMapForUnit("player")
+    if mapID then pcall(map.SetMapID, map, mapID) end
+    return true
 end
 
 function MapPreview.Focused() return shown and shown.focus or nil end

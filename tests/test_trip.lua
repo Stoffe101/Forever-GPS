@@ -210,6 +210,38 @@ function tests.finishingAnObjective_offersWhatComesNext()
     T.no(c.FG.Bridge.Route(), "nothing started by itself")
 end
 
+function tests.aSearchResult_canBecomeAStop()
+    local c = Start({ ui = false })
+    local Trip = c.FG.Trip
+    local stop = Trip.FromTarget({ data = { name = "Westfall", mapID = 1436, x = 0.5, y = 0.5 }, name = "Westfall", subtitle = "Zone" })
+    T.ok(stop, "a stop")
+    T.eq(stop.mapID, 1436)
+    T.ok(Trip.Add(stop))
+    T.ok(Trip.Has(stop), "on the trip")
+end
+
+function tests.aTrip_onScreen()
+    local c = Start({ screen = { 1920, 1080, 1 } })
+    local FG = c.FG
+    FG.Window.Show("trip")
+    c:Advance(0.2)
+    local view = FG.TripView.Get()
+    T.no(view.plan:IsEnabled(), "nothing to plan yet")
+    FG.Trip.Add(Stop("Close by", 1429, 0.44, 0.68))
+    FG.Trip.Add(Stop("Westfall", 1436, 0.56, 0.47))
+    c:Advance(0.2)
+    T.ok(view.plan:IsEnabled(), "two stops to plan")
+    T.ok(view.order:IsEnabled(), "and an order to find")
+    local rows = 0
+    for _ in ipairs(view.list.shown) do rows = rows + 1 end
+    T.eq(rows, 2, "a row for each stop")
+    view.plan:Click()
+    T.ok(Stack.Until(c, function()
+        local p = FG.Planner.Current()
+        return p and p.status == "ready"
+    end, 40), "planned from the button")
+end
+
 function tests.anUnrelatedRoute_isNeverReplacedByASuggestion()
     local c = Start()
     c.FG.Planner.Inspect({ data = { name = "Westfall", mapID = 1436, x = 0.5, y = 0.5 }, name = "Westfall" })

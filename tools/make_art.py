@@ -242,6 +242,35 @@ def chevron_right(c: Canvas) -> None:
     c.line([(24, 14), (42, 32), (24, 50)], 6)
 
 
+def chevron_up(c: Canvas) -> None:
+    c.line([(14, 40), (32, 22), (50, 40)], 6)
+
+
+def plus(c: Canvas) -> None:
+    c.line([(32, 12), (32, 52)], 7)
+    c.line([(12, 32), (52, 32)], 7)
+
+
+def world_map(c: Canvas) -> None:
+    c.poly([(8, 16), (24, 10), (40, 16), (56, 10), (56, 48), (40, 54), (24, 48), (8, 54)])
+    c.line([(24, 10), (24, 48)], 3, False)
+    c.line([(40, 16), (40, 54)], 3, False)
+
+
+def locate(c: Canvas) -> None:
+    c.ring(32, 32, 18, 5)
+    c.disc(32, 32, 6)
+    for a, b in (((32, 4), (32, 14)), ((32, 50), (32, 60)), ((4, 32), (14, 32)), ((50, 32), (60, 32))):
+        c.line([a, b], 5)
+
+
+def fit(c: Canvas) -> None:
+    c.line([(10, 22), (10, 10), (22, 10)], 6)
+    c.line([(42, 10), (54, 10), (54, 22)], 6)
+    c.line([(54, 42), (54, 54), (42, 54)], 6)
+    c.line([(22, 54), (10, 54), (10, 42)], 6)
+
+
 def back(c: Canvas) -> None:
     c.line([(38, 14), (20, 32), (38, 50)], 6)
 
@@ -337,7 +366,8 @@ GLYPHS = {
     "chevron-down": chevron_down, "chevron-right": chevron_right, "back": back, "check": check,
     "warning": warning, "shield": shield, "clock": clock, "nav-arrow": nav_arrow, "inn": inn, "bank": bank,
     "auction": auction, "mail": mail, "repair": repair, "trainer": trainer, "vendor": vendor, "logo": logo,
-    "ring": ring, "dot": dot,
+    "ring": ring, "dot": dot, "chevron-up": chevron_up, "plus": plus, "map": world_map, "locate": locate,
+    "fit": fit,
 }
 
 

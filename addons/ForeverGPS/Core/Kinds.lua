@@ -51,8 +51,8 @@ function Kinds.Segments(steps)
     return out
 end
 
--- The transports a route takes, for one line: "Boat, Flight".
-function Kinds.Summary(steps)
+-- The transports a route takes, in order, each once.
+function Kinds.Labels(steps)
     local seen, out = {}, {}
     for i = 1, steps and #steps or 0 do
         local step = steps[i]
@@ -64,6 +64,12 @@ function Kinds.Summary(steps)
             end
         end
     end
+    return out
+end
+
+-- The transports a route takes, for one line: "Boat, Flight".
+function Kinds.Summary(steps)
+    local out = Kinds.Labels(steps)
     if #out == 0 then return L["KIND_WALK"] end
     return table.concat(out, ", ")
 end

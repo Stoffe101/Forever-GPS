@@ -1,28 +1,41 @@
--- The journey panel: what the planner found, the ways to choose from, each step
--- in order, and the button that starts it. With nothing being inspected it shows
--- the route under way; with neither, a short invitation.
+-- The journey panel: what the planner found, the ways to choose from and how they
+-- differ, each step in order, and the buttons that show it on the map and start it.
+-- With nothing being inspected it shows the route under way; with neither, a short
+-- invitation.
 local _, FG = ...
 local Panel = {}
 FG.RoutePanel = Panel
 
 local Kit, Theme, Format, Kinds, List = FG.Kit, FG.Theme, FG.Format, FG.Kinds, FG.List
-local Bridge, Planner, Risk, Saved = FG.Bridge, FG.Planner, FG.Risk, FG.Saved
+local Bridge, Planner, Risk, Saved, Trip = FG.Bridge, FG.Planner, FG.Risk, FG.Saved, FG.Trip
 local L = FG.L
 
 local PAD = 14
 local SHORT_HEIGHT = 400     -- below this, the steps come before the extras
+local MENU_ROWS = 8          -- locations listed; the map shows them all
+local FOOT_H = 34
 
 local AVOIDS = { { "taxi", "AVOID_TAXI" }, { "boat", "AVOID_BOAT" }, { "zeppelin", "AVOID_ZEPPELIN" },
                  { "portal", "AVOID_PORTAL" }, { "teleport", "AVOID_TELEPORT" } }
 
 local RISK_COLOR = { low = "good", moderate = "warn", high = "danger", unknown = "textFaint" }
+local QUALITY_COLOR = { detailed = "good", partial = "warn", estimate = "warn" }
 
--- The steps a panel lists, whichever route they belong to.
+-- The steps a panel lists, whichever route they belong to. Stops still ahead are
+-- counted, since that is how a trip names the one to skip.
 local function StepItems(steps, active, doneBefore)
-    local items = {}
-    for i = 1, #steps do
+    local items, ahead = {}, 0
+    local focus = FG.MapPreview.Focused()
+    local count = #steps
+    for i = 1, count do
         local step = steps[i]
-        items[i] = { kind = "step", step = step, number = i, active = active == i, done = doneBefore and i < doneBefore }
+        local item = { kind = "step", step = step, number = i, active = active == i, done = doneBefore and i < doneBefore,
+                       focused = focus == i, first = i == 1, last = i == count }
+        if active and step.tripStop and i >= active then
+            ahead = ahead + 1
+            item.stopAhead = ahead
+        end
+        items[i] = item
     end
     return items
 end
@@ -48,12 +61,27 @@ local function StepText(item)
     return item.active and Bridge.StepText(item.step, true) or (item.step.reachText and item.step.approach and item.step.reachText) or item.step.text or ""
 end
 
+-- The line that runs through the steps, joining each to the next.
+local function Rail(row)
+    local tex = row:CreateTexture(nil, "BORDER")
+    tex:SetWidth(2)
+    Theme.Paint(function(c) tex:SetColorTexture(c.line[1], c.line[2], c.line[3], 1) end)
+    return tex
+end
+
 local function MakeStep(parent)
-    local row = CreateFrame("Frame", nil, parent)
+    local row = CreateFrame("Button", nil, parent)
+    row:RegisterForClicks("LeftButtonUp")
     row.back = Kit.Shape(row, 6, "BACKGROUND", 1)
     row.back:SetShown(false)
     row.icon = Kit.Icon(row, 16, "glyph")
     row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", 8, -8)
+    row.railIn = Rail(row)
+    row.railIn:SetPoint("TOP", row, "TOPLEFT", 16, 0)
+    row.railIn:SetPoint("BOTTOM", row.icon, "TOP", 0, 2)
+    row.railOut = Rail(row)
+    row.railOut:SetPoint("TOP", row.icon, "BOTTOM", 0, -2)
+    row.railOut:SetPoint("BOTTOM", row, "BOTTOMLEFT", 16, 0)
     row.text = Kit.Text(row, "body", "text", 0)
     row.text:SetPoint("TOPLEFT", row, "TOPLEFT", 32, -7)
     row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", -56, -7)
@@ -63,6 +91,18 @@ local function MakeStep(parent)
     row.detail = Kit.Text(row, "small", "textFaint")
     row.detail:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -2)
     row.detail:SetPoint("TOPRIGHT", row.text, "BOTTOMRIGHT", 0, -2)
+    row.skip = Kit.IconButton(row, "close", 8, L["TRIP_SKIP"], function(self)
+        Trip.SkipStop(self:GetParent().item.stopAhead)
+    end)
+    row.skip:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -4, 3)
+    row:SetScript("OnEnter", function(self)
+        if not self.item.active then
+            self.back:SetColor(Theme.C.cardHover)
+            self.back:SetShown(true)
+        end
+    end)
+    row:SetScript("OnLeave", function(self) Panel.PaintStep(self, self.item) end)
+    row:SetScript("OnClick", function(self) Panel.FocusStep(self.item.number) end)
     return row
 end
 
@@ -74,18 +114,26 @@ local function StepDetail(step)
     return nil
 end
 
+function Panel.PaintStep(row, item)
+    local lit = item.active or item.focused
+    row.back:SetShown(lit == true)
+    if lit then row.back:SetColor(item.active and Theme.C.routeSoft or Theme.C.cardHover) end
+end
+
 local function BindStep(row, item)
     local step = item.step
     row.icon:SetIcon(Kinds.Info(step).icon)
-    row.icon:SetColorKey(item.active and "route" or item.done and "textFaint" or "glyph")
+    row.icon:SetColorKey(item.active and "route" or item.done and "textFaint" or step.hostile and "danger" or "glyph")
     row.text:SetText(StepText(item))
     row.text:SetColorKey(item.done and "textFaint" or "text")
     row.time:SetText(step.sec and step.sec > 0 and Format.Duration(step.sec) or "")
     local detail = StepDetail(step)
     row.detail:SetText(detail or "")
     row.detail:SetShown(detail ~= nil)
-    row.back:SetShown(item.active == true)
-    if item.active then row.back:SetColor(Theme.C.routeSoft) end
+    row.railIn:SetShown(not item.first)
+    row.railOut:SetShown(not item.last)
+    row.skip:SetShown(item.stopAhead ~= nil)
+    Panel.PaintStep(row, item)
 end
 
 local function StepHeight(item, width)
@@ -155,19 +203,30 @@ local function Build(parent)
         lines[#lines + 1] = L["RISK_DISCLAIMER"]
         return table.concat(lines, "\n")
     end)
+    f.quality = Kit.Text(f, "small", "good")
+    f.quality:SetJustifyH("RIGHT")
+    f.qualityHit = CreateFrame("Frame", nil, f)
+    f.qualityHit:EnableMouse(true)
+    Kit.Tooltip(f.qualityHit, function()
+        local plan = Planner.Current()
+        return plan and plan.selected and Planner.Confidence(plan.selected) or nil
+    end, function()
+        local plan = Planner.Current()
+        return plan and plan.selected and select(2, Planner.Confidence(plan.selected)) or nil
+    end)
 
-    -- The ways to choose from.
+    -- The ways to choose from, and how the chosen one differs.
     f.modes = {}
     for i, mode in ipairs(Planner.MODES) do
         local chip = Kit.Chip(f, L[mode.label], function(self)
             if self.option then Planner.Select(self.option) end
         end)
         chip.mode = mode
-        Kit.Tooltip(chip, L[mode.label], function()
-            return chip.same and L["ROUTE_SAME_AS_FASTEST"] or L[mode.tip]
-        end)
+        Kit.Tooltip(chip, L[mode.label], L[mode.tip])
         f.modes[i] = chip
     end
+    f.compare = Kit.Text(f, "small", "textDim", 2)
+    f.note = Kit.Text(f, "small", "warn", 2)
 
     -- Which of several locations.
     f.place = Kit.Button(f, { text = "", height = 24, icon = "pin", onClick = function(self) Panel.PickArea(self) end })
@@ -193,12 +252,18 @@ local function Build(parent)
         f.avoids[i] = chip
     end
 
-    f.go = Kit.Button(f, { text = L["ROUTE_START"], variant = "primary", height = 34, icon = "nav-arrow", onClick = function()
+    f.mapButton = Kit.Button(f, { icon = "map", height = FOOT_H, width = FOOT_H, onClick = function() Panel.ShowOnMap() end })
+    Kit.Tooltip(f.mapButton, L["ROUTE_SHOW_MAP"], L["ROUTE_SHOW_MAP_TT"])
+    f.tripButton = Kit.Button(f, { icon = "plus", height = FOOT_H, width = FOOT_H, onClick = function() Panel.AddToTrip() end })
+    Kit.Tooltip(f.tripButton, L["TRIP_ADD"], L["TRIP_ADD_TT"])
+    f.go = Kit.Button(f, { text = L["ROUTE_START"], variant = "primary", height = FOOT_H, icon = "nav-arrow", onClick = function()
         Panel.Go()
     end })
     FG.On("plan:changed", Panel.Render)
     FG.On("journey:step", Panel.Render)
     FG.On("route:cleared", Panel.Render)
+    FG.On("preview:focus", Panel.Render)
+    FG.On("trip:changed", Panel.Render)
     return f
 end
 
@@ -281,32 +346,50 @@ local function SetHeader(title, subtitle, favorite)
     end
 end
 
-local CONTENT = { "time", "via", "riskIcon", "risk", "riskHit", "strip", "go", "avoidLabel" }
+local CONTENT = { "time", "via", "riskIcon", "risk", "riskHit", "quality", "qualityHit", "strip", "go", "mapButton", "avoidLabel" }
 
 local function ShowContent(on)
     for _, key in ipairs(CONTENT) do f[key]:SetShown(on) end
     stepList:SetShown(on)
     for i = 1, #f.modes do f.modes[i]:SetShown(on) end
     for i = 1, #f.avoids do f.avoids[i]:SetShown(on) end
-    if not on then f.place:Hide() end
+    if not on then
+        f.place:Hide()
+        f.compare:Hide()
+        f.note:Hide()
+        f.tripButton:Hide()
+    end
 end
 
--- Places everything under the header, top down, with the steps taking the rest.
-local function Stack(steps, option, showModes, showAvoid)
-    local width = f:GetWidth() - PAD * 2
-    local short = f:GetHeight() < SHORT_HEIGHT
-    showAvoid = showAvoid and not short
-    local y = -(f.title:GetStringHeight() + PAD + (f.subtitle:IsShown() and 16 or 0) + 10)
-    f.time:ClearAllPoints()
-    f.time:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, y)
-    f.via:ClearAllPoints()
-    f.via:SetPoint("BOTTOMLEFT", f.time, "BOTTOMRIGHT", 8, 3)
-    f.via:SetWidth(math.max(1, width - f.time:GetStringWidth() - 8))
-    y = y - 30
+-- A wrapped line in the column, at y; returns the y under it.
+local function PlaceLine(fs, text, y, width)
+    fs:SetShown(text ~= nil)
+    if not text then return y end
+    fs:ClearAllPoints()
+    fs:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, y)
+    fs:SetWidth(width)
+    fs:SetText(text)
+    return y - fs:GetStringHeight() - 6
+end
+
+-- The hazards on the left of a line, how sure the route is on the right.
+local function PlaceSummary(option, y, width)
     local risk = option and option.risk
     f.riskIcon:SetShown(risk ~= nil)
     f.risk:SetShown(risk ~= nil)
     f.riskHit:SetShown(risk ~= nil)
+    local quality = option and Planner.Confidence(option)
+    f.quality:SetShown(quality ~= nil)
+    f.qualityHit:SetShown(quality ~= nil)
+    if quality then
+        f.quality:SetText(quality)
+        f.quality:SetColorKey(QUALITY_COLOR[option.quality] or "textFaint")
+        f.quality:ClearAllPoints()
+        f.quality:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD, y)
+        f.qualityHit:ClearAllPoints()
+        f.qualityHit:SetPoint("TOPLEFT", f.quality, "TOPLEFT", -2, 2)
+        f.qualityHit:SetPoint("BOTTOMRIGHT", f.quality, "BOTTOMRIGHT", 2, -2)
+    end
     if risk then
         local key = RISK_COLOR[risk.level] or "textFaint"
         f.riskIcon:ClearAllPoints()
@@ -314,31 +397,64 @@ local function Stack(steps, option, showModes, showAvoid)
         f.riskIcon:SetColorKey(key)
         f.risk:ClearAllPoints()
         f.risk:SetPoint("LEFT", f.riskIcon, "RIGHT", 5, 0)
-        f.risk:SetWidth(math.max(1, width - 17))
-        f.risk:SetText(Risk.Label(risk.level))
+        f.risk:SetWidth(math.max(1, width - 25 - (quality and f.quality:GetStringWidth() or 0)))
+        f.risk:SetText(Risk.Label(risk.level, risk))
         f.risk:SetColorKey(key)
         f.riskHit:ClearAllPoints()
         f.riskHit:SetPoint("TOPLEFT", f.riskIcon, "TOPLEFT", 0, 2)
         f.riskHit:SetPoint("BOTTOMRIGHT", f.risk, "BOTTOMRIGHT", 0, -2)
-        y = y - 18
     end
-    y = y - 4
-    if showModes then
-        local h = Kit.FlowChips(f.modes, f, width, 6, 0)
+    return (risk or quality) and y - 18 or y
+end
+
+local function PlaceFooter(trip)
+    f.mapButton:ClearAllPoints()
+    f.mapButton:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, PAD)
+    f.tripButton:SetShown(trip)
+    local before = f.mapButton
+    if trip then
+        f.tripButton:ClearAllPoints()
+        f.tripButton:SetPoint("LEFT", f.mapButton, "RIGHT", 6, 0)
+        before = f.tripButton
+    end
+    f.go:ClearAllPoints()
+    f.go:SetPoint("TOPLEFT", before, "TOPRIGHT", 6, 0)
+    f.go:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, PAD)
+end
+
+-- Places everything under the header, top down, with the steps taking the rest.
+local function Stack(steps, option, opts)
+    local width = f:GetWidth() - PAD * 2
+    local short = f:GetHeight() < SHORT_HEIGHT
+    local showAvoid = opts.avoid and not short
+    local y = -(f.title:GetStringHeight() + PAD + (f.subtitle:IsShown() and 16 or 0) + 10)
+    f.time:ClearAllPoints()
+    f.time:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, y)
+    f.via:ClearAllPoints()
+    f.via:SetPoint("BOTTOMLEFT", f.time, "BOTTOMRIGHT", 8, 3)
+    f.via:SetWidth(math.max(1, width - f.time:GetStringWidth() - 8))
+    y = PlaceSummary(option, y - 30, width) - 4
+    if opts.modes then
+        local visible = {}
         for i = 1, #f.modes do
-            local chip = f.modes[i]
+            if f.modes[i]:IsShown() then visible[#visible + 1] = f.modes[i] end
+        end
+        local h = Kit.FlowChips(visible, f, width, 6, 0)
+        for _, chip in ipairs(visible) do
             local _, rel, _, x, cy = chip:GetPoint(1)
             chip:ClearAllPoints()
             chip:SetPoint("TOPLEFT", rel, "TOPLEFT", x + PAD, cy + y)
         end
-        y = y - h - 8
+        y = y - h - 6
     end
+    y = PlaceLine(f.compare, not short and opts.compare or nil, y, width)
     if f.place:IsShown() then
         f.place:ClearAllPoints()
         f.place:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, y)
         f.place:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD, y)
         y = y - 30
     end
+    y = PlaceLine(f.note, not short and opts.note or nil, y, width)
     f.strip:SetShown(not short)
     if not short then
         f.strip:ClearAllPoints()
@@ -348,11 +464,8 @@ local function Stack(steps, option, showModes, showAvoid)
         y = y - 24
     end
     -- The bottom, up.
-    local bottom = PAD
-    f.go:ClearAllPoints()
-    f.go:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, bottom)
-    f.go:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, bottom)
-    bottom = bottom + 34 + 8
+    PlaceFooter(opts.trip == true)
+    local bottom = PAD + FOOT_H + 8
     f.avoidLabel:SetShown(showAvoid)
     for i = 1, #f.avoids do f.avoids[i]:SetShown(showAvoid) end
     if showAvoid then
@@ -374,27 +487,34 @@ local function Stack(steps, option, showModes, showAvoid)
     stepList:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(PAD - 6), bottom)
 end
 
+-- A way the same as another is no choice to offer: its chip goes, and the line
+-- under the chips says so.
 local function FillModes(plan)
     for _, chip in ipairs(f.modes) do
         local option
         for _, o in ipairs(plan.options) do
             if o.mode == chip.mode then option = o end
         end
-        chip.option = option and option.steps and not option.noWay and not option.same and option or nil
-        chip.same = option ~= nil and option.same == true
-        local label = L[chip.mode.label]
-        if option and option.same then
-            chip.dim = true
-        elseif option and option.steps and not option.noWay then
-            chip.dim = false
-            label = label .. "  " .. Format.Duration(option.total)
-        else
-            chip.dim = true
-        end
-        chip:SetLabel(label)
-        chip:SetShown(option ~= nil)
-        chip:SetSelected(option ~= nil and plan.selected == option)
+        local usable = option and option.steps and not option.noWay and not option.same
+        local waiting = option and not option.builtAt
+        chip.option = usable and option or nil
+        chip.dim = not usable
+        chip:SetLabel(usable and (L[chip.mode.label] .. "  " .. Format.Duration(option.total)) or L[chip.mode.label])
+        chip:SetShown((usable or waiting) and true or false)
+        chip:SetSelected(usable and plan.selected == option or false)
     end
+end
+
+local function Compared(plan, option)
+    local base = Planner.Base(plan)
+    if option ~= base then return Planner.Compare(option, base) end
+    return Planner.SameNote(plan, option)
+end
+
+local function PlanNote(target, option)
+    if option.estimate then return L["ROUTE_ESTIMATE_NOTE"] end
+    if target.predicted then return L["ROUTE_PREDICTED"] end
+    return nil
 end
 
 local function RenderPlan(plan)
@@ -422,7 +542,13 @@ local function RenderPlan(plan)
         local at = target.area
         f.place:SetLabel(("%s  (%s)"):format(at and at.zone or "?", L["LOCATIONS_FMT"]:format(#areas)))
     end
-    Stack(option.steps, option, true, true)
+    local stop = not target.trip and Trip.FromTarget(target) or nil
+    Stack(option.steps, option, { modes = true, avoid = true, compare = Compared(plan, option), note = PlanNote(target, option),
+                                  trip = stop ~= nil })
+    if stop then
+        f.tripButton.glyph:SetIcon(Trip.Has(stop) and "check" or "plus")
+        f.tripButton:SetEnabled(not Trip.Has(stop))
+    end
     stepList:SetItems(StepItems(option.steps), true)
     local active = Bridge.ActiveRoute()
     local same = active and active.dest and plan.dest and active.dest.name == plan.dest.name and active.dest.mapID == plan.dest.mapID
@@ -439,7 +565,7 @@ local function RenderActive(route)
     f.via:SetText(Kinds.Summary(route.steps))
     for i = 1, #f.modes do f.modes[i]:Hide() end
     f.place:Hide()
-    Stack(route.steps, nil, false, false)
+    Stack(route.steps, nil, {})
     local active = route.active or 1
     stepList:SetItems(StepItems(route.steps, active, active), true)
     stepList:Reveal(active)
@@ -473,13 +599,41 @@ function Panel.Go()
     if Planner.Start() and FG.db.autoClose then FG.Window.Hide() end
 end
 
--- The menu of a target's other locations.
+function Panel.ShowOnMap()
+    if Planner.Current() then
+        FG.MapPreview.Open()
+    else
+        FG.MapPreview.OpenActive()
+    end
+end
+
+-- Picks a step out on the map; the map opens if it was closed.
+function Panel.FocusStep(index)
+    if Planner.Current() then FG.MapPreview.Focus(index) end
+end
+
+function Panel.AddToTrip()
+    local plan = Planner.Current()
+    local stop = plan and plan.target and Trip.FromTarget(plan.target)
+    if not stop then return end
+    local _, why = Trip.Add(stop)
+    if why then FG.Print(why) end
+end
+
+-- The menu of a target's other locations, the quickest first; a long list stays
+-- on the map, where the rest can be seen and picked.
 function Panel.PickArea(anchor)
     local plan = Planner.Current()
     local target = plan and plan.target
     if not (target and target.areas) then return end
     local rows = {}
-    for _, area in ipairs(target.areas) do
+    for i, area in ipairs(target.areas) do
+        if i > MENU_ROWS then
+            rows[#rows + 1] = { label = L["ROUTE_MORE_ON_MAP_FMT"]:format(#target.areas - MENU_ROWS), onClick = function()
+                FG.MapPreview.Open()
+            end }
+            break
+        end
         local time = area.sec and L["ETA_SHORT_FMT"]:format(Format.Duration(area.sec)) or nil
         rows[#rows + 1] = {
             label = time and ("%s  %s"):format(area.zone or "?", time) or (area.zone or "?"),

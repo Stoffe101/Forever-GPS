@@ -81,6 +81,7 @@ function Theme.Apply(name)
     local palette = Theme.PALETTES[name] or Theme.PALETTES.obsidian
     for key, value in pairs(palette) do Theme.C[key] = value end
     for i = 1, #painters do FG.Try(painters[i], Theme.C) end
+    FG.Emit("theme:changed", name)
 end
 
 Theme.Apply("obsidian")

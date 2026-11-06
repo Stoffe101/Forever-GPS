@@ -246,4 +246,34 @@ function tests.aRememberedPlan_isForgottenWhenFlightsAreLearned()
     T.ok(c.FG.Planner.Current() ~= first, "planned afresh")
 end
 
+function tests.alternatives_sayHowTheyDiffer()
+    local c = Start()
+    local P = c.FG.Planner
+    local a = { steps = { { kind = "taxi", text = "Fly" } }, total = 600, yards = 100, risk = { level = "low" }, quality = "detailed" }
+    local b = { steps = { { kind = "travel", text = "Walk" } }, total = 900, yards = 900, risk = { level = "high" }, quality = "detailed" }
+    local line = P.Compare(b, a)
+    T.has(line, "+5 min", "the time")
+    T.has(line, "no flight", "what it leaves out")
+    T.has(line, "more on foot", "the walking")
+    T.has(line, "more known hazards", "and the hazards")
+    T.no(P.Compare(a, a), "nothing to say about itself")
+end
+
+function tests.identicalWays_areNotOfferedAsAChoice()
+    local c = Start()
+    local P = c.FG.Planner
+    local base = { steps = {}, mode = { label = "MODE_FASTEST" } }
+    local plan = { options = { base, { steps = {}, same = base, mode = { label = "MODE_ROADS" } } } }
+    T.has(P.SameNote(plan, base), "Roads", "and it says so")
+    T.no(P.SameNote({ options = { base } }, base), "nothing to say alone")
+end
+
+function tests.aRoute_saysHowSureItIs()
+    local c = Start()
+    local P = c.FG.Planner
+    T.eq((P.Confidence({ quality = "detailed" })), "Fully mapped")
+    T.eq((P.Confidence({ quality = "partial" })), "Partially estimated")
+    T.eq((P.Confidence({ estimate = true })), "Estimated")
+end
+
 return tests

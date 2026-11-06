@@ -296,4 +296,79 @@ function tests.finishingTheObjective_endsTheWalkToIt()
     T.has(table.concat(c.printed, "\n"), "Objective done", "and it says so")
 end
 
+local function Browser(opts)
+    opts = opts or {}
+    opts.screen = opts.screen or { 1920, 1080, 1 }
+    opts.ui, opts.questie = true, QUESTIE
+    local c = Start(opts)
+    c.FG.Window.Show("quests")
+    c:Advance(0.5)
+    return c, c.FG.QuestsView
+end
+
+local function ShownTitles(view)
+    local out = {}
+    for _, item in ipairs(view.Get().list.items) do
+        if item.kind == "quest" then out[#out + 1] = item.quest.title end
+    end
+    return out
+end
+
+function tests.theBrowser_filters()
+    local c, view = Browser()
+    T.eq(#ShownTitles(view), 3, "all to begin with")
+    view.SetFilter("ready")
+    T.eq(table.concat(ShownTitles(view), ","), "Done Already")
+    view.SetFilter("missing")
+    T.eq(table.concat(ShownTitles(view), ","), "No Places")
+    view.SetFilter("nearby")
+    T.has(table.concat(ShownTitles(view), ","), "Two Things", "wolves are close")
+    view.SetFilter("other")
+    T.lacks(table.concat(ShownTitles(view), ","), "Two Things", "and not elsewhere")
+    view.SetFilter("all")
+    T.eq(#c.errors, 0)
+end
+
+function tests.theBrowser_groups()
+    local _, view = Browser()
+    T.eq(view.Grouping(), "zone")
+    view.NextGrouping()
+    T.eq(view.Grouping(), "status")
+    local headings = {}
+    for _, item in ipairs(view.Get().list.items) do
+        if item.kind == "zone" then headings[#headings + 1] = item.text end
+    end
+    T.ok(#headings > 0, "under headings")
+    view.NextGrouping()
+    T.eq(view.Grouping(), "distance")
+    view.NextGrouping()
+    T.eq(view.Grouping(), "zone", "and back round")
+end
+
+function tests.progress_doesNotRescanEveryQuest()
+    local c, view = Browser()
+    local calls = 0
+    local For = c.FG.QuestTargets.For
+    c.FG.QuestTargets.For = function(...)
+        calls = calls + 1
+        return For(...)
+    end
+    c.quests[1].objectives[1].numFulfilled = 1
+    c:Fire("QUEST_LOG_UPDATE")
+    c:Advance(1)
+    view.Refresh(true)
+    T.eq(calls, 0, "a counter moving changes no quest's places")
+end
+
+function tests.questie_arrivingLater_isPickedUp()
+    local c = Start({ screen = { 1920, 1080, 1 }, ui = true, questie = QUESTIE, questieLate = true })
+    c.FG.Window.Show("quests")
+    c:Advance(0.5)
+    T.has(c.FG.QuestsView.Get().list.items[1].text or "", "Questie", "without it, it says so")
+    c:QuestieReady()
+    c.FG.Window.Show("quests")
+    c:Advance(0.5)
+    T.lacks(c.FG.QuestsView.Get().list.items[1].text or "", "Questie", "and with it, it stops saying so")
+end
+
 return tests

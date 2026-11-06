@@ -27,6 +27,7 @@ Core/Quests.lua
 Core/QuestTargets.lua
 Core/Search.lua
 Core/Journey.lua
+Core/Trip.lua
 Core/TomTom.lua
 Core/Diagnostics.lua
 UI/Theme.lua
@@ -36,6 +37,7 @@ UI/MapPreview.lua
 UI/RoutePanel.lua
 UI/SearchView.lua
 UI/QuestsView.lua
+UI/TripView.lua
 UI/Settings.lua
 UI/MainWindow.lua
 UI/HUD.lua

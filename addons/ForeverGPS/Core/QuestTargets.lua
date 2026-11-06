@@ -151,6 +151,17 @@ end
 
 -- Spot lists are facts about the game: kept for the session, per quest.
 local spotCache = {}
+local hadQuestie = false
+
+-- Whether Questie came or went since this was last asked: what the quest list
+-- worked out before then no longer holds.
+function Targets.QuestieChanged()
+    local has = Targets.HasQuestie()
+    local changed = has ~= hadQuestie
+    hadQuestie = has
+    if changed then spotCache = {} end
+    return changed
+end
 
 local function SpotsOf(questID)
     local hit = spotCache[questID]
@@ -237,6 +248,36 @@ function Targets.Destination(q, target, area)
         binding = { questID = q.questID, title = q.title, kind = target.kind, index = target.index },
         areas = target.areas, area = area,
     }
+end
+
+-- What the quest browser sorts and filters on: how near the closest thing left to
+-- do is, on a straight line, and whether anything left has no known place. Cheap
+-- enough to ask whenever the list is drawn: it reads areas that already exist.
+-- { yards (nil when elsewhere), here, sameLand, missing }
+function Targets.Facts(q, targets, start, mapID)
+    local facts = { missing = false, here = false, sameLand = false }
+    local function Look(target)
+        if not target or target.done then return end
+        if target.status ~= "ok" then
+            if target.kind == "objective" then facts.missing = true end
+            return
+        end
+        for _, area in ipairs(target.areas) do
+            if area.spot.mapID == mapID then facts.here = true end
+            if start and area.ci == start.ci then
+                facts.sameLand = true
+                local d = ((area.wx - start.wx) ^ 2 + (area.wy - start.wy) ^ 2) ^ 0.5
+                if not facts.yards or d < facts.yards then facts.yards = d end
+            end
+        end
+    end
+    if q.complete then
+        Look(targets.turnIn)
+    else
+        for i = 1, #targets.objectives do Look(targets.objectives[i]) end
+        Look(targets.turnIn)
+    end
+    return facts
 end
 
 -- The first thing to do for a quest: the turn-in when it is done, else the

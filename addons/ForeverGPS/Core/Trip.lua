@@ -36,6 +36,22 @@ function Trip.Add(stop)
     return true
 end
 
+function Trip.Has(stop)
+    for i = 1, #stops do
+        if Same(stops[i], stop) then return true end
+    end
+    return false
+end
+
+-- A stop for a journey being inspected; nil when it has no one place to stand.
+function Trip.FromTarget(target)
+    if not target.data then return nil end
+    local ok, dest = pcall(Bridge.DestinationOf, target.data)
+    if not (ok and dest and dest.mapID and dest.x and dest.y) then return nil end
+    return { name = target.name or dest.name, subtitle = target.subtitle, icon = target.icon,
+             mapID = dest.mapID, x = dest.x, y = dest.y, binding = target.binding }
+end
+
 function Trip.Remove(i)
     table.remove(stops, i)
     Changed()

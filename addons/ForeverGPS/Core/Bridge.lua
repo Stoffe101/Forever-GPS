@@ -321,6 +321,12 @@ function Bridge.BuildTrip(stops, avoid, draw)
     return NS().GPSTrip.Build(stops, nil, avoid, true, draw)
 end
 
+-- A trip's stops not reached yet.
+function Bridge.StopsAhead(route)
+    local g = GPS()
+    return g and g.StopsAhead and g.StopsAhead(route) or nil
+end
+
 -- A route the engine would give, priced with straight-line walks: the same
 -- graph, flights, boats, faction rules and hearth as a real route, without
 -- searching the walking grid, so it costs a millisecond rather than a slice.
