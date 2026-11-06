@@ -205,6 +205,11 @@ function Jumps.ShopTip(route)
     if not (Nav and Nav.DropHeights and Nav.DropHeights(ci) and G and route.total and route.dest) then return nil end
     if (route.stops and #route.stops > 1) or Jumps.Helper() then return nil end
     local _, total = G:BuildRoute(route.dest, nil, route.wayAvoid, true, nil, nil, mhuge)
+    -- Forever-GPS: the trial must not leave walks at "any drop": the route's own
+    -- are kept under its limit, so the follower would lose them (no more off-route
+    -- check) and draw new ones over drops that kill.
+    local avoid = route.wayAvoid or (EasyFind and EasyFind.db and EasyFind.db.gpsAvoid)
+    Nav.SetDropLimit(not (avoid and avoid.jumps) and Jumps.Limit(ci) or nil)
     if not (total and route.total - total >= SHOP_MIN_SAVE) then return nil end
     return { save = route.total - total, name = Jumps.ShopItemName() }
 end

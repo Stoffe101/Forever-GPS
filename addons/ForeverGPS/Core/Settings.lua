@@ -48,6 +48,8 @@ local function FirstRun(db)
         ef.tutorialDone = true
         ef.showForeverWelcome = false
         ef.visible = false
+        ef.spotlightsDone = ef.spotlightsDone or {}
+        ef.spotlightsDone.snippets31 = true
     end
 end
 

@@ -143,7 +143,6 @@ local function ZoneNamed(name)
     end
     return nil
 end
-Search.ZoneNamed = ZoneNamed
 
 local function CoordResult(mapID, x, y)
     local zone = Bridge.MapName(mapID) or "?"
@@ -155,7 +154,9 @@ end
 function Search.CoordsFor(text)
     local name, x, y = ParseCoords(text)
     if not x then return nil end
-    local mapID = name and ZoneNamed(name) or C_Map.GetBestMapForUnit("player")
+    -- A zone typed but not found is not the zone the player happens to stand in.
+    local mapID
+    if name then mapID = ZoneNamed(name) else mapID = C_Map.GetBestMapForUnit("player") end
     if not mapID then return nil end
     local result = CoordResult(mapID, x, y)
     if not Bridge.CanNavigate(result.data) then return nil end

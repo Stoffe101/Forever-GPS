@@ -52,6 +52,7 @@ SKIP_PREFIXES = (".github/",)
 PATCHES = {
     "EasyFind_GPS": {
         "Npcs.lua": "Adds N.SpotsOf and N.ReactionOf: read-only access to a creature's spawns and its reaction.",
+        "Jumps.lua": "Fixes ShopTip leaving the walking grid at an unlimited drop height, which lost the route's walks.",
     },
     "EasyFind_Questie": {
         "Quests.lua": "Exports objective, turn-in and starter spots through public EasyFind actions.",

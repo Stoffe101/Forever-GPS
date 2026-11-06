@@ -13,7 +13,6 @@ local WIDTH, HOME_Y = 330, -96
 local MARGIN = 8
 local ARROW_EVERY = 0.03
 local TOAST_SECONDS = 6
-local PI = math.pi
 
 local f, view
 local since = 0

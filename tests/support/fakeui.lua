@@ -599,6 +599,7 @@ UI.mt.EditBox = makeMt(EditBox)
 UI.mt.ScrollFrame = makeMt(ScrollFrame)
 UI.mt.StatusBar = makeMt(StatusBar)
 UI.mt.Slider = makeMt(Slider)
+UI.classes = { Texture = Texture, FontString = FontString, Frame = Frame, Button = Button, EditBox = EditBox, Slider = Slider }
 
 local KIND = { CheckButton = "Button", DropdownButton = "Button" }
 

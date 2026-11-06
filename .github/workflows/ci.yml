@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  upstream-pins:
+    name: Vendored code matches its pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify every vendored file against UPSTREAM.lock.json
+        run: python3 tools/upstream.py verify
+
+  luacheck:
+    name: Luacheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nebularg/actions-luacheck@v1
+        with:
+          files: 'addons/ForeverGPS'
+          args: '--no-color -q'
+
+  tests:
+    name: Tests (EasyFind, GPS, Questie, Forever-GPS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: '5.4'
+      - name: Run every suite
+        run: python3 tools/run_tests.py
+
+  package:
+    name: Package builds and validates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Validation only. The package is built and discarded here, never uploaded:
+      # this project is for private use and publishes no builds.
+      - name: Build and verify the Forever package
+        run: python3 tools/package.py

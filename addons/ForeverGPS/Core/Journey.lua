@@ -140,18 +140,20 @@ end)
 -- Five times a second while a route exists, and not at all otherwise.
 local THROTTLE = 0.2
 local driver = CreateFrame("Frame")
-local since, lastIndex = 0, nil
+local since, lastKey = 0, nil
 
 local function Publish()
     local view = Journey.View()
     FG.Emit("journey:view", view)
     if not view then
         driver:SetScript("OnUpdate", nil)
-        lastIndex = nil
+        lastKey = nil
         return
     end
-    if view.index ~= lastIndex then
-        lastIndex = view.index
+    -- A new step, or the same one changing hands: boarding, or landing.
+    local key = view.index .. view.state
+    if key ~= lastKey then
+        lastKey = key
         FG.Emit("journey:step", view)
     end
 end

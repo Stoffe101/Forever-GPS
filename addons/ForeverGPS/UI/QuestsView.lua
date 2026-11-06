@@ -43,9 +43,13 @@ local function MakeQuest(parent)
     row.level:SetJustifyH("CENTER")
     row.chevron = Kit.Icon(row, 11, "textFaint")
     row.chevron:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+    row.next = Kit.IconButton(row, "nav-arrow", 13, L["QUEST_NEXT"], function(self)
+        View.GoNext(self:GetParent().item.quest)
+    end)
+    row.next:SetPoint("RIGHT", row, "RIGHT", -28, 0)
     row.name = Kit.Text(row, "heading", "text")
     row.name:SetPoint("TOPLEFT", row, "TOPLEFT", 50, -9)
-    row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -31, -9)
+    row.name:SetPoint("TOPRIGHT", row, "TOPRIGHT", -56, -9)
     row.status = Kit.Text(row, "small", "textDim")
     row.status:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -2)
     row.status:SetPoint("TOPRIGHT", row.name, "BOTTOMRIGHT", 0, -2)
@@ -263,6 +267,26 @@ function View.Go(item)
     if not target.best then return end
     Planner.Inspect(Targets.Destination(q, target, target.best))
     FG.Window.ShowRoute()
+end
+
+-- Directions to whatever this quest needs next: its turn-in once it is done, else
+-- its first open objective with a place. A quest with neither opens instead, which
+-- says why.
+function View.GoNext(q)
+    local target = Targets.FirstOpen(q, Targets.For(q))
+    if not (target and target.status == "ok") then
+        expanded[q.questID] = true
+        return View.Refresh(true)
+    end
+    Targets.Resolve(target, function()
+        if target.best then
+            Planner.Inspect(Targets.Destination(q, target, target.best))
+            FG.Window.ShowRoute()
+        else
+            expanded[q.questID] = true
+            View.Refresh(true)
+        end
+    end)
 end
 
 local function Build(parent)

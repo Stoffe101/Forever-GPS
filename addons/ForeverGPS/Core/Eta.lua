@@ -87,5 +87,6 @@ end
 -- Where the player can learn a new flight path, the known set moved.
 function Eta.Forget() cache, cached = {}, 0 end
 
-FG.OnEvent("TAXIMAP_OPENED", Eta.Forget)
+-- After EasyFind GPS has recorded what the flight master showed.
+FG.OnEvent("TAXIMAP_OPENED", function() FG.After(0.2, Eta.Forget) end)
 FG.OnEvent("HEARTHSTONE_BOUND", Eta.Forget)

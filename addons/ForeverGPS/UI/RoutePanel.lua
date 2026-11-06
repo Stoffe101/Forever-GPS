@@ -163,7 +163,9 @@ local function Build(parent)
             if self.option then Planner.Select(self.option) end
         end)
         chip.mode = mode
-        Kit.Tooltip(chip, L[mode.label], L[mode.tip])
+        Kit.Tooltip(chip, L[mode.label], function()
+            return chip.same and L["ROUTE_SAME_AS_FASTEST"] or L[mode.tip]
+        end)
         f.modes[i] = chip
     end
 
@@ -325,9 +327,9 @@ local function Stack(steps, option, showModes, showAvoid)
         local h = Kit.FlowChips(f.modes, f, width, 6, 0)
         for i = 1, #f.modes do
             local chip = f.modes[i]
-            local point, rel, relPoint, x, cy = chip:GetPoint(1)
+            local _, rel, _, x, cy = chip:GetPoint(1)
             chip:ClearAllPoints()
-            chip:SetPoint(point, rel, relPoint, x + PAD, cy + y)
+            chip:SetPoint("TOPLEFT", rel, "TOPLEFT", x + PAD, cy + y)
         end
         y = y - h - 8
     end
@@ -359,10 +361,9 @@ local function Stack(steps, option, showModes, showAvoid)
         local h = Kit.FlowChips(f.avoids, f, width - labelW, 4, 0)
         for i = 1, #f.avoids do
             local chip = f.avoids[i]
-            local point, rel, relPoint, x, cy = chip:GetPoint(1)
+            local _, rel, _, x, cy = chip:GetPoint(1)
             chip:ClearAllPoints()
             chip:SetPoint("BOTTOMLEFT", rel, "BOTTOMLEFT", x + PAD + labelW, bottom + h - 20 + cy)
-            local _ = point, relPoint
         end
         f.avoidLabel:ClearAllPoints()
         f.avoidLabel:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, bottom + h - 15)
@@ -380,6 +381,7 @@ local function FillModes(plan)
             if o.mode == chip.mode then option = o end
         end
         chip.option = option and option.steps and not option.noWay and not option.same and option or nil
+        chip.same = option ~= nil and option.same == true
         local label = L[chip.mode.label]
         if option and option.same then
             chip.dim = true

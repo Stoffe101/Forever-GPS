@@ -484,12 +484,3 @@ function Kit.Menu(anchor, rows)
     menu:Show()
     return menu
 end
-
--- Keeps a frame inside its parent's screen area, given its current size.
-function Kit.FitInside(frame, margin)
-    local parent = frame:GetParent()
-    local maxW = parent:GetWidth() - (margin or 0) * 2
-    local maxH = parent:GetHeight() - (margin or 0) * 2
-    if frame:GetWidth() > maxW then frame:SetWidth(maxW) end
-    if frame:GetHeight() > maxH then frame:SetHeight(maxH) end
-end

@@ -79,7 +79,8 @@ function Client.new(opts)
     opts = opts or {}
     local self = setmetatable({}, Client)
     local screen = opts.screen or { 1920, 1080, 1 }
-    UI.frames, UI.named, UI.unknown, UI.focus, UI.epoch, UI.conflicts = {}, {}, {}, nil, 0, {}
+    self.frames, self.named = {}, {}
+    UI.frames, UI.named, UI.unknown, UI.focus, UI.epoch, UI.conflicts = self.frames, self.named, {}, nil, 0, {}
     self.UI = UI
     self.root = UI.NewScreen(screen[1], screen[2], screen[3])
     self.now = opts.now or 1000
@@ -243,6 +244,7 @@ function Client:BuildEnv(opts)
         return f
     end
     env.CreateFrame = function(kind, name, parent, template)
+        UI.frames, UI.named = client.frames, client.named
         local f = UI.CreateFrame(kind, name, parent)
         if name then env[name] = f end
         f._template = template
@@ -571,6 +573,7 @@ end
 
 -- Time passes in steps: timers that came due, then each frame's OnUpdate.
 function Client:Advance(seconds, step)
+    UI.frames, UI.named = self.frames, self.named
     step = step or 0.1
     local stop = self.now + seconds
     local guard = 0
@@ -589,7 +592,10 @@ function Client:Advance(seconds, step)
     end
 end
 
-function Client:Fire(event, ...) UI.Fire(event, ...) end
+function Client:Fire(event, ...)
+    UI.frames, UI.named = self.frames, self.named
+    UI.Fire(event, ...)
+end
 
 function Client:SetPlayer(mapID, x, y)
     self.player.mapID, self.player.x, self.player.y = mapID, x, y

@@ -10,7 +10,7 @@ local _, FG = ...
 local Planner = {}
 FG.Planner = Planner
 
-local Bridge, Kinds, Risk = FG.Bridge, FG.Kinds, FG.Risk
+local Bridge, Risk = FG.Bridge, FG.Risk
 local L = FG.L
 
 local MODES = {
@@ -123,7 +123,6 @@ RunNext = function(id, index)
         return
     end
     local dest = current.dest
-    local started = runID
     Bridge.Plan(function()
         local steps, total, advice = Bridge.BuildRoute(dest, option.avoid, "all")
         local risk
@@ -136,7 +135,7 @@ RunNext = function(id, index)
     end)
     -- A plan another took over from reports nothing: go on past it.
     FG.After(PLAN_TIMEOUT, function()
-        if id == started and id == runID and current and current.options[index] == option and not option.builtAt then
+        if id == runID and current and current.options[index] == option and not option.builtAt then
             RunNext(id, index)
         end
     end)
@@ -233,10 +232,4 @@ function Planner.Start()
         Started(option)
     end)
     return true
-end
-
--- What the option's time and way are, for a row.
-function Planner.OptionLine(option)
-    if not option.steps then return nil end
-    return FG.Format.Duration(option.total), Kinds.Summary(option.steps)
 end

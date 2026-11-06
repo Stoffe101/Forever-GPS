@@ -208,7 +208,8 @@ end
 function Window.Show(page)
     if not f then Build() end
     view = page or view
-    showRoute = false
+    -- Reopened mid-journey on a narrow window, the journey is what was wanted.
+    showRoute = page == nil and Bridge.ActiveRoute() ~= nil
     Fit()
     f:Show()
     ShowContent()

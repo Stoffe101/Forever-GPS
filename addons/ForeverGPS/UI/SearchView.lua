@@ -5,7 +5,7 @@ local View = {}
 FG.SearchView = View
 
 local Kit, Theme, Format, List = FG.Kit, FG.Theme, FG.Format, FG.List
-local Bridge, Planner, Saved, Search = FG.Bridge, FG.Planner, FG.Saved, FG.Search
+local Bridge, Saved, Search = FG.Bridge, FG.Saved, FG.Search
 local L = FG.L
 
 local DEBOUNCE = 0.14
@@ -373,6 +373,4 @@ end
 
 function View.Get(parent) return f or Build(parent) end
 
--- Whether a plan or route is what the player came for: used by the tests.
-function View._Results() return results end
-View._Planner = Planner
+function View._Results() return results end    -- tests

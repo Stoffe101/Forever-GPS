@@ -36,7 +36,3 @@ end
 function Format.Coords(x, y)
     return ("%.1f, %.1f"):format(x * 100, y * 100)
 end
-
-function Format.Plural(n, one, many)
-    return (n == 1 and one or many):format(n)
-end
