@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Carry what the separate EasyFind folders saved into the one ForeverGPS folder.
 
-    python tools/migrate_saved.py <_forever_ folder> [--into <ForeverGPS folder>]
+    python tools/migrate_saved.py <_forever_ folder> [--into <ForeverGPS folder>] [--wait]
 
 WoW hands an addon only the saved variables filed under its own name. Forever-GPS's
 favorites, recents, positions and settings are under ForeverGPS and carry straight
@@ -12,13 +12,15 @@ stranded, and each character would need every flight master visited again.
 This reads WTF and never writes to it, so going back to 2.0 stays exact. It writes
 Core/Imported.lua in the installed addon, which applies once at the next login and
 never overwrites anything newer. Run it with the game closed: the game writes saved
-variables when it exits.
+variables when it exits. With --wait it holds until the game has closed, for an install
+done while the game was still open.
 
 Standard library only.
 """
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -35,6 +37,17 @@ end
 # The saved-variables file is plain assignments, so it can be read in place: inside a
 # function that holds EasyFindDB as a local, its assignment lands there.
 ASSIGNMENT = re.compile(r"^EasyFindDB\s*=", re.M)
+
+
+CHECK_SECONDS, SETTLE_SECONDS = 3, 2
+
+
+def game_running() -> bool:
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Wow.exe"], capture_output=True, text=True, check=False).stdout
+    except FileNotFoundError:
+        return False
+    return "Wow.exe" in out
 
 
 def sources(forever: Path) -> list[Path]:
@@ -60,12 +73,18 @@ def render(paths: list[Path], stamp: str) -> str:
 
 
 def main(argv: list[str]) -> int:
-    args = [a for a in argv[1:] if not a.startswith("--")]
+    into_at = argv.index("--into") + 1 if "--into" in argv else None
+    args = [a for i, a in enumerate(argv[1:], 1) if not a.startswith("--") and i != into_at]
     if not args:
         print(__doc__)
         return 2
     forever = Path(args[0])
-    into = Path(argv[argv.index("--into") + 1]) if "--into" in argv else forever / "Interface" / "AddOns" / "ForeverGPS"
+    into = Path(argv[into_at]) if into_at else forever / "Interface" / "AddOns" / "ForeverGPS"
+    if "--wait" in argv:
+        print("Waiting for the game to close.", flush=True)
+        while game_running():
+            time.sleep(CHECK_SECONDS)
+        time.sleep(SETTLE_SECONDS)
     if not (into / "ForeverGPS.toc").is_file():
         print(f"No ForeverGPS addon at {into}")
         return 1

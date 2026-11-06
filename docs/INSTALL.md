@@ -80,6 +80,8 @@ By hand:
 
 Without that step Forever-GPS still works, and each character relearns its flight paths from the first flight master it opens.
 
+Installed while the game was open? Saved data only reaches the disk as it exits, so run `python tools/migrate_saved.py "<...>/_forever_" --wait` to carry it over the moment it closes. Avoid `/reload` until the game has been restarted: the running client still holds the old addon list.
+
 If the old folders are still enabled at login, Forever-GPS offers to turn them off and reload.
 
 ## Checking it loaded
