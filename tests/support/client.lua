@@ -96,6 +96,7 @@ function Client.new(opts)
     self.errors = {}
     self.waypoint = nil
     self.superTrack = { waypoint = false }
+    self.completed = opts.completed or {}
     self.taint = Client.NewTaint(self)
     self.known = opts.knownFlights
     self.env = self:BuildEnv(opts)
@@ -536,7 +537,7 @@ function Client:BuildEnv(opts)
     function QL.IsComplete(id) local q = questEntry(id) return q ~= nil and q.complete == true end
     function QL.IsFailed(id) local q = questEntry(id) return q ~= nil and q.failed == true end
     function QL.GetQuestObjectives(id) local q = questEntry(id) return q and q.objectives or {} end
-    function QL.IsQuestFlaggedCompleted() return false end
+    function QL.IsQuestFlaggedCompleted(id) return client.completed[id] == true end
     function QL.GetQuestsOnMap(m)
         local out = {}
         for _, q in ipairs(client.quests) do

@@ -5,23 +5,74 @@ local Client = require("support.client")
 
 local Stack = {}
 
+-- Questie's own states, by number, as its DoableStates has them.
+local STATES = { AVAILABLE = 0, COMPLETED = 1, QUEST_LOG = 2, BLACKLISTED = 3, EXCEED_REPUTATION = 4, PARENT_ACTIVE = 5, WRONG_RACE = 6,
+    NO_PREQUESTSINGLE = 7, WRONG_CLASS = 8, MISSING_REPUTATION = 9, PROFESSION_SKILL = 10, NO_PREQUESTGROUP = 11, PARENT_INACTIVE = 12,
+    NEXTQUESTINCHAIN_ACTIVE_OR_COMPLETED = 13, EXCLUSIVE_COMPLETED = 14, EXCLUSIVE_IN_QUEST_LOG = 15, LEVEL_TOO_HIGH = 25, LEVEL_TOO_LOW = 26,
+    EVENT_INACTIVE = 22, ENABLING_QUEST_MISSING = 28, PROFESSION_MISSING = 29, SPELL_MISSING = 18 }
+
+-- The rules as QuestieDB.IsDoable and IsDoableVerbose have them. q.stop names a state for
+-- what depends on a character this client does not model: race, class, reputation, skill.
+local function Verdict(c, quests, id)
+    local q = quests[id]
+    local done = c.completed
+    local function InLog(other) return c.env.C_QuestLog.IsOnQuest(other) end
+    if done[id] then return "COMPLETED" end
+    if InLog(id) then return "QUEST_LOG" end
+    if q.stop then return q.stop end
+    if q.exclusiveTo then
+        for _, other in ipairs(q.exclusiveTo) do
+            if done[other] then return "EXCLUSIVE_COMPLETED" end
+            if InLog(other) then return "EXCLUSIVE_IN_QUEST_LOG" end
+        end
+    end
+    if q.requiredMaxLevel and c.player.level > q.requiredMaxLevel then return "LEVEL_TOO_HIGH" end
+    if q.requiredLevel and c.player.level < q.requiredLevel then return "LEVEL_TOO_LOW" end
+    if q.preQuestSingle then
+        local any = false
+        for _, other in ipairs(q.preQuestSingle) do any = any or done[other] end
+        if not any then return "NO_PREQUESTSINGLE" end
+    elseif q.preQuestGroup then
+        for _, entry in ipairs(q.preQuestGroup) do
+            if entry < 0 then
+                if not done[-entry] then return "NO_PREQUESTGROUP" end
+            elseif not done[entry] then
+                local pre = quests[entry]
+                local any = false
+                for _, other in ipairs(pre and pre.exclusiveTo or {}) do any = any or done[other] end
+                if not any then return "NO_PREQUESTGROUP" end
+            end
+        end
+    end
+    if q.parentQuest and not InLog(q.parentQuest) then return "PARENT_INACTIVE" end
+    if q.nextQuestInChain and (done[q.nextQuestInChain] or InLog(q.nextQuestInChain)) then
+        return "NEXTQUESTINCHAIN_ACTIVE_OR_COMPLETED"
+    end
+    if q.availableStartingWith and not (done[q.availableStartingWith] or InLog(q.availableStartingWith)) then
+        return "ENABLING_QUEST_MISSING"
+    end
+    return "AVAILABLE"
+end
+
 -- A Questie as EasyFind_Questie binds to it. quests[id]: { name, objectives =
--- { { type, id, text } }, finisher = npcID }. npcs[id]: { name, spawns }.
+-- { { type, id, text } }, finisher = npcID, starter = npcID }, plus any of Questie's own
+-- field names. npcs[id]: { name, spawns }.
 local function InstallQuestie(c, data)
     local env = c.env
     c.addons.Questie = true
-    local npcs, quests, objects = data.npcs or {}, data.quests or {}, data.objects or {}
+    local npcs, quests, objects, items = data.npcs or {}, data.quests or {}, data.objects or {}, data.items or {}
     local db = {
         QuestPointers = {}, NPCPointers = {}, ObjectPointers = {},
         QueryQuestSingle = function(id, field)
             local q = quests[id]
             if not q then return nil end
-            if field == "finishedBy" then return q.finisher and { { q.finisher } } or nil end
+            if field == "finishedBy" then return q.finishedBy or (q.finisher and { { q.finisher } }) or nil end
+            if field == "startedBy" then return q.startedBy or (q.starter and { { q.starter } }) or nil end
             return q[field]
         end,
         QueryNPCSingle = function(id, field) return npcs[id] and npcs[id][field] end,
         QueryObjectSingle = function(id, field) return objects[id] and objects[id][field] end,
-        QueryItemSingle = function() return nil end,
+        QueryItemSingle = function(id, field) return items[id] and items[id][field] end,
         GetQuest = function(id)
             local q = quests[id]
             if not q then return nil end
@@ -31,7 +82,19 @@ local function InstallQuestie(c, data)
             end
             return { name = q.name, ObjectiveData = list }
         end,
-        IsDoable = function() return true end,
+        -- A level is left to the caller here, as Questie leaves it to its own list.
+        IsDoable = function(id)
+            local v = Verdict(c, quests, id)
+            return v == "AVAILABLE" or v == "LEVEL_TOO_LOW" or (data.doable and data.doable[id]) or false
+        end,
+        IsDoableVerbose = not data.noVerbose and function(id)
+            local v = Verdict(c, quests, id)
+            return "Unavailable: " .. v, v ~= "AVAILABLE", STATES[v]
+        end or nil,
+        DoableStates = STATES,
+        raceKeys = { ALL_ALLIANCE = 77, ALL_HORDE = 178 },
+        IsRepeatable = function(id) return quests[id] and quests[id].repeatable == true end,
+        IsDungeonQuest = function(id) return quests[id] and quests[id].dungeon == true end,
     }
     for id in pairs(quests) do db.QuestPointers[id] = true end
     for id in pairs(npcs) do db.NPCPointers[id] = true end
@@ -40,6 +103,8 @@ local function InstallQuestie(c, data)
     env.QuestieLoader = { ImportModule = function(_, name)
         if name == "QuestieDB" then return db end
         if name == "ZoneDB" then return zones end
+        if name == "QuestieReputation" then return { GetFactionName = function(id) return "Faction " .. id end } end
+        if name == "QuestieProfessions" then return { GetProfessionName = function(_, id) return "Skill " .. id end } end
         return {}
     end }
     local ready = {}

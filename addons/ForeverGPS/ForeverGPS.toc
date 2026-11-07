@@ -25,10 +25,15 @@ Core/Risk.lua
 Core/Planner.lua
 Core/Saved.lua
 Core/Quests.lua
+Core/QuestDB.lua
 Core/QuestTargets.lua
+Core/QuestStatus.lua
+Core/QuestIndex.lua
+Core/QuestChain.lua
 Core/Search.lua
 Core/Journey.lua
 Core/Trip.lua
+Core/QuestBrowse.lua
 Core/Suggest.lua
 Core/TomTom.lua
 Core/Diagnostics.lua

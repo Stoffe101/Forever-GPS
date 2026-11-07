@@ -159,7 +159,10 @@ function Targets.QuestieChanged()
     local has = Targets.HasQuestie()
     local changed = has ~= hadQuestie
     hadQuestie = has
-    if changed then spotCache = {} end
+    if changed then
+        spotCache, starterCache = {}, {}
+        FG.QuestDB.Forget()
+    end
     return changed
 end
 
@@ -216,6 +219,75 @@ function Targets.For(q)
     end
     if not out.turnIn then
         out.turnIn = NewTarget("turnin", nil, L["QUEST_TURN_IN"], nil)
+    end
+    return out
+end
+
+-- ==== quests not in the log =================================================
+
+local MAX_ITEM_SOURCES = 8
+
+local starterCache = {}
+
+-- Where a quest is picked up. Every giver counts: a quest with several is taken wherever
+-- the journey is shortest. An object is said to be one, because no one stands there. An item
+-- has no place of its own, so only what Questie records as dropping it is offered, and it
+-- says that is where the item comes from, never that someone there gives the quest.
+function Targets.Starter(id)
+    local hit = starterCache[id]
+    if hit then return hit end
+    local QuestDB = FG.QuestDB
+    if not QuestDB.Ready() or not QuestDB.Exists(id) then return nil end
+    local who = QuestDB.Starters(id)
+    local spots, text, kind = {}, nil, nil
+    for _, npc in ipairs(who.npcs) do
+        kind = kind or "npc"
+        for _, s in ipairs(QuestDB.Spots("npc", npc)) do spots[#spots + 1] = s end
+    end
+    for _, object in ipairs(who.objects) do
+        kind = kind or "object"
+        for _, s in ipairs(QuestDB.Spots("object", object)) do spots[#spots + 1] = s end
+    end
+    if kind == "npc" then
+        text = L["QUEST_START_NPC_FMT"]:format(QuestDB.EntityName("npc", who.npcs[1]) or "?")
+    elseif kind == "object" then
+        text = L["QUEST_START_OBJECT_FMT"]:format(QuestDB.EntityName("object", who.objects[1]) or "?")
+    end
+    local item = who.items[1]
+    if not kind and item then
+        kind = "item"
+        local name = QuestDB.EntityName("item", item) or "?"
+        local sources = QuestDB.ItemSources(item)
+        local first
+        for i = 1, math.min(#sources.npcs, MAX_ITEM_SOURCES) do
+            first = first or QuestDB.EntityName("npc", sources.npcs[i])
+            for _, s in ipairs(QuestDB.Spots("npc", sources.npcs[i])) do spots[#spots + 1] = s end
+        end
+        for i = 1, math.min(#sources.objects, MAX_ITEM_SOURCES) do
+            first = first or QuestDB.EntityName("object", sources.objects[i])
+            for _, s in ipairs(QuestDB.Spots("object", sources.objects[i])) do spots[#spots + 1] = s end
+        end
+        text = first and L["QUEST_START_ITEM_FROM_FMT"]:format(name, first) or L["QUEST_START_ITEM_FMT"]:format(name)
+    end
+    local t = NewTarget("start", nil, text or L["QUEST_START_UNKNOWN"], spots)
+    t.starterKind = kind
+    if t.status ~= "ok" then
+        t.reason = kind == "item" and L["QUEST_START_ITEM_NO_PLACE"] or (kind and L["QUEST_START_NO_PLACE"] or L["QUEST_START_UNKNOWN"])
+    end
+    starterCache[id] = t
+    return t
+end
+
+-- Everything a quest not in the log can be shown or navigated to.
+function Targets.Explore(id)
+    local out = { start = Targets.Starter(id), objectives = {} }
+    local data = SpotsOf(id)
+    if data then
+        for i, o in ipairs(data.objectives) do
+            out.objectives[i] = NewTarget("objective", i, o.text, o.spots)
+        end
+        local name = data.turnInName
+        out.turnIn = NewTarget("turnin", nil, name and L["QUEST_TURN_IN_AT_FMT"]:format(name) or L["QUEST_TURN_IN"], data.turnIn)
     end
     return out
 end
@@ -308,7 +380,7 @@ end
 -- The planner's target for going to an area of a quest's target.
 function Targets.Destination(q, target, area)
     local s = area.spot
-    local icon = target.kind == "turnin" and 132048 or 365195
+    local icon = target.kind == "turnin" and 132048 or target.kind == "start" and 132049 or 365195
     return {
         name = L["QUEST_DEST_FMT"]:format(q.title, target.text or ""),
         subtitle = area.zone,
