@@ -421,6 +421,24 @@ local function QuestResult(q)
              subtitle = (q.zone and (q.zone .. " · ") or "") .. status }
 end
 
+-- Quests not in the log: a few, under what the player asked for, opening in full.
+local KNOWN_QUESTS = 4
+local function ExplorerResults(query, out)
+    local Index = FG.QuestIndex
+    if not Index.Ready() or #query < 3 then return end
+    local rows, added = Index.Find(query), 0
+    for _, n in ipairs(rows) do
+        if added >= KNOWN_QUESTS then break end
+        local row = Index.Row(n)
+        local s = FG.QuestStatus.Of(row.id)
+        if not FG.QuestStatus.Taken(s) and s.key ~= "no" then
+            added = added + 1
+            out[#out + 1] = { name = row.name, group = "quests", iconArt = s.icon, explorer = row.id,
+                              subtitle = table.concat({ s.word, row.zone }, " · ") }
+        end
+    end
+end
+
 local function SavedResults(text, out)
     local low = text:lower()
     local seen = {}
@@ -468,6 +486,7 @@ local function Gather(query, filter, info)
     end
     if filter == "all" or filter == "travel" then TransportResults(query, results) end
     if (filter == "all" or filter == "npcs") and #results < MAX_RESULTS then WorldResults(query, names, results) end
+    if filter == "all" then ExplorerResults(query, results) end
 
     -- Hostile NPCs stay findable, after those that will talk to the player.
     local friendly, hostile = {}, {}

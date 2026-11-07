@@ -171,13 +171,36 @@ local function Stop()
     Bridge.Stop()
 end
 
+-- What a turn-in opens, once the game has caught up: offered, and never taken up for them.
+local function OfferNext(questID)
+    if not (FG.db.quests.offerNext and FG.QuestDB.Ready()) then return end
+    local open = {}
+    for _, id in ipairs(FG.QuestChain.Opens(questID)) do
+        if FG.QuestStatus.Open(FG.QuestStatus.Of(id)) then open[#open + 1] = id end
+    end
+    if #open == 0 then return end
+    FG.Journey.lastOpened = open
+    FG.Emit("toast", L["QUEST_NEXT_IN_CHAIN_FMT"]:format(FG.QuestBrowse.NameOf(open[1])), nil,
+        #open > 1 and L["QUEST_NEXT_MORE_FMT"]:format(#open - 1) or nil)
+end
+
 FG.OnEvent("QUEST_TURNED_IN", function(questID)
     turnedIn[questID] = GetTime()
+    FG.After(1.5, function() OfferNext(questID) end)
     local binding = Journey.Binding()
     if binding and binding.questID == questID then
         FG.Emit("toast", L["QUEST_TURNED_IN"]:format(binding.title or "?"))
         if binding.kind == "turnin" or binding.kind == "marker" then Stop() else FG.char.binding = nil end
     end
+end)
+
+-- Picked up what the journey was for: nothing further to walk to, and a quest that is now
+-- in the log, with places of its own to go to.
+FG.OnEvent("QUEST_ACCEPTED", function(questID)
+    local binding = Journey.Binding()
+    if not (binding and binding.questID == questID and binding.kind == "start") then return end
+    FG.Emit("toast", L["QUEST_ACCEPTED_FMT"]:format(binding.title or "?"))
+    if #Bridge.StopsAhead(Bridge.ActiveRoute() or { steps = {} }) <= 1 then Stop() else FG.char.binding = nil end
 end)
 
 FG.OnEvent("QUEST_REMOVED", function(questID)

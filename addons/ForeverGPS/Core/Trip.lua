@@ -110,7 +110,9 @@ local function Valid(order, before)
     local at = {}
     for pos, stop in ipairs(order) do at[stop] = pos end
     for a, b in pairs(before or {}) do
-        if at[a] and at[b] and at[a] >= at[b] then return false end
+        for _, later in ipairs(type(b) == "table" and b or { b }) do
+            if at[a] and at[later] and at[a] >= at[later] then return false end
+        end
     end
     return true
 end
@@ -125,14 +127,16 @@ local function Length(order, cost)
 end
 
 -- The order to visit stops 1..n in, starting from 0. cost(a, b) is the time from a
--- to b; before[a] = b says a must come before b. Nearest first, then improved by
+-- to b; before[a] = b, or a list of them, says a must come before b. Nearest first, then improved by
 -- reversing stretches while that helps: not the best possible, but good, and
 -- bounded, which suits eight stops in a game frame.
 function Trip.Order(n, cost, before)
     local order, used, from = {}, {}, 0
     local function Ready(stop)
         for a, b in pairs(before or {}) do
-            if b == stop and not used[a] then return false end
+            for _, later in ipairs(type(b) == "table" and b or { b }) do
+                if later == stop and not used[a] then return false end
+            end
         end
         return true
     end
@@ -168,19 +172,40 @@ end
 
 -- ==== Quest Circuit =========================================================
 
--- A turn-in comes after what it is for.
+local QUEST_ORDER = { start = 1, objective = 2, turnin = 3 }
+
+-- Whether quest a must be turned in before quest b can be picked up.
+local function Unlocks(a, b)
+    for _, group in ipairs(FG.QuestChain.Requirements(b)) do
+        for _, id in ipairs(group.ids) do
+            if id == a then return true end
+        end
+    end
+    return false
+end
+
+-- A quest is picked up before it is worked on, and worked on before it is handed in; a
+-- quest comes after the one it needs. Anything else is free to go wherever is shortest.
 local function Precedence(list)
     local before = {}
     for i, a in ipairs(list) do
+        local later = {}
         for j, b in ipairs(list) do
             local x, y = a.binding, b.binding
-            if i ~= j and x and y and x.questID == y.questID and x.kind == "objective" and y.kind == "turnin" then
-                before[i] = j
+            if i ~= j and x and y then
+                if x.questID == y.questID then
+                    local p, q = QUEST_ORDER[x.kind], QUEST_ORDER[y.kind]
+                    if p and q and p < q then later[#later + 1] = j end
+                elseif x.kind == "turnin" and y.kind == "start" and Unlocks(x.questID, y.questID) then
+                    later[#later + 1] = j
+                end
             end
         end
+        if #later > 0 then before[i] = later end
     end
     return before
 end
+Trip._Precedence = Precedence
 
 local function PointOf(stop)
     local ci, wx, wy = Bridge.WorldPos(stop.mapID, stop.x, stop.y)

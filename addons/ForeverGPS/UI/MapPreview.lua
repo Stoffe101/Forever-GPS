@@ -327,14 +327,42 @@ local function Build(canvas)
 end
 
 -- The layer moved onto the surface that is showing.
+local mounted
 local function Mount(canvas, game)
-    if overlay and overlay:GetParent() == canvas then return end
+    if mounted == canvas then return end
+    mounted = canvas
     overlay:SetParent(canvas)
     overlay:ClearAllPoints()
     overlay:SetAllPoints(canvas)
-    overlay:SetFrameStrata("HIGH")
+    overlay:SetFrameStrata(game and "HIGH" or "DIALOG")
     overlay:SetFrameLevel(game and 320 or canvas:GetFrameLevel() + 20)
     wipe(drawn)
+end
+
+-- The places of a quest: no journey yet, so no line, only where each thing is.
+local ROLE = {
+    start = { icon = "quest", line = { 0.33, 0.87, 0.60 } },
+    objective = { icon = "pin", line = WALK_COLOR },
+    turnin = { icon = "turnin", line = { 0.95, 0.75, 0.30 } },
+}
+
+local function DrawPlaces(mapID, cw, ch)
+    if drawn.places == shown.places and drawn.map == mapID and drawn.cw == cw and drawn.ch == ch then return end
+    drawn.places, drawn.map, drawn.cw, drawn.ch = shown.places, mapID, cw, ch
+    pen.cw, pen.ch = cw, ch
+    lines:Begin()
+    lines:Finish()
+    local p, n = Projection(mapID), 0
+    for _, place in ipairs(shown.places) do
+        local x, y = OnMapPoint(p, { m = place.mapID, x = place.x, y = place.y })
+        if x then
+            n = n + 1
+            local role = ROLE[place.role] or ROLE.objective
+            PlaceMark(n, x, y, MARK, { icon = role.icon, line = role.line, title = place.title, body = place.body })
+        end
+    end
+    for i = n + 1, #marks do marks[i]:Hide() end
+    overlay:Show()
 end
 
 local function Draw()
@@ -347,6 +375,7 @@ local function Draw()
     Mount(canvas, game)
     onGame = game
     local cw, ch = canvas:GetWidth(), canvas:GetHeight()
+    if shown.places then return DrawPlaces(mapID, cw, ch) end
     local option = shown.option
     local zoom = Px(1)
     local plan = FG.Planner.Current()
@@ -468,7 +497,7 @@ end
 -- The banner sits on whichever surface is showing, and with none it is hidden.
 local function MountBanner(host, game)
     banner:SetParent(host)
-    banner:SetFrameStrata("HIGH")
+    banner:SetFrameStrata(game and "HIGH" or "DIALOG")
     banner:SetFrameLevel(game and 340 or host:GetFrameLevel() + 60)
     banner:ClearAllPoints()
     banner:SetPoint("TOP", game and host or FG.RouteMap.Canvas(), "TOP", 0, -8)
@@ -480,8 +509,14 @@ local function ShowBanner()
     if not (shown and host) then return banner:Hide() end
     MountBanner(host, game)
     local option = shown.option
-    banner.title:SetText(L[shown.active and "MAP_ROUTE_FMT" or "MAP_PREVIEW_FMT"]:format(shown.target.name or "?", Format.Duration(option.total) or "?"))
-    banner.go:SetShown(not shown.active)
+    if option then
+        banner.title:SetText(L[shown.active and "MAP_ROUTE_FMT" or "MAP_PREVIEW_FMT"]:format(shown.target.name or "?", Format.Duration(option.total) or "?"))
+    else
+        banner.title:SetText(shown.target.name or "?")
+    end
+    banner.go:SetShown(option ~= nil and not shown.active)
+    banner.you:SetShown(option ~= nil)
+    banner.fit:SetShown(option ~= nil)
     banner:SetWidth(mmin(mmax(400, banner.title:GetStringWidth() + banner.go:GetWidth() + 152), 700))
     banner.leg:SetShown(#MapPreview.Legs() > 1)
     banner:Show()
@@ -492,7 +527,7 @@ end
 local function Sync(plan)
     local option = plan and plan.selected
     local wanted = FG.db.map.preview or (shown and shown.asked)
-    if shown and shown.active and not option then
+    if shown and (shown.active or shown.places) and not option then
         ShowBanner()
         Draw()
         return Watch()
@@ -571,6 +606,15 @@ end
 function MapPreview.Legs()
     local out, seen = {}, {}
     if not shown then return out end
+    if shown.places then
+        for _, place in ipairs(shown.places) do
+            if not seen[place.mapID] then
+                seen[place.mapID] = true
+                out[#out + 1] = { mapID = place.mapID }
+            end
+        end
+        return out
+    end
     local option = shown.option
     for i, step in ipairs(option.steps) do
         if step.kind ~= "teleport" then
@@ -628,9 +672,22 @@ function MapPreview.OpenActive()
     return true
 end
 
+-- Places of a quest on our own map: its start first, each map in turn. places: { mapID, x,
+-- y, role = start, objective or turnin, title, body }.
+function MapPreview.ShowPlaces(name, places)
+    if #places == 0 then return false end
+    shown = { places = places, asked = true, target = { name = name } }
+    wipe(drawn)
+    FG.RouteMap.Show(places[1].mapID)
+    ShowBanner()
+    Watch()
+    Draw()
+    return true
+end
+
 -- Done with what is showing: a plan's preview goes with its plan.
 function MapPreview.Close()
-    if shown and shown.active then
+    if shown and (shown.active or shown.places) then
         shown = nil
         return Sync(FG.Planner.Current())
     end

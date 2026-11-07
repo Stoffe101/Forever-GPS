@@ -31,6 +31,47 @@ local QUESTIE = {
     },
 }
 
+-- Quests for the explorer, shaped as Questie's are. A stand-in, for looking at the layout.
+local function Explorer(world)
+    world.npcs[241] = { name = "Remy \"Two Times\"", zoneID = 12, spawns = { [12] = { { 42.1, 67.2 } } } }
+    world.objects = { [500] = { name = "Wanted Poster", zoneID = 12, spawns = { [12] = { { 42, 66 } } } } }
+    world.items = { [600] = { name = "A Bloodstained Letter", npcDrops = { 299 } } }
+    local function Q(id, name, level, fields)
+        fields = fields or {}
+        fields.name, fields.questLevel, fields.requiredLevel = name, level, fields.requiredLevel or math.max(1, level - 3)
+        fields.starter = fields.starter or 240
+        fields.finisher = fields.finisher or 240
+        fields.zoneOrSort = 12
+        world.quests[id] = fields
+    end
+    Q(100, "A Threat Within", 2, { nextQuestInChain = 101, objectivesText = { "Speak with Deputy Willem at Northshire Abbey." } })
+    Q(101, "Kobold Camp Cleanup", 3, { preQuestSingle = { 100 }, nextQuestInChain = 102, reputationReward = { { 72, 75 } } })
+    Q(102, "Investigate Echo Ridge", 4, { preQuestSingle = { 101 }, nextQuestInChain = 103 })
+    Q(103, "Skirmish at Echo Ridge", 5, { preQuestSingle = { 102 }, nextQuestInChain = 104 })
+    Q(104, "Report to Goldshire", 5, { preQuestSingle = { 103 }, nextQuestInChain = 105 })
+    Q(105, "The Fargodeep Mine", 7, { preQuestSingle = { 104 }, nextQuestInChain = 106, starter = 241 })
+    Q(106, "The Jasperlode Mine", 8, { preQuestSingle = { 105 }, objectivesText = { "Scout through the Jasperlode Mine and report back." } })
+    Q(110, "The Left Road", 6)
+    Q(111, "The Right Road", 6, { starter = 241 })
+    Q(112, "Where The Roads Meet", 7, { preQuestSingle = { 110, 111 }, nextQuestInChain = 113 })
+    Q(113, "One Last Errand", 8, { preQuestSingle = { 112 } })
+    Q(120, "Both Hands Needed", 7, { preQuestGroup = { 110, 101 } })
+    Q(121, "The Light's Choice", 8, { exclusiveTo = { 122 } })
+    Q(122, "The Dark Choice", 8, { exclusiveTo = { 121 } })
+    Q(130, "A Note Pinned Up", 6, { startedBy = { nil, { 500 } } })
+    Q(131, "A Letter In The Mud", 6, { startedBy = { nil, nil, { 600 } } })
+    Q(132, "Nobody Remembers", 6, { startedBy = {}, finisher = 240 })
+    Q(133, "Far Too Soon", 40, { requiredLevel = 38 })
+    Q(134, "Only For Friends", 20, { requiredLevel = 8, requiredMinRep = { 72, 3000 }, stop = "MISSING_REPUTATION" })
+    Q(135, "Tailors Wanted", 20, { requiredLevel = 8, requiredSkill = { 197, 100 }, stop = "PROFESSION_SKILL" })
+    Q(136, "For The Horde", 10, { requiredRaces = 178, stop = "WRONG_RACE" })
+    Q(137, "A Link To Nowhere", 6, { preQuestSingle = { 99999 } })
+    Q(138, "Deep In The Mines", 15, { dungeon = true, requiredLevel = 8 })
+    Q(139, "Again And Again", 8, { repeatable = true })
+    return world
+end
+Explorer(QUESTIE)
+
 local QUEST_LOG = {
     { questID = 33, title = "Wolves Across the Border", level = 6, header = "Elwynn Forest",
       objectives = { { text = "Young Wolf slain: 3/8", numFulfilled = 3, numRequired = 8, finished = false } } },
@@ -64,7 +105,7 @@ local pages = {}
 local function Shot(c, screen, state, extra)
     local frames = {}
     -- In the order the game's frame strata would stack them.
-    for _, name in ipairs({ "ForeverGPSHUD", "ForeverGPSToast", "WorldMapFrame", "ForeverGPSWindow", "ForeverGPSQuick",
+    for _, name in ipairs({ "ForeverGPSHUD", "ForeverGPSToast", "WorldMapFrame", "ForeverGPSWindow", "ForeverGPSRouteMap", "ForeverGPSQuick",
                             "ForeverGPSCopyBox", "ForeverGPSMenu" }) do
         local f = c.env[name]
         if f and f._shown then frames[#frames + 1] = f end
@@ -156,6 +197,52 @@ local function Pages(c, screen)
         Shot(c, screen, "settings-" .. group.label:sub(6):lower())
     end
     FG.Window.Show("search")
+end
+
+-- The explorer: every state that has its own look.
+local function Quests(c, screen)
+    local FG = c.FG
+    c.completed[100], c.completed[101] = true, true
+    FG.QuestStatus.Forget()
+    FG.Window.Show("quests")
+    FG.QuestsView.SetMode("find")
+    Stack.Until(c, function() return FG.QuestIndex.Ready() end, 10)
+    FG.QuestBrowse.Scan()
+    Stack.Until(c, FG.QuestBrowse.Scanned, 10)
+    Settle(c, 0.3)
+    FG.ExplorerView.SetFilter("available")
+    Shot(c, screen, "explore-results")
+    FG.ExplorerView.SetFilter("all")
+    Shot(c, screen, "explore-large-list")
+    FG.ExplorerView.Search("zzzzzz")
+    Settle(c, 0.2)
+    Shot(c, screen, "explore-empty")
+    FG.ExplorerView.Search("")
+    FG.ExplorerView.ToggleZones()
+    if FG.ExplorerView.Mode() ~= "zones" then FG.ExplorerView.ToggleZones() end
+    Settle(c, 0.2)
+    Shot(c, screen, "explore-zones")
+    FG.ExplorerView.PickZone("Elwynn Forest")
+    for _, entry in ipairs({ { "details-available", 102 }, { "details-locked", 106 }, { "details-alternatives", 112 },
+                             { "details-branching", 113 }, { "details-multiple-prereq", 120 }, { "details-object", 130 },
+                             { "details-item", 131 }, { "details-missing", 132 }, { "details-level", 133 },
+                             { "details-rep", 134 }, { "details-wrong-side", 136 }, { "details-broken-link", 137 },
+                             { "details-exclusive", 121 } }) do
+        FG.ExplorerView.Open(entry[2])
+        Settle(c, 1.5)
+        Shot(c, screen, entry[1])
+    end
+    c.completed[102], c.completed[103], c.completed[104], c.completed[105], c.completed[106] = true, true, true, true, true
+    FG.QuestStatus.Forget()
+    FG.ExplorerView.Open(106)
+    Settle(c, 1)
+    Shot(c, screen, "details-completed-chain")
+    FG.QuestDetail.ShowOnMap()
+    Settle(c, 0.5)
+    Shot(c, screen, "explore-map")
+    FG.RouteMap.Hide()
+    FG.Window.CloseQuest()
+    FG.QuestsView.SetMode("log")
 end
 
 local function Journey(c, screen)
@@ -256,6 +343,9 @@ for i, screen in ipairs(SCREENS) do
         Journey(c, screen)
         if i <= 3 then Map(c, screen) end
         print(screen[1], #c.errors == 0 and "ok" or (#c.errors .. " errors"), c.errors[1] and c.errors[1]:sub(1, 300) or "")
+        local q = NewClient(screen)
+        Quests(q, screen)
+        print(screen[1], "quests", #q.errors == 0 and "ok" or (#q.errors .. " errors"), q.errors[1] and q.errors[1]:sub(1, 300) or "")
     end
 end
 

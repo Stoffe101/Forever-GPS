@@ -191,6 +191,16 @@ function tests.theRouteMapsArt_isLaidOutAsTheGameLaysIt()
     T.eq(c.FG.RouteMap.MapID(), 1429, "and turns")
 end
 
+-- It was left unanchored the first time, when it had no reason to move.
+function tests.theVeryFirstMark_landsOnTheMap()
+    local c = Stack.new({ mapID = 1429, x = 0.45, y = 0.7 })
+    c.FG.MapPreview.ShowPlaces("A Quest", { { mapID = 1429, x = 0.5, y = 0.5, role = "start", title = "Here" } })
+    c:Advance(0.3)
+    local overlay = c.env.ForeverGPSMapPreview
+    T.ok(overlay:GetWidth() > 100, "the layer is as wide as the map")
+    T.near(overlay:GetWidth(), c.FG.RouteMap.Canvas():GetWidth(), 1)
+end
+
 function tests.aMapWithNoArt_stillShowsTheJourney()
     local c = Start()
     c.env.C_Map.GetMapArtLayers = function() return {} end

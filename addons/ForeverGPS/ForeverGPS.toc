@@ -44,6 +44,8 @@ UI/RouteMap.lua
 UI/MapPreview.lua
 UI/RoutePanel.lua
 UI/SearchView.lua
+UI/ExplorerView.lua
+UI/QuestDetail.lua
 UI/QuestsView.lua
 UI/TripView.lua
 UI/CopyBox.lua

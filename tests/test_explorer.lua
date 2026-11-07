@@ -587,4 +587,303 @@ function tests.details_holdWhatThePanelShows()
     T.eq(c.FG.QuestBrowse.Details(50).side, "Horde")
 end
 
+-- ==== the window ============================================================
+
+local function Open(c, id)
+    c.FG.Window.Show("quests")
+    c.FG.QuestsView.SetMode("find")
+    c:Advance(0.3)
+    c.FG.ExplorerView.Open(id)
+    c:Advance(1)
+end
+
+local function Rows(c, kind)
+    local out = {}
+    for _, item in ipairs(c.FG.QuestDetail.ItemsNow()) do
+        if item.kind == kind then out[#out + 1] = item end
+    end
+    return out
+end
+
+local function TextOf(c)
+    local out = {}
+    for _, item in ipairs(c.FG.QuestDetail.ItemsNow()) do
+        out[#out + 1] = item.text or item.name or (item.target and item.target.text) or ""
+    end
+    return table.concat(out, "\n")
+end
+
+function tests.yourQuests_isStillThere_andFirst()
+    local c = Start({ ui = true, quests = { { questID = 10, title = "First Steps", level = 1, objectives = {} } } })
+    c.FG.Window.Show("quests")
+    c:Advance(0.2)
+    T.eq(c.FG.QuestsView.Mode(), "log")
+    T.eq(#c.errors, 0)
+end
+
+function tests.theExplorer_opensOnWhereThePlayerStands()
+    local c = Start({ ui = true })
+    c.FG.Window.Show("quests")
+    c.FG.QuestsView.SetMode("find")
+    c:Advance(0.3)
+    T.eq(c.FG.ExplorerView.Zone(), "Elwynn Forest")
+    local results = 0
+    for _, item in ipairs(c.FG.ExplorerView.ItemsNow()) do
+        if item.kind == "result" then results = results + 1 end
+    end
+    T.ok(results > 5, "quests to look at straight away")
+    T.eq(#c.errors, 0)
+end
+
+function tests.typing_searchesEverything_notJustTheZone()
+    local c = Start({ ui = true })
+    c.FG.Window.Show("quests")
+    c.FG.QuestsView.SetMode("find")
+    c:Advance(0.3)
+    c.FG.ExplorerView.Search("trouble in auberdine")
+    local found = false
+    for _, item in ipairs(c.FG.ExplorerView.ItemsNow()) do
+        found = found or (item.kind == "result" and item.row.id == 41)
+    end
+    T.ok(found)
+end
+
+function tests.zones_canBeChosen_andCleared()
+    local c = Start({ ui = true })
+    c.FG.Window.Show("quests")
+    c.FG.QuestsView.SetMode("find")
+    c:Advance(0.3)
+    local V = c.FG.ExplorerView
+    V.ToggleZones()
+    T.eq(V.Zone(), nil, "with one chosen, it clears")
+    T.eq(V.Mode(), "list")
+    V.ToggleZones()
+    T.eq(V.Mode(), "zones")
+    V.PickZone("Darkshore")
+    T.eq(V.Zone(), "Darkshore")
+    T.eq(V.Mode(), "list")
+end
+
+function tests.nearMe_listsInTheWindow()
+    local c = Start({ ui = true })
+    c.FG.Window.Show("quests")
+    c.FG.QuestsView.SetMode("find")
+    c:Advance(0.3)
+    c.FG.ExplorerView.ShowNear()
+    T.ok(Stack.Until(c, function() return not c.FG.QuestBrowse.NearBusy() and #c.FG.QuestBrowse.NearList() > 0 end, 30))
+    c:Advance(0.5)
+    T.eq(#c.errors, 0)
+end
+
+function tests.aQuest_opensWithWhereItStarts_andWhatComesFirst()
+    local c = Start({ ui = true })
+    Open(c, 12)
+    local text = TextOf(c)
+    T.ok(text:find("First Steps", 1, true), "the first step")
+    T.ok(text:find("Remy", 1, true), "who gives it")
+    T.ok(#Rows(c, "node") == 3, "the chain")
+    T.eq(#c.errors, 0)
+end
+
+function tests.aChainNode_opensThatQuest_andBackReturns()
+    local c = Start({ ui = true })
+    Open(c, 12)
+    c.FG.QuestDetail.Open(10)
+    T.eq(c.FG.QuestDetail.Current(), 10)
+    c.FG.QuestDetail.Back()
+    T.eq(c.FG.QuestDetail.Current(), 12)
+end
+
+function tests.closingAQuest_returnsToTheList()
+    local c = Start({ ui = true })
+    Open(c, 12)
+    T.ok(c.FG.Window.IsShowingQuest())
+    c.FG.Window.CloseQuest()
+    T.no(c.FG.Window.IsShowingQuest())
+end
+
+-- ==== directions ============================================================
+
+local function Planned(c)
+    return Stack.Until(c, function()
+        local p = c.FG.Planner.Current()
+        return p and (p.status == "ready" or p.status == "failed" or p.status == "unreachable")
+    end, 30)
+end
+
+function tests.directions_toAGiver_useTheRealPlanner()
+    local c = Start({ ui = true })
+    Open(c, 10)
+    c.FG.QuestDetail.Go()
+    T.ok(Planned(c), "planned")
+    local plan = c.FG.Planner.Current()
+    T.eq(plan.status, "ready")
+    T.ok(plan.target.name:find("First Steps", 1, true))
+    T.eq(plan.target.binding.kind, "start")
+    T.no(c.FG.Bridge.ActiveRoute(), "nothing started")
+end
+
+function tests.directions_toAFirstPrerequisite_goThereNotToTheLockedQuest()
+    local c = Start({ ui = true })
+    Open(c, 12)
+    c.FG.QuestDetail.Go()
+    T.ok(Planned(c))
+    T.eq(c.FG.Planner.Current().target.binding.questID, 10, "the first thing to do")
+end
+
+function tests.alternatives_areLeftToThePlayer()
+    local c = Start({ ui = true })
+    Open(c, 22)
+    T.eq(c.FG.QuestDetail.Go(), false, "no route chosen for them")
+    T.eq(c.FG.Planner.Current(), nil)
+    T.ok(TextOf(c):find("Any one of", 1, true))
+end
+
+function tests.aStarterAcrossTheSea_isReached_byTheRealRoute()
+    local c = Start({ ui = true, mapID = 1453, x = 0.6, y = 0.6 })
+    Open(c, 41)
+    c.FG.QuestDetail.Go()
+    T.ok(Planned(c))
+    local plan = c.FG.Planner.Current()
+    T.eq(plan.status, "ready")
+    local boat = false
+    for _, step in ipairs(plan.selected.steps) do boat = boat or step.kind == "boat" end
+    T.ok(boat, "by boat, not through the sea")
+end
+
+function tests.noPlaceKnown_offersNoRoute()
+    local c = Start({ ui = true })
+    Open(c, 58)
+    T.eq(c.FG.QuestDetail.Go(), false)
+    T.eq(c.FG.Planner.Current(), nil)
+    T.eq(#c.errors, 0)
+end
+
+function tests.lookingAtAQuest_leavesAJourneyUnderWayAlone()
+    local c = Start({ ui = true })
+    local P = c.FG.Planner
+    P.Inspect({ data = { name = "Goldshire", mapID = 1429, x = 0.42, y = 0.65 }, name = "Goldshire" })
+    T.ok(Planned(c))
+    P.Start()
+    c:Advance(1.5)
+    local route = c.FG.Bridge.ActiveRoute()
+    T.ok(route, "under way")
+    Open(c, 10)
+    c.FG.QuestDetail.Go()
+    T.ok(Planned(c))
+    T.eq(c.FG.Bridge.ActiveRoute(), route, "the route the player started stands")
+end
+
+function tests.acceptingTheQuest_endsTheWalkToItsGiver()
+    local c = Start({ ui = true })
+    Open(c, 10)
+    c.FG.QuestDetail.Go()
+    T.ok(Planned(c))
+    c.FG.Planner.Start()
+    c:Advance(1.5)
+    T.ok(c.FG.Bridge.ActiveRoute())
+    c:Fire("QUEST_ACCEPTED", 10)
+    c:Advance(0.5)
+    T.no(c.FG.Bridge.ActiveRoute(), "nowhere left to go")
+end
+
+function tests.aStatusChangingOnTheWay_isShown()
+    local c = Start({ ui = true })
+    Open(c, 11)
+    T.eq(c.FG.QuestStatus.Of(11).key, "locked")
+    c.completed[10] = true
+    c:Fire("QUEST_TURNED_IN", 10)
+    c:Advance(1.5)
+    T.eq(Rows(c, "head")[1].d.status.key, "available", "the open panel follows")
+end
+
+function tests.aTurnIn_offersWhatItOpens_andTakesNoneOfItUp()
+    local c = Start({ ui = true })
+    local said
+    c.FG.On("toast", function(text) said = text end)
+    c.completed[10] = true
+    c:Fire("QUEST_TURNED_IN", 10)
+    c:Advance(2)
+    T.ok(said and said:find("The Middle", 1, true), "named: " .. tostring(said))
+    T.no(c.FG.Bridge.ActiveRoute())
+end
+
+function tests.aPlaceOnTheMap_isOursAndTouchesNothingOfTheGames()
+    local c = Start({ ui = true })
+    Open(c, 11)
+    c.FG.QuestDetail.ShowOnMap()
+    T.ok(c.FG.RouteMap.Shown())
+    T.ok(c.FG.MapPreview.Showing())
+    T.eq(#c.taint.mapWrites, 0)
+    c:Advance(0.3)
+    local marks = 0
+    for _, m in ipairs(c.FG.MapPreview._Marks()) do
+        if m:IsShown() then marks = marks + 1 end
+    end
+    T.ok(marks >= 2, "start and turn-in: " .. marks)
+    T.eq(#c.errors, 0)
+end
+
+function tests.searchFindsQuestsNotInTheLog_andOpensThem()
+    local c = Start({ ui = true })
+    c.FG.Window.Show("search")
+    c:Advance(0.3)
+    local results = c.FG.Search.Run("trouble in auberdine", "all")
+    local found
+    for _, r in ipairs(results) do found = found or r.explorer end
+    T.eq(found, 41)
+    c.FG.SearchView.Open({ explorer = 41 })
+    c:Advance(0.5)
+    T.eq(c.FG.QuestDetail.Current(), 41)
+end
+
+-- ==== circuits ==============================================================
+
+function tests.aPickup_goesOnATrip_beforeItsOwnWork()
+    local c = Start({ ui = true })
+    local before = c.FG.Trip._Precedence({
+        { binding = { questID = 10, kind = "start" } },
+        { binding = { questID = 10, kind = "objective" } },
+        { binding = { questID = 10, kind = "turnin" } },
+    })
+    T.eq(#before[1], 2, "picked up before both")
+    T.eq(#before[2], 1, "worked on before it is handed in")
+end
+
+function tests.aPrerequisite_isHandedInBeforeTheNextIsPickedUp()
+    local c = Start({ ui = true })
+    local before = c.FG.Trip._Precedence({
+        { binding = { questID = 11, kind = "start" } },
+        { binding = { questID = 10, kind = "turnin" } },
+    })
+    T.eq(before[2][1], 1, "the turn-in first")
+    T.eq(before[1], nil)
+end
+
+function tests.unrelatedQuests_stayFreeToGoWhereverIsShortest()
+    local c = Start({ ui = true })
+    local before = c.FG.Trip._Precedence({
+        { binding = { questID = 20, kind = "start" } },
+        { binding = { questID = 32, kind = "turnin" } },
+    })
+    T.eq(next(before), nil)
+end
+
+function tests.ordering_holdsSeveralConstraintsAtOnce()
+    local c = Start({ ui = true })
+    local cost = function(a, b) return math.abs(a - b) end
+    local order = c.FG.Trip.Order(4, cost, { [4] = { 3, 2 }, [3] = { 1 } })
+    local at = {}
+    for pos, stop in ipairs(order) do at[stop] = pos end
+    T.ok(at[4] < at[3] and at[4] < at[2] and at[3] < at[1], "every one of them")
+end
+
+function tests.addingAPickup_putsItOnTheTrip()
+    local c = Start({ ui = true })
+    Open(c, 10)
+    c.FG.QuestDetail.AddStop()
+    T.ok(Stack.Until(c, function() return c.FG.Trip.Count() == 1 end, 20))
+    T.eq(c.FG.Trip.List()[1].binding.kind, "start")
+end
+
 return tests

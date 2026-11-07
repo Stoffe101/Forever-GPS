@@ -47,6 +47,18 @@ function Suggest.List()
     if near >= 2 then
         out[#out + 1] = { icon = "quest", text = L["SUGGEST_CIRCUIT_FMT"]:format(near), sub = L["SUGGEST_CIRCUIT_SUB"], run = Trip.PlanNearby }
     end
+    -- What a look around has already found: this never starts a scan of its own.
+    local pickups = 0
+    for _, item in ipairs(FG.QuestBrowse.NearList()) do
+        if FG.QuestStatus.Open(FG.QuestStatus.Of(item.row.id)) then pickups = pickups + 1 end
+    end
+    if pickups > 0 then
+        out[#out + 1] = { icon = "quest", text = L[pickups == 1 and "SUGGEST_PICKUP_ONE" or "SUGGEST_PICKUP_FMT"]:format(pickups), run = function()
+            FG.Window.Show("quests")
+            FG.QuestsView.SetMode("find")
+            FG.ExplorerView.ShowNear()
+        end }
+    end
     local flights = Suggest.NearbyFlights()
     if #flights > 0 then
         out[#out + 1] = { icon = "flight", text = L[#flights == 1 and "SUGGEST_FLIGHT_ONE" or "SUGGEST_FLIGHT_FMT"]:format(#flights), run = function()

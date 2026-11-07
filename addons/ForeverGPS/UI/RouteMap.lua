@@ -78,7 +78,7 @@ end
 
 local function Build()
     f = CreateFrame("Frame", "ForeverGPSRouteMap", UIParent)
-    f:SetFrameStrata("HIGH")
+    f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
     f:SetMovable(true)
@@ -132,6 +132,7 @@ function RouteMap.Show(id)
     end
     f.title:SetText(L["ROUTEMAP_TITLE_FMT"]:format(Name(mapID) or L["ROUTEMAP_TITLE"]))
     f:Show()
+    f:Raise()
     return true
 end
 

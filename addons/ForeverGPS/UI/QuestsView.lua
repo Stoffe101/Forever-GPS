@@ -12,7 +12,8 @@ local L = FG.L
 
 local QUEST_H, ZONE_H = 60, 26
 local NEARBY_YARDS = 900     -- on foot and in reach, near enough to count as nearby
-local TOOLS_TOP = 0
+local MODES_H = 32
+local TOOLS_TOP = -MODES_H
 
 local FILTERS = {
     { key = "all", label = "QFILTER_ALL" }, { key = "nearby", label = "QFILTER_NEARBY" },
@@ -24,6 +25,7 @@ local GROUP_LABEL = { zone = "QGROUP_ZONE", status = "QGROUP_STATUS", distance =
 
 local f, list
 local filter, grouping = "all", "zone"
+local mode = "log"           -- log or find
 local expanded = {}          -- questID -> true
 
 -- ==== rows ==================================================================
@@ -347,17 +349,31 @@ local function Items()
 end
 
 function View.Refresh(keepPlace)
-    if f and f:IsVisible() then list:SetItems(Items(), keepPlace) end
+    if f and f:IsVisible() and mode == "log" then list:SetItems(Items(), keepPlace) end
 end
 
--- Lays out the chips over the list.
+-- Lays out the chips over the list, under the choice of what to look at.
 function View.Layout()
     local width = f:GetWidth()
+    f.mine:SetSelected(mode == "log")
+    f.find:SetSelected(mode == "find")
+    f.finder:SetShown(mode == "find")
+    list:SetShown(mode == "log")
+    for _, chip in ipairs(f.chips) do chip:SetShown(mode == "log") end
+    if mode == "find" then return FG.ExplorerView.Layout() end
     local h = Kit.FlowChips(f.chips, f, width, 6, TOOLS_TOP)
     list:ClearAllPoints()
     list:SetPoint("TOPLEFT", f, "TOPLEFT", 0, TOOLS_TOP - h - 8)
     list:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
 end
+
+-- Your quests or every quest: "log" or "find".
+function View.SetMode(key)
+    mode = key
+    View.Show()
+end
+
+function View.Mode() return mode end
 
 function View.SetFilter(key)
     filter = key
@@ -452,6 +468,14 @@ local function Build(parent)
     f.grouping = Kit.Chip(f, L[GROUP_LABEL[grouping]], function() View.NextGrouping() end)
     Kit.Tooltip(f.grouping, L["QGROUP_TT"])
     f.chips[#f.chips + 1] = f.grouping
+    f.mine = Kit.Chip(f, L["QUESTS_MINE"], function() View.SetMode("log") end)
+    f.mine:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    f.find = Kit.Chip(f, L["QUESTS_FIND"], function() View.SetMode("find") end)
+    f.find:SetPoint("LEFT", f.mine, "RIGHT", 6, 0)
+    f.finder = FG.ExplorerView.Get(f)
+    f.finder:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -MODES_H)
+    f.finder:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    f.finder:Hide()
     FG.On("quests:changed", function() View.Refresh(true) end)
     return f
 end
@@ -461,6 +485,7 @@ function View.Show()
     if Targets.QuestieChanged() then Targets.ForgetAll() end
     f.grouping:SetLabel(L[GROUP_LABEL[grouping]])
     View.Layout()
+    if mode == "find" then return FG.ExplorerView.Show() end
     View.Refresh(false)
 end
 

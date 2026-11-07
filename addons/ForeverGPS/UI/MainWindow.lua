@@ -20,6 +20,7 @@ local HEADER_H = 46
 local f
 local view = "search"            -- search, quests, trip or settings
 local showRoute = false          -- narrow layout: the journey has the screen
+local showQuest = false          -- a quest is open in the journey's place
 local compact = false
 
 function Window.IsCompact() return compact end
@@ -69,6 +70,8 @@ local function Layout()
     local routeOn = not showSettings and (not compact or showRoute)
     left:SetShown(listOn)
     right:SetShown(routeOn)
+    f.route:SetShown(not showQuest)
+    f.detail:SetShown(showQuest)
     f.searchPage:SetShown(view == "search" and listOn)
     f.questsPage:SetShown(view == "quests" and listOn)
     f.tripPage:SetShown(view == "trip" and listOn)
@@ -108,7 +111,8 @@ local function ShowContent()
     if f.searchPage:IsVisible() then FG.SearchView.Show() end
     if f.questsPage:IsVisible() then FG.QuestsView.Show() end
     if f.tripPage:IsVisible() then FG.TripView.Show() end
-    if f.right:IsVisible() then FG.RoutePanel.Render() end
+    if f.route:IsVisible() then FG.RoutePanel.Render() end
+    if f.detail:IsVisible() then FG.QuestDetail.Refresh(true) end
 end
 
 -- ==== building ==============================================================
@@ -176,6 +180,9 @@ local function Build()
     f.tripPage:SetAllPoints(f.left)
     f.route = FG.RoutePanel.Get(f.right)
     f.route:SetAllPoints(f.right)
+    f.detail = FG.QuestDetail.Get(f.right)
+    f.detail:SetAllPoints(f.right)
+    f.detail:Hide()
     f.settingsPage = FG.SettingsView.Get(f)
     f.settingsPage:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -HEADER_H)
     f.settingsPage:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, PAD)
@@ -244,7 +251,7 @@ function Window.ShowRoute()
         f:Show()
     end
     if view == "settings" then view = "search" end
-    showRoute = true
+    showRoute, showQuest = true, false
     Layout()
     FG.RoutePanel.Render()
 end
@@ -254,6 +261,34 @@ function Window.ShowList()
     Planner.Clear()
     ShowContent()
 end
+
+-- A quest beside the list, or over it on a narrow window.
+function Window.ShowQuest(id)
+    if not f then Build() end
+    if not f:IsShown() then f:Show() end
+    if view == "settings" then view = "quests" end
+    showRoute, showQuest = true, true
+    Layout()
+    FG.QuestDetail.Show(id)
+end
+
+-- Back to the list and to the journey, whichever the panel held before.
+function Window.CloseQuest()
+    showRoute, showQuest = false, false
+    ShowContent()
+end
+
+function Window.IsShowingQuest() return showQuest end
+
+FG.On("plan:changed", function(plan)
+    -- Done with a route looked at from a quest: the quest again.
+    if not plan and f and f:IsShown() and FG.QuestDetail.Current() and view == "quests" and FG.QuestsView.Mode() == "find"
+        and not Bridge.ActiveRoute() then
+        showRoute, showQuest = true, true
+        Layout()
+        FG.QuestDetail.Refresh(true)
+    end
+end)
 
 function Window.Frame() return f end
 

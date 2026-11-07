@@ -132,7 +132,8 @@ local function Work(id, level)
         return Make("no", { rep = rep, why = L["QS_HIDDEN"] })
     end
     if key == "level" then return Make("level", { need = need, word = L["QS_LEVEL_FMT"]:format(need or 0), rep = rep }) end
-    return Make(key, { rep = rep, state = name, why = text })
+    -- "What comes first" says more than Questie's word for a locked quest.
+    return Make(key, { rep = rep, state = name, why = key ~= "locked" and text or nil })
 end
 
 -- A quest's status: { key, word, icon, color, rank, need?, why? }.

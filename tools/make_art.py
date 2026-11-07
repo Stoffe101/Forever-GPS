@@ -96,6 +96,14 @@ class Canvas:
         path.write_bytes(header + b"".join(rows))
 
 
+def lock(c: Canvas) -> None:
+    c.ring(32, 24, 12, 7)
+    c.poly([(0, 24), (64, 24), (64, 28), (0, 28)], False)
+    c.ring(32, 28, 12, 7)
+    c.poly([(0, 32), (64, 32), (64, 64), (0, 64)], False)
+    c.rrect(12, 28, 40, 30, 6)
+
+
 def icon(fn) -> Canvas:
     c = Canvas()
     fn(c)
@@ -371,7 +379,7 @@ GLYPHS = {
     "warning": warning, "shield": shield, "clock": clock, "nav-arrow": nav_arrow, "inn": inn, "bank": bank,
     "auction": auction, "mail": mail, "repair": repair, "trainer": trainer, "vendor": vendor, "logo": logo,
     "ring": ring, "dot": dot, "chevron-up": chevron_up, "plus": plus, "map": world_map, "locate": locate,
-    "fit": fit, "nav-chevron": nav_chevron,
+    "fit": fit, "nav-chevron": nav_chevron, "lock": lock,
 }
 
 

@@ -78,7 +78,7 @@ local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
+    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
     .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
@@ -169,6 +169,7 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     haystack[#haystack + 1] = Read("addons/EasyFind/Shared/Utils.lua")
     haystack[#haystack + 1] = Read("addons/EasyFind/Core/Main.lua")
     haystack[#haystack + 1] = Read("addons/EasyFind/Search/Modules.lua")
+    haystack[#haystack + 1] = Read("addons/EasyFind_Questie/Quests.lua")
     -- Not something EasyFind has reason to call, and guarded by a pcall where it is used.
     haystack[#haystack + 1] = "C_AddOns.DisableAddOn"
     -- What the game's own map draws its art with, read in its public source. Absent, the
@@ -189,7 +190,7 @@ function tests.everyEventListened_isOneTheClientFires()
     local KNOWN = {}
     for name in ("ADDON_LOADED PLAYER_LOGIN QUEST_LOG_UPDATE QUEST_ACCEPTED QUEST_REMOVED QUEST_TURNED_IN UNIT_QUEST_LOG_CHANGED "
         .. "TAXIMAP_OPENED HEARTHSTONE_BOUND UI_SCALE_CHANGED DISPLAY_SIZE_CHANGED PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED "
-        .. "GLOBAL_MOUSE_DOWN"):gmatch("%S+") do KNOWN[name] = true end
+        .. "GLOBAL_MOUSE_DOWN PLAYER_LEVEL_UP SKILL_LINES_CHANGED PLAYER_ENTERING_WORLD UPDATE_FACTION"):gmatch("%S+") do KNOWN[name] = true end
     for _, file in ipairs(Sources()) do
         for event in file.src:gmatch('FG%.OnEvent%("([%u_]+)"') do
             T.ok(KNOWN[event], file.path .. " listens for " .. event)
@@ -204,7 +205,9 @@ for name in ("Paint Place SetLabel SetVariant SetSelected SetColor SetColorKey S
     .. "Width Measure Render Clamp SetItems Refresh Reveal "
     -- EasyFind and EasyFind GPS objects, reached through the Bridge.
     .. "IsPlanning Plan BuildRoute Clear Build Guiding HasGlobalInstanceCache "
-    .. "Line Begin Finish GetMapID SetMapID GetXY "
+    .. "Line Begin Finish GetMapID GetXY "
+    -- Questie's loader, reached only from Core/QuestDB.lua.
+    .. "ImportModule "
     -- GameTooltip.
     .. "SetOwner AddLine"):gmatch("%S+") do OWN_METHODS[name] = true end
 local STRING_METHODS = { find = true, match = true, gmatch = true, gsub = true, sub = true, lower = true, format = true, byte = true }

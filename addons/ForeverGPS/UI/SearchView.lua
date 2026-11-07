@@ -295,6 +295,11 @@ end
 -- ==== acting on it ==========================================================
 
 function View.Open(result)
+    if result.explorer then
+        FG.Window.Show("quests")
+        FG.QuestsView.SetMode("find")
+        return FG.ExplorerView.Open(result.explorer)
+    end
     if result.active then return FG.Window.ShowRoute() end
     if result.resume then return FG.Resume() end
     if result.quest then

@@ -150,7 +150,7 @@ function Targets.HasQuestie()
 end
 
 -- Spot lists are facts about the game: kept for the session, per quest.
-local spotCache = {}
+local spotCache, starterCache, exploreCache = {}, {}, {}
 local hadQuestie = false
 
 -- Whether Questie came or went since this was last asked: what the quest list
@@ -160,7 +160,7 @@ function Targets.QuestieChanged()
     local changed = has ~= hadQuestie
     hadQuestie = has
     if changed then
-        spotCache, starterCache = {}, {}
+        spotCache, starterCache, exploreCache = {}, {}, {}
         FG.QuestDB.Forget()
     end
     return changed
@@ -227,8 +227,6 @@ end
 
 local MAX_ITEM_SOURCES = 8
 
-local starterCache = {}
-
 -- Where a quest is picked up. Every giver counts: a quest with several is taken wherever
 -- the journey is shortest. An object is said to be one, because no one stands there. An item
 -- has no place of its own, so only what Questie records as dropping it is offered, and it
@@ -280,6 +278,8 @@ end
 
 -- Everything a quest not in the log can be shown or navigated to.
 function Targets.Explore(id)
+    local hit = exploreCache[id]
+    if hit then return hit end
     local out = { start = Targets.Starter(id), objectives = {} }
     local data = SpotsOf(id)
     if data then
@@ -289,6 +289,7 @@ function Targets.Explore(id)
         local name = data.turnInName
         out.turnIn = NewTarget("turnin", nil, name and L["QUEST_TURN_IN_AT_FMT"]:format(name) or L["QUEST_TURN_IN"], data.turnIn)
     end
+    exploreCache[id] = out
     return out
 end
 
