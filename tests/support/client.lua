@@ -88,13 +88,15 @@ function Client.new(opts)
     self.player = {
         mapID = opts.mapID or 1453, x = opts.x or 0.5, y = opts.y or 0.5,
         level = opts.level or 30, faction = opts.faction or "Alliance", class = opts.class or "WARRIOR", race = opts.race or "Human",
-        bind = opts.bind or "Lion's Pride Inn", ghost = false, taxi = false, indoors = false, facing = 0, speed = 0, combat = false,
+        bind = opts.bind or "Lion's Pride Inn", ghost = false, taxi = false, indoors = false, facing = 0, speed = 0, combat = opts.combat or false,
     }
     self.addons, self.bags = {}, opts.bags or {}
     self.quests = opts.quests or {}
     self.printed = {}
     self.errors = {}
     self.waypoint = nil
+    self.superTrack = { waypoint = false }
+    self.taint = Client.NewTaint(self)
     self.known = opts.knownFlights
     self.env = self:BuildEnv(opts)
     return self
@@ -428,8 +430,19 @@ function Client:BuildEnv(opts)
         GetMapArtLayers = function() return {} end,
         CanSetUserWaypointOnMap = function() return true end,
         GetUserWaypoint = function() return client.waypoint end,
-        SetUserWaypoint = function(p) client.waypoint = p end,
-        ClearUserWaypoint = function() client.waypoint = nil end,
+        SetUserWaypoint = function(p)
+            client.waypoint = p
+            client.taint:Waypoint("SetUserWaypoint")
+        end,
+        ClearUserWaypoint = function()
+            if client.waypoint == nil then return end
+            client.waypoint = nil
+            client.taint:Waypoint("ClearUserWaypoint")
+            if client.superTrack.waypoint then
+                client.superTrack.waypoint = false
+                client.taint:SuperTrack("ClearUserWaypoint")
+            end
+        end,
         HasUserWaypoint = function() return client.waypoint ~= nil end,
         GetUserWaypointHyperlink = function() return nil end,
         GetUserWaypointPositionForMap = function() return nil end,
@@ -440,9 +453,46 @@ function Client:BuildEnv(opts)
     env.UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { uiMapID = m, position = vec(x, y) } end }
     env.C_AreaPoiInfo = { GetAreaPOIForMap = function() return {} end, GetAreaPOIInfo = function() return nil end }
     env.C_TaxiMap = { GetAllTaxiNodes = function() return {} end, GetTaxiNodesForMap = function() return {} end, ShouldMapShowTaxiNodes = function() return true end }
-    env.C_SuperTrack = { SetSuperTrackedUserWaypoint = function() end, IsSuperTrackingUserWaypoint = function() return false end,
-                         ClearAllSuperTracked = function() end, GetSuperTrackedQuestID = function() return nil end, SetSuperTrackedQuestID = function() end,
-                         IsSuperTrackingAnything = function() return false end, GetSuperTrackedContent = function() return nil end }
+    -- One slot of state and a change to it fires SUPER_TRACKING_CHANGED inside the call,
+    -- which is the path the taint error took: see Taint in this file.
+    local track = client.superTrack
+    env.C_SuperTrack = {
+        SetSuperTrackedUserWaypoint = function(on)
+            on = on and true or false
+            client.taint:Called("SetSuperTrackedUserWaypoint")
+            if track.waypoint ~= on then
+                track.waypoint = on
+                client.taint:SuperTrack("SetSuperTrackedUserWaypoint")
+            end
+        end,
+        IsSuperTrackingUserWaypoint = function() return track.waypoint end,
+        ClearAllSuperTracked = function()
+            client.taint:Called("ClearAllSuperTracked")
+            track.waypoint, track.quest = false, nil
+            client.taint:SuperTrack("ClearAllSuperTracked")
+        end,
+        GetSuperTrackedQuestID = function() return track.quest end,
+        IsSuperTrackingQuest = function() return track.quest ~= nil end,
+        SetSuperTrackedQuestID = function(id)
+            client.taint:Called("SetSuperTrackedQuestID")
+            track.quest = id ~= 0 and id or nil
+            if track.quest then track.waypoint = false end
+            client.taint:SuperTrack("SetSuperTrackedQuestID")
+        end,
+        GetSuperTrackedVignette = function() return track.vignette end,
+        SetSuperTrackedVignette = function(guid)
+            client.taint:Called("SetSuperTrackedVignette")
+            track.vignette = guid
+            client.taint:SuperTrack("SetSuperTrackedVignette")
+        end,
+        ClearAllSuperTrackedVignettes = function()
+            client.taint:Called("ClearAllSuperTrackedVignettes")
+            track.vignette = nil
+            client.taint:SuperTrack("ClearAllSuperTrackedVignettes")
+        end,
+        IsSuperTrackingAnything = function() return track.waypoint or track.quest ~= nil end,
+        GetSuperTrackedContent = function() return nil end,
+    }
     env.C_Navigation = { GetDistance = function() return 0 end, GetFrame = function() return nil end, GetTargetState = function() return 0 end }
 
     -- Quest log
@@ -517,12 +567,26 @@ function Client:BuildEnv(opts)
     local Inflate = require("Inflate")
     env.C_EncodingUtil = { DecodeBase64 = Inflate.DecodeBase64, DecompressString = function(z) return Inflate.Raw(z) end }
     for _, name in ipairs({ "ClearOverrideBindings", "SetOverrideBinding", "SetOverrideBindingClick", "SetOverrideBindingMacro",
-        "ChatFrame_AddMessageEventFilter", "ChatFrame_RemoveMessageEventFilter", "ToggleWorldMap", "OpenWorldMap", "ShowUIPanel",
+        "ChatFrame_AddMessageEventFilter", "ChatFrame_RemoveMessageEventFilter", "ShowUIPanel",
         "HideUIPanel", "CloseDropDownMenus", "RegisterAddonMessagePrefix", "SetCursor", "ResetCursor", "UIFrameFadeIn", "UIFrameFadeOut",
         "Minimap_SetPing", "SetPortraitTexture", "SetPortraitTextureFromCreatureDisplayID", "UnitPopup_ShowMenu", "EventRegistry" }) do
         env[name] = function() end
     end
     env.EventRegistry = { RegisterCallback = function() end, TriggerEvent = function() end, RegisterFrameEventAndCallback = function() end }
+    -- Everything running here is addon code, so a call from it stands for one the addon
+    -- makes. The player's own hand on the map comes through Client:PlayerToggleMap.
+    env.ToggleWorldMap = function()
+        client.taint:MapWrite("ToggleWorldMap")
+        client.taint.pinsTainted = true
+        local map = env.WorldMapFrame
+        if map:IsShown() then map:Hide() else map:Show() end
+    end
+    env.OpenWorldMap = function(mapID)
+        client.taint:MapWrite("OpenWorldMap")
+        client.taint.pinsTainted = true
+        env.WorldMapFrame:Show()
+        if mapID then client.viewedMap = mapID end
+    end
     env.C_ChatInfo = { RegisterAddonMessagePrefix = function() return true end, SendAddonMessage = function() end }
     env.GetNumGroupMembers = function() return 0 end
     env.GetNumClasses = function() return 0 end
@@ -553,7 +617,12 @@ function Client:BuildEnv(opts)
     map.pinPools = {}
     map.overlayFrames = {}
     function map:GetMapID() return client.viewedMap or client.player.mapID end
-    function map:SetMapID(m) client.viewedMap = m end
+    function map:SetMapID(m)
+        if client.viewedMap == m then return end
+        client.taint:MapWrite("SetMapID")
+        client.taint.mapIDTainted = true
+        client.viewedMap = m
+    end
     function map:GetCanvas() return canvas end
     function map:GetCanvasContainer() return scroll end
     function map:AddDataProvider() end
@@ -566,6 +635,8 @@ function Client:BuildEnv(opts)
     function map:RegisterCallback() end
     function map:SetPinPosition() end
     function map:GetNormalizedCursorPosition() return 0.5, 0.5 end
+    -- The first show arms the quest pins' callback, which then outlives every hide.
+    map:HookScript("OnShow", function() client.taint.armed = true end)
     function map:IsMaximized() return false end
     function map:Maximize() end
     function map:Minimize() end
@@ -578,6 +649,94 @@ function Client:BuildEnv(opts)
     env.MinimapCluster = env.CreateFrame("Frame", "MinimapCluster", self.root)
     env.ObjectiveTrackerFrame = env.CreateFrame("Frame", "ObjectiveTrackerFrame", self.root)
     return env
+end
+
+-- ==== Blizzard's map and super-track chain ==================================
+
+-- Modeled on the game's public UI source, whose lines match the reported stack exactly:
+--
+--   SUPER_TRACKING_CHANGED fires inside the call that changed it, so the handlers run in
+--   the caller's taint. Blizzard_QuestSuperTracking.lua:59 fires Supertracking.OnChanged.
+--   QuestDataProvider.lua:39 registers its refresh for that when the map shows, and its
+--   UnregisterEvents leaves it registered, so the refresh runs with the map closed too.
+--   RefreshAllData reaches AcquirePin, whose SetPassThroughButtons is refused to tainted
+--   code in combat. That refusal is the error.
+--
+-- Two kinds of harm outlive the call, so a combat check alone would not be enough. The
+-- map's id written by an addon stays tainted, and every later refresh reads it. A pin
+-- built during a tainted refresh is tainted for the session.
+local Taint = {}
+Taint.__index = Taint
+
+function Client.NewTaint(client)
+    return setmetatable({ client = client, calls = {}, refreshes = {}, blocked = {}, mapWrites = {} }, Taint)
+end
+
+function Taint:Entry(what)
+    return { what = what, combat = self.client.player.combat, mapShown = self.client.env.WorldMapFrame:IsShown() }
+end
+
+function Taint:Called(what)
+    self.calls[#self.calls + 1] = self:Entry(what)
+end
+
+-- A refresh of the quest pins, from the caller's taint or the game's own clean event.
+function Taint:Refresh(what, tainted)
+    if not self.armed then return end
+    if tainted then self.refreshes[#self.refreshes + 1] = self:Entry(what) end
+    if self.client.player.combat and (tainted or self.mapIDTainted or self.pinsTainted) then
+        self.blocked[#self.blocked + 1] = self:Entry(what)
+    end
+end
+
+function Taint:SuperTrack(what)
+    self:Refresh(what, true)
+    self.client:Fire("SUPER_TRACKING_CHANGED")
+end
+
+-- Only the waypoint's own map pin listens, and only while the map is shown.
+function Taint:Waypoint(what)
+    self:Called(what)
+    if self.client.env.WorldMapFrame:IsShown() then self:Refresh(what, true) end
+    self.client:Fire("USER_WAYPOINT_UPDATED")
+end
+
+function Taint:MapWrite(what)
+    self.mapWrites[#self.mapWrites + 1] = self:Entry(what)
+    self:Refresh(what, true)
+end
+
+-- The player's own hand on the map: the game's code, clean. A map opened on another zone
+-- writes a clean id over a tainted one.
+function Client:PlayerToggleMap()
+    local map, here = self.env.WorldMapFrame, self.player.mapID
+    if map:IsShown() then return map:Hide() end
+    if self.viewedMap ~= here then
+        self.viewedMap = here
+        self.taint.mapIDTainted = false
+    end
+    map:Show()
+end
+
+function Client:PlayerTurnsMap(mapID)
+    if self.viewedMap == mapID then return end
+    self.viewedMap = mapID
+    self.taint.mapIDTainted = false
+end
+
+-- What the game does itself when a quest is accepted, turned in or finished: its own
+-- super-track change, clean unless something it reads is not.
+function Client:GameChangesSuperTrack(questID)
+    self.superTrack.quest = questID
+    if questID then self.superTrack.waypoint = false end
+    self.taint:Refresh("the game", false)
+    self:Fire("SUPER_TRACKING_CHANGED")
+end
+
+-- A reload keeps the game's map state and arms nothing new by itself: the callback the
+-- map registered is gone with the old UI, until the player opens it again.
+function Client:MapSeenForReload()
+    self.taint.armed = true
 end
 
 function Client:After(delay, fn)

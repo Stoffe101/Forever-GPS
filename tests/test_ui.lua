@@ -299,9 +299,9 @@ function tests.escape_clearsThenLetsGo()
     T.ok(box:HasFocus(), "keeping focus")
     box._scripts.OnEscapePressed(box)
     T.no(box:HasFocus(), "then it lets go")
-    local found = false
-    for _, name in ipairs(c.env.UISpecialFrames) do found = found or name == "ForeverGPSWindow" end
-    T.ok(found, "and Escape closes the window")
+    local dispatch = c.env.EasyFindEscDispatch
+    dispatch._scripts.OnClick(dispatch)
+    T.no(c.FG.Window.IsShown(), "and Escape closes the window")
 end
 
 function tests.quests_openIntoTheirTargets()

@@ -35,6 +35,7 @@ Core/Diagnostics.lua
 UI/Theme.lua
 UI/Kit.lua
 UI/List.lua
+UI/RouteMap.lua
 UI/MapPreview.lua
 UI/RoutePanel.lua
 UI/SearchView.lua

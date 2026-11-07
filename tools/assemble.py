@@ -58,6 +58,218 @@ LICENSE_FILES = ("LICENSE",)
 RULE = re.compile(r"\[(\w+)\s+([^\]]+)\]")
 PATHS = re.compile(r"Interface(\\\\|\\|/)AddOns\1(EasyFind(?:_GPS|_Questie)?)\1")
 
+# What keeps the game's quest pins out of our name: docs/TAINT.md has the reasoning.
+# A super-track change fires its event inside the call, which rebuilds the quest pins in
+# the caller's taint, even with the map closed once it has been opened. In a fight that
+# is the protected call refused. So every change to the game's waypoint and tracking goes
+# through one door, which holds it through a fight as well as an open map, skips one
+# that changes nothing, and leaves the native pins alone.
+TAINT_EDITS = [
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """function MapSearch.WaypointChange(kind, fn)
+    if WorldMapFrame and WorldMapFrame:IsShown() then
+        waypointWaits[kind] = fn
+        return
+    end
+    waypointWaits[kind] = nil
+    fn()
+end
+""",
+     """local changes = { ran = 0, heldInCombat = 0, heldUnderMap = 0, skipped = 0, mapTurns = 0, mapRefused = 0 }
+MapSearch.WaypointChanges = changes
+local function HoldFor()
+    if InCombatLockdown() then return "heldInCombat" end
+    if WorldMapFrame and WorldMapFrame:IsShown() then return "heldUnderMap" end
+    return nil
+end
+function MapSearch.WaypointChange(kind, fn)
+    local hold = HoldFor()
+    if hold then
+        changes[hold] = changes[hold] + 1
+        waypointWaits[kind] = fn
+        return
+    end
+    waypointWaits[kind] = nil
+    changes.ran = changes.ran + 1
+    fn()
+end
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """local function RunWaypointWaits()
+    for _, kind in ipairs(WAYPOINT_WAIT_ORDER) do
+        local fn = waypointWaits[kind]
+        waypointWaits[kind] = nil
+        if fn then fn() end
+    end
+end
+""",
+     """local function RunWaypointWaits()
+    if HoldFor() then return end
+    for _, kind in ipairs(WAYPOINT_WAIT_ORDER) do
+        local fn = waypointWaits[kind]
+        waypointWaits[kind] = nil
+        if fn then
+            changes.ran = changes.ran + 1
+            fn()
+        end
+    end
+end
+do
+    local afterCombat = CreateFrame("Frame")
+    afterCombat:RegisterEvent("PLAYER_REGEN_ENABLED")
+    afterCombat:SetScript("OnEvent", RunWaypointWaits)
+end
+
+-- The game's waypoint taken off, if it is still the one this was asked about: one
+-- waiting out a fight must not take a waypoint the player dropped meanwhile.
+function MapSearch.ClearGameWaypoint()
+    local was = C_Map.GetUserWaypoint and C_Map.GetUserWaypoint()
+    MapSearch.WaypointChange("place", function()
+        local now = C_Map.GetUserWaypoint and C_Map.GetUserWaypoint()
+        if not now then return end
+        if was and was.position and now.position and (now.uiMapID ~= was.uiMapID
+            or math.abs(now.position.x - was.position.x) > 0.0001 or math.abs(now.position.y - was.position.y) > 0.0001) then
+            return
+        end
+        ClearUserWaypoint()
+    end)
+end
+
+-- The super-track, changed only when that changes something. With the beacon turned off
+-- it is only ever let go of, so a session with it off makes no refresh in our name.
+function MapSearch.TrackChange(on)
+    on = on and true or false
+    if on and MapSearch.beaconOff then return end
+    MapSearch.WaypointChange("track", function()
+        if on and MapSearch.beaconOff then return end
+        if (C_SuperTrack.IsSuperTrackingUserWaypoint() and true or false) == on then
+            changes.skipped = changes.skipped + 1
+            return
+        end
+        C_SuperTrack.SetSuperTrackedUserWaypoint(on)
+    end)
+end
+
+-- The one door to the game's map, for a click in the map's own panel. An id written from
+-- here stays tainted for every refresh that reads it, so never in a fight, and never to
+-- the map it is already on. Forever-GPS itself does not come through here at all.
+function MapSearch.TurnMap(mapID)
+    if not (WorldMapFrame and mapID) or WorldMapFrame:GetMapID() == mapID then return end
+    if InCombatLockdown() then
+        changes.mapRefused = changes.mapRefused + 1
+        return
+    end
+    changes.mapTurns = changes.mapTurns + 1
+    WorldMapFrame:SetMapID(mapID)
+end
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """    if WAYPOINTS then MapSearch.WaypointChange("track", function() C_SuperTrack.SetSuperTrackedUserWaypoint(on) end) end
+""",
+     """    if WAYPOINTS then MapSearch.TrackChange(on) end
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """        TrackWaypoint(false)
+        if WAYPOINTS and HasUserWaypoint() then
+            ClearUserWaypoint()
+        end
+""",
+     """        TrackWaypoint(false)
+        if WAYPOINTS and HasUserWaypoint() then
+            MapSearch.ClearGameWaypoint()
+        end
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua", "WorldMapFrame:SetMapID(targetMapID)", "MapSearch.TurnMap(targetMapID)", 1),
+    ("EasyFind", "MapSearch/Navigation.lua", "WorldMapFrame:SetMapID(data.zoneMapID)", "MapSearch.TurnMap(data.zoneMapID)", 3),
+    ("EasyFind", "MapSearch/Navigation.lua", "WorldMapFrame:SetMapID(spotMapID)", "MapSearch.TurnMap(spotMapID)", 1),
+    ("EasyFind", "MapSearch/UINavigation.lua", "WorldMapFrame:SetMapID(data.entranceMapID)", "MapSearch.TurnMap(data.entranceMapID)", 1),
+    ("EasyFind", "MapSearch/UINavigation.lua", "WorldMapFrame:SetMapID(data.zoneMapID)", "MapSearch.TurnMap(data.zoneMapID)", 1),
+    ("EasyFind", "MapSearch/UINavigation.lua", "WorldMapFrame:SetMapID(data.mapID)", "MapSearch.TurnMap(data.mapID)", 1),
+    # The native pin stays as the game draws it: a second mark under ours is a small price
+    # for writing nothing onto a pooled pin of the game's.
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """local function SyncGameWaypointPin()
+    local mx, my
+""",
+     """local function SyncGameWaypointPin()
+    do return end
+    local mx, my
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """        if WAYPOINTS then
+            since = 0.05
+            pinWatch:SetScript("OnUpdate", WatchPins)
+        end
+""", "", 1),
+    # What a native pin's scale was, held here rather than on the pin.
+    ("EasyFind", "MapSearch/Pins.lua",
+     """local highlightedNativePin = nil
+""",
+     """local highlightedNativePin = nil
+local nativePinScales = setmetatable({}, { __mode = "k" })
+""", 1),
+    ("EasyFind", "MapSearch/Pins.lua",
+     """    if p._easyfindOriginalScale and p.SetScale then
+        pcall(p.SetScale, p, p._easyfindOriginalScale)
+    end
+    p._easyfindOriginalScale = nil
+""",
+     """    if nativePinScales[p] and p.SetScale then
+        pcall(p.SetScale, p, nativePinScales[p])
+    end
+    nativePinScales[p] = nil
+""", 1),
+    ("EasyFind", "MapSearch/Pins.lua",
+     """        pin._easyfindOriginalScale = pin._easyfindOriginalScale or (pin:GetScale() or 1)
+        pcall(pin.SetScale, pin, pin._easyfindOriginalScale * nativePinScale)
+""",
+     """        nativePinScales[pin] = nativePinScales[pin] or (pin:GetScale() or 1)
+        pcall(pin.SetScale, pin, nativePinScales[pin] * nativePinScale)
+""", 1),
+    ("EasyFind_GPS", "GPS.lua", "    if C_Map.ClearUserWaypoint then C_Map.ClearUserWaypoint() end\n",
+     "    if ns.MapSearch and ns.MapSearch.ClearGameWaypoint then ns.MapSearch.ClearGameWaypoint() end\n", 2),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+        GPS.GamePinChange("track", function() C_SuperTrack.SetSuperTrackedUserWaypoint(on) end)
+    end
+""",
+     """    local MS = ns.MapSearch
+    if MS and MS.TrackChange and C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then MS.TrackChange(on) end
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    local ST = C_SuperTrack
+    if ST and ST.IsSuperTrackingQuest and ST.IsSuperTrackingQuest() and ST.SetSuperTrackedQuestID then
+""",
+     """    local ST = C_SuperTrack
+    if ns.MapSearch and ns.MapSearch.beaconOff then return end
+    if ST and ST.IsSuperTrackingQuest and ST.IsSuperTrackingQuest() and ST.SetSuperTrackedQuestID then
+""", 1),
+    # The beacon coming back, for the step under way.
+    ("EasyFind_GPS", "GPS.lua", "local function ToggleRouteTracking()\n",
+     """function GPS.RetrackActive()
+    local route = Route()
+    if route and not route.arrived and not route.untracked then TrackStep(route.active or 1) end
+end
+
+local function ToggleRouteTracking()
+""", 1),
+    ("EasyFind_GPS", "MapClick.lua",
+     "if map:IsShown() and map:GetMapID() ~= p.mapID then map:SetMapID(p.mapID) end",
+     "if map:IsShown() and ns.MapSearch then ns.MapSearch.TurnMap(p.mapID) end", 1),
+    ("EasyFind_GPS", "Preview.lua",
+     "if mapID and here ~= mapID and WorldMapFrame.SetMapID then pcall(WorldMapFrame.SetMapID, WorldMapFrame, mapID) end",
+     "if mapID and here ~= mapID and ns.MapSearch then ns.MapSearch.TurnMap(mapID) end", 1),
+    # The GPS is always here, so nothing reached this: the only setters left outside the door.
+    ("EasyFind_Questie", "Quests.lua",
+     """    elseif C_Map.CanSetUserWaypointOnMap and C_Map.CanSetUserWaypointOnMap(dest.mapID) then
+        C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(dest.mapID, dest.x, dest.y))
+        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+    end
+""",
+     """    end
+""", 1),
+]
+
 # (addon, file, old, new, how many times). {version} is that addon's own.
 EDITS = [
     # Settled the moment it has its settings, before anything reads them, in a way that
@@ -81,7 +293,7 @@ EDITS = [
     ("EasyFind", "Core/Extensions.lua", "local function Installed(addon) return C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon) end",
      'local function Installed(addon) return addon == "EasyFind_GPS" or addon == "EasyFind_Questie" '
      "or (C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon)) end", 1),
-]
+] + TAINT_EDITS
 
 # Its own table, not EasyFind's: it has an L of its own, among others.
 QUESTIE_HEADER = ("local _, ns = ...", "local _, shared = ...\nlocal ns = shared.QuestieExtension")

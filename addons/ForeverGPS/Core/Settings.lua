@@ -14,7 +14,7 @@ local DEFAULTS = {
     hud = { enabled = true, mode = "standard", showNext = true, showEta = true, hideInCombat = false, autoHide = false,
             locked = true, opacity = 0.86, font = "normal", arrowStyle = "solid", outline = false, sound = false },
     window = {},
-    map = { preview = true, areas = true },
+    map = { preview = true, areas = true, beacon = true },
     search = { prices = true, world = true },
     quests = { offerNext = true },
     minimap = { shown = true, angle = 215 },

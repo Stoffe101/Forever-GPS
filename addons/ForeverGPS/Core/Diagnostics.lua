@@ -12,7 +12,8 @@ local Bridge = FG.Bridge
 -- The game API Forever-GPS calls directly, by name. Kept in step with the code
 -- by tests/test_static.lua.
 Diagnostics.API = {
-    "C_AddOns.GetAddOnMetadata", "C_Map.GetBestMapForUnit", "C_Map.GetMapInfo", "C_Map.GetUserWaypoint",
+    "C_AddOns.GetAddOnMetadata", "C_Map.GetBestMapForUnit", "C_Map.GetMapArtLayers", "C_Map.GetMapArtLayerTextures",
+    "C_Map.GetMapInfo", "C_Map.GetUserWaypoint",
     "C_QuestLog.GetInfo", "C_QuestLog.GetNumQuestLogEntries", "C_QuestLog.GetQuestObjectives", "C_QuestLog.IsComplete",
     "C_QuestLog.IsFailed", "C_Timer.After", "CreateFrame", "GetCursorPosition", "GetPlayerFacing", "UnitClass",
     "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "debugprofilestop",
@@ -103,6 +104,16 @@ local function CacheLine()
     return ("Caches: %d travel estimates, %d plans kept"):format(FG.Eta.Size(), FG.Planner.KeptCount())
 end
 
+-- What has been asked of the game's waypoint and map, for a real session to be read.
+function Diagnostics.GameLines()
+    local c = Bridge.GameChanges()
+    return {
+        ("Game waypoint: %d changes made, %d held for a fight, %d held for the map, %d skipped as already so"):format(c.ran, c.heldInCombat, c.heldUnderMap, c.skipped),
+        ("Game map turned by a click in its own panel: %d, refused in a fight: %d"):format(c.mapTurns, c.mapRefused),
+        ("Game beacon: %s. Taint log: %s"):format(FG.db.map.beacon ~= false and "on" or "off", tostring(GetCVar("taintLog") or "off")),
+    }
+end
+
 function Diagnostics.Lines()
     local out = {}
     local version, build, _, interface = GetBuildInfo()
@@ -133,6 +144,7 @@ function Diagnostics.Lines()
     end
     out[#out + 1] = ("Arrow: %s. Planning: %s"):format(FG.Journey.ArrowMode(), tostring(Bridge.IsPlanning()))
     out[#out + 1] = CacheLine()
+    for _, line in ipairs(Diagnostics.GameLines()) do out[#out + 1] = line end
     for _, line in ipairs(FG.Metrics.Lines()) do out[#out + 1] = line end
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
         UpdateAddOnMemoryUsage()

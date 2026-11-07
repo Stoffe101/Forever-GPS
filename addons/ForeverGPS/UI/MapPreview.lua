@@ -1,7 +1,11 @@
--- The journey on the world map before it is taken. A layer of its own over the
--- map's canvas, with nothing shared with the route being followed: it draws what a
--- plan holds, using EasyFind GPS's line renderer, and it starts nothing. An active
--- route keeps its own line underneath in its own colors, so the two read apart.
+-- The journey on a map before it is taken: on our own map (UI/RouteMap.lua), or over the
+-- game's map when the player has it open. A layer of its own, with nothing shared with
+-- the route being followed: it draws what a plan holds, using EasyFind GPS's line
+-- renderer, and it starts nothing. An active route keeps its own line underneath in its
+-- own colors, so the two read apart.
+--
+-- This never opens, closes or turns the game's map. That is the player's alone: an id
+-- written from here would stay tainted for every refresh that reads it (docs/TAINT.md).
 --
 -- Walks follow the ground. A crossing is a straight line only where one is true (a
 -- flight, a boat on its own continent); across continents the legs stand apart on
@@ -31,14 +35,21 @@ local shown                  -- { option, target, focus }
 local since = 0
 local drawn = {}
 
-local function Map() return WorldMapFrame end
+local function GameMap() return WorldMapFrame end
 
-local function Canvas()
-    local map = Map()
-    return map and map.ScrollContainer and map.ScrollContainer.Child
+-- Where to draw: our own map, else the game's if the player has it open. Each answers
+-- with its canvas, the map on it, and how many canvas units a screen pixel is.
+local function Surface()
+    local own = FG.RouteMap
+    if own and own.Shown() then return own.Canvas(), own.MapID(), false, own.Frame() end
+    local map = GameMap()
+    local canvas = map and map:IsShown() and map.ScrollContainer and map.ScrollContainer.Child
+    if canvas then return canvas, map:GetMapID(), true, map.ScrollContainer end
+    return nil
 end
 
-local function Px(v) return Bridge.CanvasPx(v) end
+local onGame = false
+local function Px(v) return onGame and Bridge.CanvasPx(v) or v end
 
 -- ==== map geometry ==========================================================
 
@@ -193,7 +204,6 @@ end
 
 local function NewMark(i)
     local m = CreateFrame("Button", nil, overlay)
-    m:SetFrameLevel(overlay:GetFrameLevel() + 20 + i)
     m:RegisterForClicks("LeftButtonUp")
     m.disc = m:CreateTexture(nil, "ARTWORK", nil, 1)
     m.disc:SetTexture(FG.ART .. "circle")
@@ -229,6 +239,7 @@ end
 local function PlaceMark(i, x, y, size, opts)
     local m = marks[i] or NewMark(i)
     local px = Px(size)
+    m:SetFrameLevel(overlay:GetFrameLevel() + 20 + i)
     m:ClearAllPoints()
     m:SetSize(px, px)
     m:SetPoint("CENTER", overlay, "TOPLEFT", x * pen.cw, -y * pen.ch)
@@ -308,23 +319,33 @@ end
 
 -- ==== the layer =============================================================
 
-local function Build()
-    local canvas = Canvas()
-    if not canvas then return false end
+local function Build(canvas)
     overlay = CreateFrame("Frame", "ForeverGPSMapPreview", canvas)
-    overlay:SetAllPoints(canvas)
-    overlay:SetFrameStrata("HIGH")
-    overlay:SetFrameLevel(320)
     overlay:EnableMouse(false)
     lines = Bridge.NewMapLines(overlay)
     return lines ~= nil
 end
 
+-- The layer moved onto the surface that is showing.
+local function Mount(canvas, game)
+    if overlay and overlay:GetParent() == canvas then return end
+    overlay:SetParent(canvas)
+    overlay:ClearAllPoints()
+    overlay:SetAllPoints(canvas)
+    overlay:SetFrameStrata("HIGH")
+    overlay:SetFrameLevel(game and 320 or canvas:GetFrameLevel() + 20)
+    wipe(drawn)
+end
+
 local function Draw()
-    local map, canvas = Map(), Canvas()
-    if not (map and canvas and shown and map:IsShown()) then return end
-    if not overlay and not Build() then return end
-    local mapID = map:GetMapID()
+    local canvas, mapID, game = Surface()
+    if not (canvas and shown) then
+        if overlay then overlay:Hide() end
+        return
+    end
+    if not overlay and not Build(canvas) then return end
+    Mount(canvas, game)
+    onGame = game
     local cw, ch = canvas:GetWidth(), canvas:GetHeight()
     local option = shown.option
     local zoom = Px(1)
@@ -407,21 +428,14 @@ end
 
 local function Watch()
     if not driver then driver = CreateFrame("Frame") end
-    local map = Map()
-    driver:SetScript("OnUpdate", (shown and map and map:IsShown()) and Tick or nil)
+    driver:SetScript("OnUpdate", (shown and Surface()) and Tick or nil)
 end
 
 -- ==== the banner on the map =================================================
 
 local function BuildBanner()
-    local map = Map()
-    local host = map and map.ScrollContainer
-    if not host then return end
-    banner = CreateFrame("Frame", "ForeverGPSMapBanner", map)
-    banner:SetFrameStrata("HIGH")
-    banner:SetFrameLevel(340)
+    banner = CreateFrame("Frame", "ForeverGPSMapBanner", UIParent)
     banner:SetHeight(38)
-    banner:SetPoint("TOP", host, "TOP", 0, -8)
     banner:EnableMouse(true)
     banner.back = Kit.Shape(banner, 8, "BACKGROUND", 1)
     banner.edge = Kit.Shape(banner, 8, "BACKGROUND", 2, true)
@@ -439,7 +453,7 @@ local function BuildBanner()
     banner.go = Kit.Button(banner, { text = L["ROUTE_START"], variant = "primary", height = 26, width = "fit", onClick = function()
         FG.Planner.Start()
     end })
-    banner.close = Kit.IconButton(banner, "close", 10, L["MAP_CLOSE_PREVIEW"], function() FG.Planner.Clear() end)
+    banner.close = Kit.IconButton(banner, "close", 10, L["MAP_CLOSE_PREVIEW"], function() MapPreview.Close() end)
     banner.close:SetPoint("RIGHT", banner, "RIGHT", -6, 0)
     banner.go:SetPoint("RIGHT", banner.close, "LEFT", -4, 0)
     banner.you = Kit.IconButton(banner, "locate", 14, L["MAP_RETURN"], function() MapPreview.ToPlayer() end)
@@ -451,12 +465,23 @@ local function BuildBanner()
     banner:Hide()
 end
 
+-- The banner sits on whichever surface is showing, and with none it is hidden.
+local function MountBanner(host, game)
+    banner:SetParent(host)
+    banner:SetFrameStrata("HIGH")
+    banner:SetFrameLevel(game and 340 or host:GetFrameLevel() + 60)
+    banner:ClearAllPoints()
+    banner:SetPoint("TOP", game and host or FG.RouteMap.Canvas(), "TOP", 0, -8)
+end
+
 local function ShowBanner()
     if not banner then BuildBanner() end
-    if not banner then return end
-    if not shown then return banner:Hide() end
+    local _, _, game, host = Surface()
+    if not (shown and host) then return banner:Hide() end
+    MountBanner(host, game)
     local option = shown.option
-    banner.title:SetText(L["MAP_PREVIEW_FMT"]:format(shown.target.name or "?", Format.Duration(option.total) or "?"))
+    banner.title:SetText(L[shown.active and "MAP_ROUTE_FMT" or "MAP_PREVIEW_FMT"]:format(shown.target.name or "?", Format.Duration(option.total) or "?"))
+    banner.go:SetShown(not shown.active)
     banner:SetWidth(mmin(mmax(400, banner.title:GetStringWidth() + banner.go:GetWidth() + 152), 700))
     banner.leg:SetShown(#MapPreview.Legs() > 1)
     banner:Show()
@@ -467,6 +492,11 @@ end
 local function Sync(plan)
     local option = plan and plan.selected
     local wanted = FG.db.map.preview or (shown and shown.asked)
+    if shown and shown.active and not option then
+        ShowBanner()
+        Draw()
+        return Watch()
+    end
     if option and option.steps and not option.noWay and wanted then
         if not shown or shown.option ~= option or shown.target ~= plan.target then
             shown = { option = option, target = plan.target, asked = shown and shown.target == plan.target and shown.asked }
@@ -478,6 +508,7 @@ local function Sync(plan)
         if overlay then overlay:Hide() end
         if banner then banner:Hide() end
         wipe(drawn)
+        FG.RouteMap.Hide()
     else
         ShowBanner()
         Draw()
@@ -486,12 +517,24 @@ local function Sync(plan)
 end
 
 FG.On("plan:changed", Sync)
+FG.On("route:cleared", function()
+    if shown and shown.active then
+        shown = nil
+        Sync(FG.Planner.Current())
+    end
+end)
+FG.On("routemap:shown", function()
+    wipe(drawn)
+    if shown then ShowBanner() end
+    Watch()
+    Draw()
+end)
 FG.On("settings:changed", function()
     wipe(drawn)
     Sync(FG.Planner.Current())
 end)
 
--- Turns the map to the whole journey, or to one step of it.
+-- The whole journey on our own map, or one step of it.
 function MapPreview.Open(index)
     -- Asked for by name, it shows even with the automatic preview turned off.
     if not shown then
@@ -501,15 +544,8 @@ function MapPreview.Open(index)
         Sync(plan)
     end
     if not shown then return false end
-    local map = Map()
-    if not map then return false end
-    if not map:IsShown() then
-        -- Opening a protected panel is left to the player while in combat.
-        if InCombatLockdown() then return false end
-        ToggleWorldMap()
-    end
-    local mapID = index and MapForLeg(shown.option, index) or MapForJourney(shown.option)
-    if mapID then pcall(map.SetMapID, map, mapID) end
+    FG.RouteMap.Show(index and MapForLeg(shown.option, index) or MapForJourney(shown.option))
+    ShowBanner()
     Watch()
     Draw()
     return true
@@ -556,9 +592,7 @@ function MapPreview.NextLeg()
     local legs = MapPreview.Legs()
     if not shown or #legs < 2 then return end
     shown.leg = (shown.leg or 1) % #legs + 1
-    local leg = legs[shown.leg]
-    local map = Map()
-    if map and leg.mapID then pcall(map.SetMapID, map, leg.mapID) end
+    FG.RouteMap.Show(legs[shown.leg].mapID)
     Draw()
 end
 
@@ -572,38 +606,55 @@ end
 
 -- Back to where the player stands; the preview stays.
 function MapPreview.ToPlayer()
-    local map = Map()
     local mapID = C_Map.GetBestMapForUnit("player")
-    if map and mapID then pcall(map.SetMapID, map, mapID) end
+    if mapID then FG.RouteMap.Show(mapID) end
+    Draw()
 end
 
--- The route under way, whose line EasyFind GPS draws itself.
+-- The route under way, drawn from what the journey holds: EasyFind GPS's own line lives
+-- on the game's map, and is there whenever the player opens it.
 function MapPreview.OpenActive()
-    local map = Map()
     local route = Bridge.ActiveRoute()
-    if not (map and route) then return false end
-    if not map:IsShown() then
-        if InCombatLockdown() then return false end
-        ToggleWorldMap()
-    end
+    if not route then return false end
     local step = route.steps[route.active or 1]
-    local mapID = step and step.mapID or C_Map.GetBestMapForUnit("player")
-    if mapID then pcall(map.SetMapID, map, mapID) end
+    if not shown or not shown.active then
+        shown = { active = true, asked = true, target = { name = route.dest and route.dest.name },
+                  option = { steps = route.steps, walks = Bridge.WalksOf(route), from = route.from, total = route.total } }
+    end
+    FG.RouteMap.Show(step and step.mapID or C_Map.GetBestMapForUnit("player"))
+    ShowBanner()
+    Watch()
+    Draw()
     return true
+end
+
+-- Done with what is showing: a plan's preview goes with its plan.
+function MapPreview.Close()
+    if shown and shown.active then
+        shown = nil
+        return Sync(FG.Planner.Current())
+    end
+    FG.Planner.Clear()
+    FG.RouteMap.Hide()
 end
 
 function MapPreview.Focused() return shown and shown.focus or nil end
 function MapPreview.Showing() return shown ~= nil end
 
 local function Hook()
-    local map = Map()
+    local map = GameMap()
     if not map or MapPreview.hooked then return end
     MapPreview.hooked = true
     map:HookScript("OnShow", function()
+        wipe(drawn)
+        if shown then ShowBanner() end
         Watch()
         Draw()
     end)
-    map:HookScript("OnHide", Watch)
+    map:HookScript("OnHide", function()
+        if shown then ShowBanner() end
+        Watch()
+    end)
 end
 
 FG.On("login", Hook)

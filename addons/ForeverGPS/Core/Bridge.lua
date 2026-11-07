@@ -491,6 +491,37 @@ function Bridge.WalksOf(route)
     return out
 end
 
+-- ==== the game's own state ==================================================
+
+-- Escape without the game's UISpecialFrames: a name of ours in that list taints the
+-- walker that closes its windows, for the rest of the session, which EasyFind found out
+-- first. This is its transient override binding. It drops in a fight, as bindings must.
+function Bridge.CloseOnEscape(frame, close)
+    local ns = NS()
+    if ns and ns.AttachEscClose then ns.AttachEscClose(frame, close) end
+end
+
+-- The game's in-world beacon on or off. Off, nothing here changes its super-track at all.
+function Bridge.SetBeacon(on)
+    local ns = NS()
+    local MS = ns and ns.MapSearch
+    if not (MS and MS.TrackChange) then return end
+    local was = MS.beaconOff
+    MS.beaconOff = not on or nil
+    if MS.beaconOff then
+        if not was then MS.TrackChange(false) end
+    elseif was and ns.GPS and ns.GPS.RetrackActive then
+        ns.GPS.RetrackActive()
+    end
+end
+
+-- What has been asked of the game's waypoint and map, for /fgps diag.
+function Bridge.GameChanges()
+    local ns = NS()
+    local MS = ns and ns.MapSearch
+    return MS and MS.WaypointChanges or { ran = 0, heldInCombat = 0, heldUnderMap = 0, skipped = 0, mapTurns = 0, mapRefused = 0 }
+end
+
 -- ==== drawing on the world map ==============================================
 
 function Bridge.NewMapLines(parent)
@@ -644,7 +675,9 @@ function Bridge.Listen()
 end
 
 FG.On("loaded", Bridge.Listen)
+FG.On("settings:changed", function() Bridge.SetBeacon(FG.db.map.beacon ~= false) end)
 FG.On("login", function()
+    Bridge.SetBeacon(FG.db.map.beacon ~= false)
     FG.After(6, Bridge.WarmSearch)
     -- A route back from a reload redraws its walks from the next frame on: under
     -- its own settings, which nothing else has set yet this session.

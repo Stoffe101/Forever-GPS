@@ -152,7 +152,7 @@ function tests.aJourneyStep_turnsTheMapToIt()
     Plan(c, AUBERDINE)
     c.FG.MapPreview.Focus(3)
     T.eq(c.FG.MapPreview.Focused(), 3)
-    T.eq(c.env.WorldMapFrame:GetMapID(), 1439, "the last walk is in Darkshore")
+    T.eq(c.FG.RouteMap.MapID(), 1439, "the last walk is in Darkshore")
     c.FG.MapPreview.Focus(3)
     T.eq(c.FG.MapPreview.Focused(), nil, "again shows them all")
 end
@@ -163,13 +163,43 @@ function tests.opening_doesNothingWhenThereIsNothingToShow()
     T.eq(#c.errors, 0)
 end
 
-function tests.inCombat_theMapIsNotOpenedForYou()
+function tests.inCombat_theGamesMapIsLeftAlone_andOursStillOpens()
     local c = Start()
     Plan(c, AUBERDINE)
     c.env.WorldMapFrame:Hide()
     c.player.combat = true
-    T.no(c.FG.MapPreview.Open(), "left to the player")
-    T.no(c.env.WorldMapFrame:IsShown())
+    T.ok(c.FG.MapPreview.Open(), "our own frame, so nothing is protected")
+    T.no(c.env.WorldMapFrame:IsShown(), "the game's map stays the player's")
+end
+
+-- Tiles row by row as the game's own detail layer lays them, the last ones cut to the map.
+function tests.theRouteMapsArt_isLaidOutAsTheGameLaysIt()
+    local c = Start()
+    c.env.C_Map.GetMapArtLayers = function()
+        return { { layerWidth = 1002, layerHeight = 668, tileWidth = 256, tileHeight = 256 } }
+    end
+    c.env.C_Map.GetMapArtLayerTextures = function()
+        local out = {}
+        for i = 1, 12 do out[i] = 1000 + i end
+        return out
+    end
+    c.FG.RouteMap.Show(1453)
+    T.eq(c.FG.RouteMap.Tiles(), 12, "four across, three down")
+    T.eq(c.FG.RouteMap.MapID(), 1453)
+    T.ok(c.FG.RouteMap.Shown())
+    c.FG.RouteMap.Show(1429)
+    T.eq(c.FG.RouteMap.MapID(), 1429, "and turns")
+end
+
+function tests.aMapWithNoArt_stillShowsTheJourney()
+    local c = Start()
+    c.env.C_Map.GetMapArtLayers = function() return {} end
+    Plan(c, AUBERDINE)
+    T.ok(c.FG.MapPreview.Open(), "the route, on plain ground")
+    T.eq(c.FG.RouteMap.Tiles(), 0)
+    c:Advance(0.3)
+    T.ok(Strips(c) > 0, "drawn all the same")
+    T.eq(#c.errors, 0)
 end
 
 function tests.aMapOpenedLater_stillShowsThePreview()
@@ -287,11 +317,11 @@ function tests.aJourneyAcrossContinents_canBeSteppedThrough()
     local legs = c.FG.MapPreview.Legs()
     T.eq(#legs, 2, "two lands")
     T.ok(legs[1].ci ~= legs[2].ci)
-    local first = c.env.WorldMapFrame:GetMapID()
+    local first = c.FG.RouteMap.MapID()
     c.FG.MapPreview.NextLeg()
-    T.ok(c.env.WorldMapFrame:GetMapID() ~= first, "the map turns to the far side")
+    T.ok(c.FG.RouteMap.MapID() ~= first, "the map turns to the far side")
     c.FG.MapPreview.NextLeg()
-    T.eq(c.env.WorldMapFrame:GetMapID(), legs[1].mapID, "and back round")
+    T.eq(c.FG.RouteMap.MapID(), legs[1].mapID, "and back round")
 end
 
 function tests.rides_areNamedOnTheMap()

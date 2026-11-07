@@ -76,9 +76,9 @@ for name in ("assert error ipairs math next pairs pcall print select string tabl
 -- or an addon verified on interface 16001; tests below hold this list to that.
 local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
-    .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent UISpecialFrames "
+    .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue ToggleWorldMap WorldMapFrame GetCursorPosition IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
+    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
     .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
@@ -111,6 +111,49 @@ function tests.onlyKnownGlobalsAreRead()
     T.ok(reads > 50, "the listing was read: " .. reads)
 end
 
+-- docs/TAINT.md. What Forever-GPS's own code must never do, whatever a green run says.
+function tests.ourOwnCode_keepsOffTheGamesMapAndTracking()
+    local FORBIDDEN = { "SetMapID", "ToggleWorldMap", "OpenWorldMap", "ShowUIPanel", "HideUIPanel", "UISpecialFrames",
+        "C_SuperTrack", "SetUserWaypoint", "ClearUserWaypoint", "AddDataProvider", "RemoveDataProvider", "AcquirePin",
+        "SetPassThroughButtons", "SetPropagateMouseClicks", "QuestMapFrame_OpenToQuestDetails" }
+    for _, file in ipairs(Sources()) do
+        local code = CodeOnly(file.src)
+        for _, name in ipairs(FORBIDDEN) do
+            T.no(code:find(name, 1, true), file.path .. " reaches for " .. name)
+        end
+    end
+end
+
+-- The vendored code changes the game's waypoint and tracking in one place only.
+function tests.theGamesWaypoint_hasOneDoorInTheFolderThatShips()
+    local DOOR = {
+        ["C_SuperTrack.SetSuperTrackedUserWaypoint(on)"] = true,
+        ["SetUserWaypoint(point)"] = true,
+        ["ClearUserWaypoint()"] = true,
+    }
+    local function Scan(rel)
+        local isWindows = package.config:sub(1, 1) == "\\"
+        local p = io.popen(isWindows and ('cmd /c "dir /b /s build\\assembled\\ForeverGPS\\' .. rel:gsub("/", "\\") .. '\\*.lua"')
+            or ("find build/assembled/ForeverGPS/" .. rel .. " -name '*.lua'"))
+        local seen = 0
+        for path in p:lines() do
+            seen = seen + 1
+            local code = CodeOnly(Read(path))
+            for line in code:gmatch("[^\n]+") do
+                local call = line:match("C_SuperTrack%.Set[%w_]+%b()") or line:match("C_SuperTrack%.Clear[%w_]+%b()")
+                    or line:match("%f[%w_]SetUserWaypoint%b()") or line:match("%f[%w_]ClearUserWaypoint%b()")
+                if call and not line:find("local ", 1, true) then
+                    local inFunnel = DOOR[call] or line:find("WaypointChange(", 1, true) or line:find("GamePinChange(", 1, true)
+                    T.ok(inFunnel, path .. " changes the game's waypoint outside the door: " .. line)
+                end
+            end
+        end
+        p:close()
+        return seen
+    end
+    T.ok(Scan("Vendor") > 20, "the scan saw the vendored files")
+end
+
 function tests.everyGameApi_isOneUpstreamAlreadyUses()
     -- Upstream runs on this client. A name it uses is one the client has.
     local haystack = {}
@@ -128,6 +171,9 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     haystack[#haystack + 1] = Read("addons/EasyFind/Search/Modules.lua")
     -- Not something EasyFind has reason to call, and guarded by a pcall where it is used.
     haystack[#haystack + 1] = "C_AddOns.DisableAddOn"
+    -- What the game's own map draws its art with, read in its public source. Absent, the
+    -- route map draws on plain ground, and `/fgps diag` says so.
+    haystack[#haystack + 1] = "C_Map.GetMapArtLayers C_Map.GetMapArtLayerTextures"
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do

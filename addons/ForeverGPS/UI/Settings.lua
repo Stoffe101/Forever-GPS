@@ -51,6 +51,10 @@ local GROUPS = {
             FG.db.map.preview = on
             FG.Emit("settings:changed")
         end)
+        ui.check("SET_MAP_BEACON", function() return FG.db.map.beacon end, function(on)
+            FG.db.map.beacon = on
+            FG.Emit("settings:changed")
+        end)
         ui.check("SET_MAP_AREAS", function() return FG.db.map.areas end, function(on)
             FG.db.map.areas = on
             FG.Emit("settings:changed")
