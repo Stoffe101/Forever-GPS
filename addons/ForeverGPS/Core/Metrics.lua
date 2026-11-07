@@ -29,6 +29,17 @@ function Metrics.Sample(name, ms)
     if not worst[name] or ms > worst[name] then worst[name] = ms end
 end
 
+-- A running total, for what is spread over many frames, taken by Total when it is done.
+local totals = {}
+function Metrics.Add(name, ms) totals[name] = (totals[name] or 0) + ms end
+
+function Metrics.Total(name)
+    local total = totals[name] or 0
+    totals[name] = nil
+    Metrics.Sample(name, total)
+    return total
+end
+
 -- A thing worth knowing about later: a plan that failed, an API that was missing.
 function Metrics.Note(text)
     notes[#notes + 1] = text
@@ -48,3 +59,5 @@ end
 
 function Metrics.Notes() return notes end
 function Metrics.Last(name) return last[name] end
+function Metrics.Worst(name) return worst[name] end
+function Metrics.Runs(name) return count[name] or 0 end

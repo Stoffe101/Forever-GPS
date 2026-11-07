@@ -76,8 +76,19 @@ local function Share()
     FG.CopyBox.Show(FG.Saved.ShareLine(dest.name, Bridge.MapName(dest.mapID), dest.x, dest.y))
 end
 
+-- A quest by name or id, opened if there is one clear answer, otherwise listed.
+local function FindQuest(rest)
+    FG.Window.Show("quests")
+    FG.QuestsView.SetMode("find")
+    if rest == "" then return end
+    FG.ExplorerView.Search(rest)
+    local rows = FG.QuestIndex.Find(rest)
+    if tonumber(rest) and rows[1] then FG.ExplorerView.Open(FG.QuestIndex.Row(rows[1]).id) end
+end
+
 local COMMANDS = {
     go = function(rest) FG.Quick.Open(rest) end,
+    quest = FindQuest,
     target = FG.DirectionsToTarget,
     resume = function() FG.Resume() end,
     save = Save,
@@ -94,7 +105,7 @@ local COMMANDS = {
 
 local function Help()
     FG.Print(L["HELP_HEADER"])
-    for _, key in ipairs({ "HELP_TOGGLE", "HELP_GO", "HELP_TARGET", "HELP_QUESTS", "HELP_TRIP", "HELP_WAY", "HELP_SAVE", "HELP_SHARE", "HELP_RESUME", "HELP_STOP",
+    for _, key in ipairs({ "HELP_TOGGLE", "HELP_GO", "HELP_TARGET", "HELP_QUESTS", "HELP_QUEST", "HELP_TRIP", "HELP_WAY", "HELP_SAVE", "HELP_SHARE", "HELP_RESUME", "HELP_STOP",
                            "HELP_HUD", "HELP_DIAG", "HELP_REPORT", "HELP_RESET" }) do
         print("  " .. L[key])
     end

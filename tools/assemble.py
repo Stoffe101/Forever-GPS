@@ -270,6 +270,79 @@ local function ToggleRouteTracking()
 """, 1),
 ]
 
+# What a planning slice's time goes on: docs/PERFORMANCE.md has the measurements. Unpacking
+# a tile cannot be split, and a slice already part spent ran on past its budget by all of it.
+# So a slice with little of its budget left hands the unpacking to the next one. What the plan does
+# after the engine's slice, the collector and the finishing, is measured as well: both land
+# in the same frame, and neither was in the figure players see.
+PLANNING_EDITS = [
+    ("EasyFind_GPS", "Nav.lua",
+     """    local method = Enum and Enum.CompressionMethod and Enum.CompressionMethod.Deflate or 0
+    return E.DecompressString(E.DecodeBase64(s), method)
+""",
+     """    local method = Enum and Enum.CompressionMethod and Enum.CompressionMethod.Deflate or 0
+    if Nav.yieldCo and Nav.sliceEnd and corunning() == Nav.yieldCo and debugprofilestop() > Nav.sliceEnd - (Nav.sliceRoom or 0) then coyield() end
+    local started = debugprofilestop()
+    local raw = E.DecompressString(E.DecodeBase64(s), method)
+    Nav.unpackedMs = (Nav.unpackedMs or 0) + debugprofilestop() - started
+    return raw
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if Nav then Nav.sliceEnd = sliceStart + (GPS.PlanBudget and GPS.PlanBudget() or (GPS.planning and PLAN_BUDGET_MS or PLAN_BUDGET_BACK_MS)) end
+""",
+     """    if Nav then
+        local budget = GPS.PlanBudget and GPS.PlanBudget() or (GPS.planning and PLAN_BUDGET_MS or PLAN_BUDGET_BACK_MS)
+        Nav.sliceEnd, Nav.sliceRoom, Nav.unpackedMs = sliceStart + budget, budget / 3, 0
+    end
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if GPS.OnPlanSlice then GPS.OnPlanSlice(debugprofilestop() - sliceStart) end
+""",
+     """    if GPS.OnPlanSlice then GPS.OnPlanSlice(debugprofilestop() - sliceStart, Nav and Nav.unpackedMs or 0) end
+    local collecting = debugprofilestop()
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if grew > 0 then ns.Utils.GCStep(1) end
+    if coroutine.status(co) ~= "dead" or Planner.co ~= co then return end
+""",
+     """    if grew > 0 then ns.Utils.GCStep(1) end
+    if GPS.OnPlanCollect then GPS.OnPlanCollect(debugprofilestop() - collecting) end
+    if coroutine.status(co) ~= "dead" or Planner.co ~= co then return end
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    done(a, b, c)
+    if not quiet then Refresh() end
+    Planner.ReleaseLater()
+""",
+     """    local finishing = debugprofilestop()
+    done(a, b, c)
+    if not quiet then Refresh() end
+    if GPS.OnPlanFinish then GPS.OnPlanFinish(debugprofilestop() - finishing) end
+    Planner.ReleaseLater()
+""", 1),
+    # A word being typed only narrows the last answer: what did not hold for "mai" cannot
+    # hold for "mail". The first letters read every creature and object; the rest do not.
+    ("EasyFind_Questie", "Quests.lua",
+     """        local q, hits = text:lower(), {}
+        for i = 1, world.n do
+            local at = world.names[i]:find(q, 1, true)
+            if at then hits[#hits + 1] = { i = i, at = at == 1 and 0 or 1, len = #world.names[i] } end
+        end
+""",
+     """        local q, hits, kept = text:lower(), {}, {}
+        local pool = world.lastText and q:sub(1, #world.lastText) == world.lastText and world.lastKept or nil
+        for k = 1, pool and #pool or world.n do
+            local i = pool and pool[k] or k
+            local at = world.names[i]:find(q, 1, true)
+            if at then
+                kept[#kept + 1] = i
+                hits[#hits + 1] = { i = i, at = at == 1 and 0 or 1, len = #world.names[i] }
+            end
+        end
+        world.lastText, world.lastKept = q, kept
+""", 1),
+]
+
 # (addon, file, old, new, how many times). {version} is that addon's own.
 EDITS = [
     # Settled the moment it has its settings, before anything reads them, in a way that
@@ -293,7 +366,7 @@ EDITS = [
     ("EasyFind", "Core/Extensions.lua", "local function Installed(addon) return C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon) end",
      'local function Installed(addon) return addon == "EasyFind_GPS" or addon == "EasyFind_Questie" '
      "or (C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon)) end", 1),
-] + TAINT_EDITS
+] + TAINT_EDITS + PLANNING_EDITS
 
 # Its own table, not EasyFind's: it has an L of its own, among others.
 QUESTIE_HEADER = ("local _, ns = ...", "local _, shared = ...\nlocal ns = shared.QuestieExtension")

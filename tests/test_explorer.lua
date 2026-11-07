@@ -878,6 +878,31 @@ function tests.ordering_holdsSeveralConstraintsAtOnce()
     T.ok(at[4] < at[3] and at[4] < at[2] and at[3] < at[1], "every one of them")
 end
 
+function tests.pickups_canBecomeACircuit_inOneClick_andKeepWhatWasThere()
+    local c = Start({ ui = true })
+    local stop = { name = "Mine", mapID = 1429, x = 0.5, y = 0.5 }
+    c.FG.Trip.Add(stop)
+    c.FG.Trip.PlanPickups({ 10, 20 })
+    T.ok(Stack.Until(c, function() return c.FG.Trip.Count() == 3 and c.FG.Planner.Current() end, 40), "planned")
+    T.ok(c.FG.Trip.Has(stop), "what was on it stays")
+    local bound = 0
+    for _, s in ipairs(c.FG.Trip.List()) do
+        if s.binding and s.binding.kind == "start" then bound = bound + 1 end
+    end
+    T.eq(bound, 2)
+    T.no(c.FG.Bridge.ActiveRoute(), "looked over before it starts")
+end
+
+function tests.aQuest_opensFromTheCommandLine()
+    local c = Start({ ui = true })
+    c.env.SlashCmdList.FOREVERGPS("quest 41")
+    c:Advance(0.5)
+    T.eq(c.FG.QuestDetail.Current(), 41)
+    c.env.SlashCmdList.FOREVERGPS("quest left fork")
+    c:Advance(0.5)
+    T.eq(#c.errors, 0)
+end
+
 function tests.addingAPickup_putsItOnTheTrip()
     local c = Start({ ui = true })
     Open(c, 10)

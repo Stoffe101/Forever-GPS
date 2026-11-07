@@ -471,7 +471,9 @@ local function Gather(query, filter, info)
     if filter == "quests" then return results end
 
     info.kind = info.kind or Bridge.IsKindQuery(query)
+    FG.Metrics.Begin("searchPlaces")
     local rows = Bridge.SearchPlaces(query)
+    FG.Metrics.End("searchPlaces")
     for i = 1, #rows do
         if #results >= MAX_RESULTS then break end
         local row = rows[i]
@@ -485,8 +487,12 @@ local function Gather(query, filter, info)
         end
     end
     if filter == "all" or filter == "travel" then TransportResults(query, results) end
+    FG.Metrics.Begin("searchWorld")
     if (filter == "all" or filter == "npcs") and #results < MAX_RESULTS then WorldResults(query, names, results) end
+    FG.Metrics.End("searchWorld")
+    FG.Metrics.Begin("searchQuests")
     if filter == "all" then ExplorerResults(query, results) end
+    FG.Metrics.End("searchQuests")
 
     -- Hostile NPCs stay findable, after those that will talk to the player.
     local friendly, hostile = {}, {}

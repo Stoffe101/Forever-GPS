@@ -72,6 +72,20 @@ local function BindResult(row, item, index)
     row.back:SetShown(index == cursor or r.id == selected or row:IsMouseOver())
 end
 
+local function MakeCircuit(parent)
+    local row = CreateFrame("Frame", nil, parent)
+    row.back = Kit.Shape(row, 7, "BACKGROUND", 1)
+    Theme.Paint(function(c) row.back:SetColor(c.routeSoft) end)
+    row.go = Kit.Button(row, { text = L["XF_PLAN_PICKUPS"], height = 24, width = "fit", onClick = function()
+        View.PlanPickups()
+    end })
+    row.go:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.text = Kit.Text(row, "label", "text")
+    row.text:SetPoint("LEFT", row, "LEFT", 10, 0)
+    row.text:SetPoint("RIGHT", row.go, "LEFT", -8, 0)
+    return row
+end
+
 local function MakeSection(parent)
     local row = CreateFrame("Frame", nil, parent)
     row.label = Kit.Text(row, "caption", "textFaint")
@@ -111,6 +125,7 @@ end
 local function Bind(row, item, index)
     if item.kind == "result" then BindResult(row, item, index)
     elseif item.kind == "section" then row.label:SetText(item.text)
+    elseif item.kind == "circuit" then row.text:SetText(L["XF_PICKUPS_FMT"]:format(item.count))
     elseif item.kind == "zone" then
         row.item = item
         row.name:SetText(item.zone)
@@ -125,6 +140,7 @@ local function Height(item, width)
     if item.kind == "result" then return ROW_H end
     if item.kind == "section" then return SECTION_H end
     if item.kind == "zone" then return ZONE_H end
+    if item.kind == "circuit" then return 40 end
     local h = 24
     if item.title then h = h + FG.RoutePanel.TextHeight(item.title, width - 20, "label") end
     if item.body then h = h + 4 + FG.RoutePanel.TextHeight(item.body, width - 20, "small") end
@@ -168,7 +184,11 @@ local function NearItems()
     for _, entry in ipairs(Browse.NearList()) do
         items[#items + 1] = { kind = "result", row = entry.row, status = entry.status, sec = entry.sec, yards = entry.yards }
     end
-    if #items == 1 then items[2] = { kind = "note", title = L["XF_NEAR_NONE"], body = L["XF_NEAR_NONE_HINT"] } end
+    if #items == 1 then
+        items[2] = { kind = "note", title = L["XF_NEAR_NONE"], body = L["XF_NEAR_NONE_HINT"] }
+    elseif #items > 2 then
+        table.insert(items, 1, { kind = "circuit", count = #items - 1 })
+    end
     return items
 end
 
@@ -245,6 +265,12 @@ function View.ShowNear()
         FG.Print(L["ROUTE_UNKNOWN_POSITION"])
     end
     View.Refresh(false)
+end
+
+function View.PlanPickups()
+    local ids = {}
+    for _, entry in ipairs(Browse.NearList()) do ids[#ids + 1] = entry.row.id end
+    return FG.Trip.PlanPickups(ids)
 end
 
 function View.Search(text)
@@ -350,7 +376,7 @@ local function Build(parent)
     end
 
     list = List.New(f, {
-        make = { result = MakeResult, section = MakeSection, note = MakeNote, zone = MakeZone },
+        make = { result = MakeResult, section = MakeSection, note = MakeNote, zone = MakeZone, circuit = MakeCircuit },
         bind = Bind, height = Height,
     })
     f.list = list

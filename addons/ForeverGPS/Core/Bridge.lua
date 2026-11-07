@@ -394,7 +394,13 @@ local function WatchPlans()
     local g = GPS()
     if not g then return end
     g.PlanBudget = Bridge.PlanBudget
-    g.OnPlanSlice = function(ms) FG.Metrics.Sample("planFrame", ms) end
+    g.OnPlanSlice = function(ms, unpacked)
+        FG.Metrics.Sample("planFrame", ms)
+        FG.Metrics.Add("planWork", ms)
+        if unpacked and unpacked > 0 then FG.Metrics.Sample("planUnpack", unpacked) end
+    end
+    g.OnPlanCollect = function(ms) FG.Metrics.Sample("planCollect", ms) end
+    g.OnPlanFinish = function(ms) FG.Metrics.Sample("planFinish", ms) end
 end
 FG.On("login", WatchPlans)
 

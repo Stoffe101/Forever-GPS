@@ -207,7 +207,7 @@ for name in ("Paint Place SetLabel SetVariant SetSelected SetColor SetColorKey S
     .. "IsPlanning Plan BuildRoute Clear Build Guiding HasGlobalInstanceCache "
     .. "Line Begin Finish GetMapID GetXY "
     -- Questie's loader, reached only from Core/QuestDB.lua.
-    .. "ImportModule "
+    .. "ImportModule GetUiMapIdByAreaId "
     -- GameTooltip.
     .. "SetOwner AddLine"):gmatch("%S+") do OWN_METHODS[name] = true end
 local STRING_METHODS = { find = true, match = true, gmatch = true, gsub = true, sub = true, lower = true, format = true, byte = true }

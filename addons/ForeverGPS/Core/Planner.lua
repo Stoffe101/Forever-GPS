@@ -129,6 +129,7 @@ local function Finish()
     chosen = chosen or first
     Bridge.RestoreNav()
     FG.Metrics.End("plan")
+    FG.Metrics.Total("planWork")
     if chosen then
         current.selected, current.status = chosen, "ready"
         if current.key then Remember(current) end

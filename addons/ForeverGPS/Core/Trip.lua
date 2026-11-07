@@ -322,6 +322,37 @@ function Trip.PlanNearby()
     end)
 end
 
+-- Pickups from a list of quests, on top of whatever the trip already holds: nothing goes
+-- on it without being asked for, and what is there stays. ids: quests, best first.
+function Trip.PlanPickups(ids)
+    local Targets = FG.QuestTargets
+    local left = #ids
+    local added = 0
+    local function Settle()
+        if #stops == 0 then return end
+        FG.Window.Show("trip")
+        Trip.Optimize(function()
+            Trip.Preview()
+            FG.Window.ShowRoute()
+        end)
+    end
+    if left == 0 then return 0 end
+    for _, id in ipairs(ids) do
+        local target = Targets.Starter(id)
+        local q = { questID = id, title = FG.QuestBrowse.NameOf(id) }
+        local function One()
+            if target and target.best and #stops < MAX_STOPS then
+                local stop = Trip.FromTarget(Targets.Destination(q, target, target.best))
+                if stop and Trip.Add(stop) then added = added + 1 end
+            end
+            left = left - 1
+            if left == 0 then Settle() end
+        end
+        if target and target.status == "ok" then Targets.Resolve(target, One) else One() end
+    end
+    return added
+end
+
 -- Plans the trip as it stands, in the journey panel and on the map.
 function Trip.Preview()
     if #stops == 0 then return end

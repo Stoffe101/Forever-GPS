@@ -2,7 +2,7 @@
 ## Title: Forever-GPS
 ## Notes: Search anywhere in Azeroth, inspect the journey, and follow it.
 ## Author: Stoffe101
-## Version: 2.1.0
+## Version: 2.2.0
 ## OptionalDeps: Questie, QuestieDB, TomTom
 ## SavedVariables: ForeverGPSDB, EasyFindDB, EasyFindQuestieDB
 ## SavedVariablesPerCharacter: ForeverGPSCharDB, EasyFindCharDB

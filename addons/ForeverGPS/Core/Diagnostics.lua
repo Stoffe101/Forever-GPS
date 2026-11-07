@@ -104,6 +104,29 @@ local function CacheLine()
     return ("Caches: %d travel estimates, %d plans kept"):format(FG.Eta.Size(), FG.Planner.KeptCount())
 end
 
+-- The figures that are easy to misread, said in words. Elapsed time spans many frames and
+-- costs nothing by itself: the worst frame is what a player can feel.
+function Diagnostics.Timing()
+    local M, out = FG.Metrics, {}
+    local function ms(name, of) return ("%.1f"):format((of or M.Last)(name) or 0) end
+    if M.Runs("plan") > 0 then
+        out[#out + 1] = ("Planning, last: %s ms from asking to the answer, of which %s ms of work"):format(ms("plan"), ms("planWork"))
+    end
+    if M.Runs("planFrame") > 0 then
+        out[#out + 1] = ("Planning, busiest frame: engine %s ms (unpacking up to %s), then collector up to %s, then finishing up to %s, over %d frames"):format(
+            ms("planFrame", M.Worst), ms("planUnpack", M.Worst), ms("planCollect", M.Worst), ms("planFinish", M.Worst), M.Runs("planFrame"))
+    end
+    if M.Runs("search") > 0 then
+        out[#out + 1] = ("Search, slowest: %s ms (places %s, creatures and objects %s, quests %s)"):format(
+            ms("search", M.Worst), ms("searchPlaces", M.Worst), ms("searchWorld", M.Worst), ms("searchQuests", M.Worst))
+    end
+    if M.Runs("mapDraw") > 0 then out[#out + 1] = ("Map drawing, slowest: %s ms"):format(ms("mapDraw", M.Worst)) end
+    if M.Runs("questIndex") > 0 then
+        out[#out + 1] = ("Quest index: %d quests, slowest slice %s ms"):format(FG.QuestIndex.Count(), ms("questIndex", M.Worst))
+    end
+    return out
+end
+
 -- What has been asked of the game's waypoint and map, for a real session to be read.
 function Diagnostics.GameLines()
     local c = Bridge.GameChanges()
@@ -145,6 +168,7 @@ function Diagnostics.Lines()
     out[#out + 1] = ("Arrow: %s. Planning: %s"):format(FG.Journey.ArrowMode(), tostring(Bridge.IsPlanning()))
     out[#out + 1] = CacheLine()
     for _, line in ipairs(Diagnostics.GameLines()) do out[#out + 1] = line end
+    for _, line in ipairs(Diagnostics.Timing()) do out[#out + 1] = line end
     for _, line in ipairs(FG.Metrics.Lines()) do out[#out + 1] = line end
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
         UpdateAddOnMemoryUsage()
