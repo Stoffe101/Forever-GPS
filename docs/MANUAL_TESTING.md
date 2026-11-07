@@ -175,7 +175,44 @@ For each:
 - [ ] **Map**: alternatives under the line, hovering a step, the next-continent arrow on a boat journey.
 - [ ] **Arrival**: the HUD says how long it took. Turn the sound on and listen for it.
 
-## 13. Living with it
+## 13. New in 2.2
+
+Check these first. The taint steps come before anything else, because a false pass there is the costliest mistake. [TAINT.md](TAINT.md) says how to read the result.
+
+These quests are real, with ids and data read from the installed QuestieDB 1.0.11. Your character's own status decides what each shows.
+
+| # | Quest | Why it is here |
+| --- | --- | --- |
+| 953 | The Fall of Ameth'Aran | Plain: Sentinel Tysha Moonblade, Darkshore, level 12 |
+| 954 | Bashal'Aran | A chain that starts here, Thundris Windweaver |
+| 990 | Trek to Ashenvale | Any one of 994 or 995, which close each other, after 993 |
+| 217 | In Defense of the King's Lands | All of 263 and 267 |
+| 163 | Raven Hill | A breadcrumb to 5, Jitters' Growling Gut |
+| 45 | Discover Rolf's Fate | Starts at an object, A half-eaten body, after 37 |
+| 123 | The Collector | Starts from an item, Gold Pickup Schedule |
+| 109 | Report to Gryan Stoutmantle | Several givers |
+| 167 | Oh Brother. . . | Done in the Deadmines |
+| 794 | Burning Blade Medallion | Horde: an Alliance character should see it closed |
+| 4604 | More Sparklematic Action | Links to 2955, which the database does not hold |
+| 1516 | Call of Earth | Lists itself and 1519 as alternatives |
+
+1. [ ] `/fgps diag`: `Forever-GPS 2.2.0`, `Questie data: ready`, and no `Game API MISSING`. Turn on `/console taintLog 1`, `/reload`, clear BugSack.
+2. [ ] Press M to open and close the map. Start a journey with several steps. Fight something while walking it, past a step change if you can. The HUD keeps working, and the game's waypoint catches up when the fight ends.
+3. [ ] Accept and turn in a quest, and click a tracked quest, near or during a fight. Press M in combat and close it.
+4. [ ] Open a preview with **Show on map**. The **route map** opens with real map art, and the game's map stays shut. Step through continents with the arrow. Open it in a fight as well.
+5. [ ] Press M with a preview up: it draws over the game's map, on whatever you turn it to.
+6. [ ] BugSack and `Logs/taint.log` show nothing naming ForeverGPS. Note the `Game waypoint` line in `/fgps diag`.
+7. [ ] **Settings, Map:** turn off **Show the game's beacon in the world** and repeat steps 2 and 3. Navigation carries on without it.
+8. [ ] `/fgps quest 953`: status, level, Sentinel Tysha Moonblade as the start, travel time. **Directions** plans a route, and nothing starts until you start it.
+9. [ ] `/fgps quest 990`: **What comes first** says any one of the two, and **Go to the first step** is not offered, because that choice is yours. Open 994: 995 is named as closed by taking it.
+10. [ ] `/fgps quest 217`: both prerequisites listed. `/fgps quest 163`: its chain marks it as optional.
+11. [ ] `/fgps quest 45`: **Starts at an object**. `/fgps quest 123`: **Starts from an item**, with what drops it. `/fgps quest 109`: the nearest giver by journey leads. `/fgps quest 167`: the route goes to the entrance.
+12. [ ] `/fgps quest 794`: closed to the character, and no route offered. `/fgps quest 4604`: says a link is missing. `/fgps quest 1516`: says its links run in a circle, with no error.
+13. [ ] **Find quests**, **Near me**: nearby pickups by travel time. **Plan a circuit**, then look it over before starting. Add a stop first and it stays.
+14. [ ] With a journey running, open a quest and press **Directions**: your journey keeps running until you choose to start the other. Accept a quest you walked to: the walk ends and says so. Turn in a chain quest: the next is named and nothing starts.
+15. [ ] `/reload` mid-journey and mid-fight. `/fgps report`, and send it with any error text. It has the timing lines: planning's busiest frame by part, and search by part.
+
+## 14. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.

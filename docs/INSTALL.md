@@ -45,6 +45,10 @@ On this machine that folder is `D:\Battle.net games\World of Warcraft\_forever_\
 - **Questie**: objective locations for From Your Quests. Install it as usual; Forever-GPS finds it on its own. Questie 12.6.2 was checked against this build.
 - **TomTom**: choose it under Settings, Direction arrow, if you prefer its arrow. Not required.
 
+## Updating from 2.1
+
+Move `Interface/AddOns/ForeverGPS` aside, keep it, and unzip the new package in its place. Saved settings carry straight over. To roll back, put the old folder back, or unzip `ForeverGPS-2.1.0-forever.zip` from `dist/`. Relogging is enough on this client: 2.1 loaded that way without restarting the game.
+
 ## Updating from 2.0
 
 2.1 is one folder. The fourteen old folders must go: two copies of one addon cannot share a session.
@@ -69,7 +73,7 @@ By hand:
 4. Unzip the package into `Interface/AddOns`.
 5. Run `python tools/migrate_saved.py "<...>/_forever_"`, so known flight paths and the rest carry over.
 
-**Check the folder is not nested.** The result must be `Interface/AddOns/ForeverGPS/ForeverGPS.toc`, not `Interface/AddOns/ForeverGPS-2.1.0-forever/ForeverGPS/...`. If the game does not list the addon, this is the usual reason.
+**Check the folder is not nested.** The result must be `Interface/AddOns/ForeverGPS/ForeverGPS.toc`, not `Interface/AddOns/ForeverGPS-2.2.0-forever/ForeverGPS/...`. If the game does not list the addon, this is the usual reason.
 
 ### What carries over
 

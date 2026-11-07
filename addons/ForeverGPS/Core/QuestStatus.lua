@@ -66,11 +66,20 @@ FG.OnEvent("UPDATE_FACTION", function()
     end
 end)
 
+-- Most quests read the same: one record for each answer, shared by all that give it, and
+-- never changed once made. Thousands of tables of the same four words cost megabytes.
+local shared = {}
+
 local function Make(key, extra)
     local kind = KINDS[key]
-    local s = extra or {}
+    extra = extra or {}
+    local id = table.concat({ key, tostring(extra.need), tostring(extra.rep), tostring(extra.state), tostring(extra.why) }, "|")
+    local s = shared[id]
+    if s then return s end
+    s = extra
     s.key, s.icon, s.color, s.rank = key, kind[2], kind[3], kind[4]
     s.word = s.word or L[kind[1]]
+    shared[id] = s
     return s
 end
 

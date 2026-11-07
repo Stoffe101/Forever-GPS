@@ -248,12 +248,16 @@ function Chain.Path(id)
         for _, group in ipairs(Chain.Requirements(at)) do
             if not group.met then
                 if group.kind == "any" then
-                    local open = {}
+                    -- Real entries list a quest as its own alternative: 1516 is one.
+                    local open, known = {}, false
                     for _, other in ipairs(group.ids) do
-                        if QuestDB.Exists(other) and Usable(other) then open[#open + 1] = other end
+                        if other ~= at and QuestDB.Exists(other) then
+                            known = true
+                            if Usable(other) then open[#open + 1] = other end
+                        end
                     end
                     if #open == 0 then
-                        out.blocked = true
+                        if known then out.blocked = true else out.gaps = out.gaps + 1 end
                     elseif #open == 1 then
                         Visit(open[1], depth + 1)
                     else

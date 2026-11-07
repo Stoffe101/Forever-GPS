@@ -350,6 +350,25 @@ function tests.thePath_reportsABrokenLink_andInventsNothing()
     T.eq(path.first.ids[1], 10)
 end
 
+-- The real 1516 lists itself among its own alternatives.
+function tests.aQuestListedAsItsOwnAlternative_isNotOfferedToItself()
+    local world = World()
+    world.quests[90] = { name = "Call Of Earth", starter = 240, finisher = 240, questLevel = 4, requiredLevel = 1, zoneOrSort = 12, preQuestSingle = { 90, 91 } }
+    world.quests[91] = { name = "Call Of Earth Too", starter = 240, finisher = 240, questLevel = 4, requiredLevel = 1, zoneOrSort = 12, preQuestSingle = { 90, 91 } }
+    local c = Start({ questie = world })
+    local path = c.FG.QuestChain.Path(90)
+    T.eq(#path.steps, 1)
+    T.eq(path.steps[1].ids[1], 91, "only the other one")
+    T.no(path.steps[1].choice)
+end
+
+function tests.aLinkToNothing_isAGap_notAClosedDoor()
+    local c = Start()
+    local path = c.FG.QuestChain.Path(80)
+    T.no(path.blocked, "nothing says the character cannot")
+    T.eq(path.gaps, 1)
+end
+
 function tests.aQuestWithNothingBeforeIt_hasAnEmptyPath()
     local c = Start()
     T.eq(#c.FG.QuestChain.Path(20).steps, 0)

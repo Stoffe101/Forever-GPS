@@ -28,6 +28,8 @@ The vendored addons stay here as their authors wrote them, because this is where
 - Their files go under `Vendor/`, and `Interface\\AddOns\\EasyFind\\` paths are rewritten to match.
 - Companion apps, tutorial art, tests and other clients' data stay behind.
 - `EDITS` lists every exact change one folder needs. Each must match as many times as it says, so an upstream change that moves one of them fails the build rather than slipping past.
+- `TAINT_EDITS` puts every change to the game's waypoint and tracking through one door, and stops writing to native pins. [TAINT.md](TAINT.md) says why. A test fails if any vendored file changes them outside that door.
+- `PLANNING_EDITS` measures what a planning frame holds and starts unpacking in a fresh slice. The engine's answers do not change, and the golden tests hold it to that. It also narrows a creature search as a word is typed.
 - `LEFT_OUT` lists the two TOC entries with no place here: the GPS's guard, which asks the game about an addon called EasyFind, and EasyFind's update notices.
 - The Questie extension had a private table, as every addon does. In one addon all files share one, so it gets a table of its own inside it.
 

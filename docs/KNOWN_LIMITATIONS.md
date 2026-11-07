@@ -2,7 +2,12 @@
 
 ## Not verified in the game
 
-2.0 has run in the client. **2.1 has not**: the one-folder build and everything new in it were tested against a stand-in client running the real addon code. These can only be judged in the game: the single folder loading, fonts and text metrics, texture quality, secure button behaviour, real frame rate and memory, and how it sits beside EllesmereUI. See [FIRST_RUN.md](FIRST_RUN.md).
+2.1 has run in the client. **2.2 has not**: everything new in it was tested in a stand-in client running the real addon code. These can only be judged in the game:
+
+- **Whether the map taint error is gone.** See [TAINT.md](TAINT.md). The fix is real but unproven.
+- The route map's art, which is drawn with the same calls as the game's map but has never been seen.
+- The Quest Explorer against live Questie. Its data has been read offline, and everything else ran against a stand-in that follows Questie's rules.
+- Fonts, texture quality, real frame times and memory, and how it sits beside EllesmereUI.
 
 ## Data age
 
@@ -29,6 +34,10 @@ The risk label knows creatures, guards, enemy towns (by flight master), enemy tr
 ## Quests
 
 - Objective locations need Questie. Without it there is one marker per quest at most.
+- Quests not in the log need Questie too, and only what its database holds can be found.
+- A status is Questie's reading of its data. Only the quest giver can confirm a quest is really on offer. See [QUEST_EXPLORER.md](QUEST_EXPLORER.md).
+- An item's sources are what Questie records. A rare drop may have many, and only the first eight are offered.
+- Rewards show reputation only: Questie's database holds no item rewards.
 - Questie's objectives are matched to the log by position, as Questie itself does. A quest whose data disagrees with the log would show a mismatch.
 - An objective spawning only inside an instance is reported as such; no route goes in.
 - Objective text comes from the log, and does not explain what to do.
@@ -40,7 +49,10 @@ The risk label knows creatures, guards, enemy towns (by flight master), enemy tr
 - English only. Other clients show English interface text, with route steps still localized by EasyFind GPS.
 - CJK clients fall back to the game's font.
 - On the default window the Saved chip wraps to a second row of its own. Cosmetic.
-- The world map preview was tested against a stand-in map. Its look over real map art, and at every zoom, is for the game to confirm.
+- **The game's map is the player's.** Forever-GPS no longer opens or turns it, so **Show on map** opens the route map instead, a window of its own. The route map shows a whole map at one size, with no zoom. Press M for the game's map: a preview draws on whatever map you turn it to.
+- Where EasyFind's mark and the game's waypoint pin coincide, both now show. See [TAINT.md](TAINT.md).
+- Escape closes Forever-GPS's windows out of combat only. In a fight it goes to the game, because key bindings cannot change then.
+- The preview over the game's map was tested against a stand-in map. Its look over real art, and at every zoom, is for the game to confirm.
 - The minimap button sits on a round minimap. A square or skinned minimap may need it hidden; the addon compartment and `/fgps` do the same job.
 
 ## Scope

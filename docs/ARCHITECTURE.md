@@ -72,16 +72,23 @@ WoW hands an addon only what is saved under its own name, so what EasyFind GPS s
 | `Core/Planner.lua` | Inspecting a journey before taking it |
 | `Core/Saved.lua` | Favorites, recents, regular places, the journey log, resuming |
 | `Core/Quests.lua` | The quest log, read lazily |
-| `Core/QuestTargets.lua` | Areas from spawns; quest targets |
+| `Core/QuestDB.lua` | **Every** read of Questie's modules, for quests not in the log |
+| `Core/QuestTargets.lua` | Areas from spawns; quest targets; where a quest starts |
+| `Core/QuestStatus.lua` | Questie's answer in a player's words |
+| `Core/QuestIndex.lua` | Every quest, findable, built a slice at a time |
+| `Core/QuestChain.lua` | Prerequisites, chains and the way to a quest, all bounded |
 | `Core/Search.lua` | One result list from all sources |
 | `Core/Journey.lua` | The route as the HUD reads it; ride states; quests kept in step |
 | `Core/Trip.lua` | Several stops, the order to visit them in, saved trips, circuits |
+| `Core/QuestBrowse.lua` | Finding quests: lists, filters, near the player, one quest's details |
 | `Core/Suggest.lua` | What might be useful now, for the home view |
 | `Core/TomTom.lua` | Optional mirror to TomTom |
 | `Core/Diagnostics.lua` | `/fgps diag` and the copyable report |
 | `UI/Theme.lua`, `UI/Kit.lua`, `UI/List.lua` | Tokens, widgets, a list that builds only what fits |
-| `UI/MapPreview.lua` | The journey on the world map, in a layer of its own |
+| `UI/RouteMap.lua` | A map of our own, so nothing here has to open or turn the game's |
+| `UI/MapPreview.lua` | The journey or a quest's places, on our map or over one the player opened |
 | `UI/RoutePanel.lua`, `UI/SearchView.lua`, `UI/QuestsView.lua`, `UI/TripView.lua` | The window's pages |
+| `UI/ExplorerView.lua`, `UI/QuestDetail.lua` | Find quests, and one quest in full |
 | `UI/CopyBox.lua`, `UI/Settings.lua`, `UI/MainWindow.lua` | Text to copy, settings, the window |
 | `UI/HUD.lua`, `UI/Quick.lua`, `UI/MinimapButton.lua` | What stays out of the window |
 
@@ -123,6 +130,8 @@ Addons cannot reach the network, so Wowhead could only ever be static data shipp
 - Forever-only data stays behind `AllowLoadGameType`, and the default package drops the rest.
 
 ## Combat
+
+Nothing here opens, closes or turns the game's map, and every change to its waypoint and tracking waits out a fight and an open map: [TAINT.md](TAINT.md) says why, and a static test holds it.
 
 Only one secure frame exists: the HUD's cast button for teleport steps. It hangs from `UIParent`, not the HUD, because a frame a secure frame is anchored to becomes protected. It is hidden and unanchored at `PLAYER_REGEN_DISABLED`, and never touched in combat. Everything else is plain frames, so the window and HUD work during a fight.
 

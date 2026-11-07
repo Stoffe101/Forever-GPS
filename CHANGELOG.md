@@ -1,6 +1,29 @@
 # Changelog
 
-## 2.1.0 (unreleased, not yet tested in the game)
+## 2.2.0 (unreleased, not yet tested in the game)
+
+### Fixed
+
+- **The map taint error, in the code.** `ADDON_ACTION_BLOCKED` on `Button:SetPassThroughButtons()`. The game's source shows quest pins refresh on a super-track change even with the map closed, once it has been opened, so waiting for the map to close protected nothing. Every change to the game's waypoint and tracking now goes through one door that also holds through a fight, and skips what changes nothing. **This has not been retested in the game.** [docs/TAINT.md](docs/TAINT.md) has the findings, what remains, and how to check.
+- Forever-GPS's windows were in `UISpecialFrames`, which taints the game's window closing for the session. Escape now uses a temporary binding.
+- Native pins are no longer written to.
+- Carrying saved data over embedded all 1.36 MB of EasyFind's file, to load at every login, for 739 bytes that were wanted.
+
+### Changed
+
+- **The game's map is the player's.** Forever-GPS no longer opens or turns it. **Show on map** opens the **route map**, a window of our own that also works in a fight. A preview still draws over the game's map when you open it yourself.
+- A planning slice with little budget left hands unpacking to the next one, which cuts the worst frames.
+
+### Added
+
+- **Quest Explorer:** **Find quests** beside Your quests. Search every quest Questie knows, browse by zone, filter by what this character can do, and see what can be picked up near you by travel time. A quest shows its status, starters, turn-in, requirements, what comes first, and its chain as a timeline. Directions go to the start or to the first missing prerequisite, with alternatives left to you. [docs/QUEST_EXPLORER.md](docs/QUEST_EXPLORER.md)
+- **Quest circuits with pickups,** in the right order: picked up before it is worked on, and a prerequisite handed in before the next is picked up.
+- A turn-in names what it opens, as an offer.
+- A beacon switch: **Settings, Map, Show the game's beacon in the world**.
+- `/fgps quest [name or id]`.
+- `/fgps diag` separates time asked from work done, and says what filled planning's busiest frame and where search spent its time. It also counts changes made to the game's waypoint and those held back.
+
+## 2.1.0 (not yet tested in the game when written, since run in the client)
 
 ### Changed
 

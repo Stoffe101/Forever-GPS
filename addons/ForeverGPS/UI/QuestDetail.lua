@@ -171,7 +171,7 @@ local function Bind(row, item)
         local target = item.target
         row.mark:SetIcon(item.icon or "pin")
         row.mark:SetColorKey(target.status == "ok" and "accent" or "textFaint")
-        local can = target.status == "ok" and target.settled and target.best ~= nil
+        local can = target.status == "ok" and target.settled and target.best ~= nil and not item.lookOnly
         row.go:SetShown(can and true or false)
         row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", can and -(row.go:GetWidth() + 12) or -10, -7)
         row.text:SetText(target.text or "")
@@ -326,12 +326,12 @@ local function Items()
     local all = Targets.Explore(d.id)
     if all.start then
         items[#items + 1] = { kind = "section", text = L["XD_STARTS"] }
-        items[#items + 1] = { kind = "place", target = all.start, role = "start", icon = "quest" }
+        items[#items + 1] = { kind = "place", target = all.start, role = "start", icon = "quest", lookOnly = key == "no" }
         Settle(all.start)
     end
     if all.turnIn and all.turnIn.status == "ok" then
         items[#items + 1] = { kind = "section", text = L["XD_ENDS"] }
-        items[#items + 1] = { kind = "place", target = all.turnIn, role = "turnin", icon = "turnin" }
+        items[#items + 1] = { kind = "place", target = all.turnIn, role = "turnin", icon = "turnin", lookOnly = key == "no" }
         Settle(all.turnIn)
     end
     AddRequirements(items, d)

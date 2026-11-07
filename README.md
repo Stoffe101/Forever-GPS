@@ -9,6 +9,7 @@ Forever-GPS is the product layer on top of [EasyFind](https://github.com/falleng
 ## What it does
 
 - **Search** places, NPCs, trainers, services, dungeons, raids, boats and coordinates, the way people type them: `nearest mailbox`, `bank stormwind`, `Westfall 56 47`. Misspellings are corrected out loud. Results show zone, type, a travel time, and a warning for NPCs hostile to you, and searches for a kind of thing are ordered by travel time. With Questie installed, its creatures and objects are searched too.
+- **Find quests** explores every quest Questie knows, in your log or not: search, browse by zone, what you can take now and near you, prerequisites, chains and directions to starters. See [docs/QUEST_EXPLORER.md](docs/QUEST_EXPLORER.md).
 - **From Your Quests** turns the quest log into destinations. Every unfinished objective can be chosen, not just the first. Spawns are grouped into areas and the closest *by travel time* leads. With Questie installed it knows objective locations; without it, it falls back to the game's quest marker. When no reliable location is known it says so and offers no route.
 - **Quest Circuit** puts several objectives on one trip, in a sensible order from real travel times.
 - **Journey panel** compares ways of going and says how they differ, with each step, transport and wait, how sure the route is, a plain risk label, and toggles to avoid flights, boats, zeppelins, portals or your hearth.

@@ -2,7 +2,7 @@
 
 Five minutes in the game, before the [full checklist](MANUAL_TESTING.md). Stop at the first thing that fails and send what you have.
 
-**2.1 has not been run in the WoW client.** The one-folder build is new, so this is where that starts.
+**2.2 has not been run in the WoW client.** Its first job there is the taint check in [TAINT.md](TAINT.md).
 
 ## Set up
 
