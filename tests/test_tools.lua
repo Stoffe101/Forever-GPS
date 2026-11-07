@@ -83,6 +83,31 @@ function tests.migrating_readsOldSavedDataWithoutWritingToWtf()
     T.eq(Read(wtf), SAVED, "WTF is exactly as it was")
 end
 
+-- The real client writes no indenting, array comments, and over a megabyte of search
+-- data that is not ours to keep loading.
+function tests.migrating_takesOnlyWhatTheGpsKept_whateverTheFilesLayout()
+    local forever = Fresh()
+    local saved = table.concat({
+        "", "EasyFindDB = {", '["aliases"] = {', "},", '["note"] = "a } and a \\" and a , inside",',
+        '["gpsFlown"] = {', '["1"] = {', "7, -- [1]", "9, -- [2]", "},", "},",
+        '["searchHistory"] = {', '["big"] = "' .. ("x"):rep(5000) .. '",', "},",
+        '["gpsChar"] = {', '["Name-Realm"] = {', '["flights"] = {', "[6] = true,", "},", "},", "},",
+        "}", "" }, "\r\n")
+    Write(forever .. "/WTF/Account/1234#1/SavedVariables/EasyFind.lua", saved)
+    Addon(forever, "ForeverGPS")
+    Mkdir(forever .. "/Interface/AddOns/ForeverGPS/Core")
+    T.ok(Run("migrate_saved.py", ('"%s"'):format(forever)), "it runs")
+    local imported = forever .. "/Interface/AddOns/ForeverGPS/Core/Imported.lua"
+    T.ok(#Read(imported) < 1000, "the rest stays behind")
+    local env = {}
+    assert(loadfile(imported, "t", env))()
+    local data = env.ForeverGPSImported.accounts[1]
+    T.eq(data.gpsFlown["1"][2], 9)
+    T.ok(data.gpsChar["Name-Realm"].flights[6])
+    T.eq(data.searchHistory, nil)
+    T.eq(data.note, nil)
+end
+
 function tests.migrating_withNothingToCarry_writesNothing()
     local forever = Fresh()
     Addon(forever, "ForeverGPS")

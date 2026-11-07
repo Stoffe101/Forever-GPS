@@ -39,6 +39,7 @@ end
 local function Import(db)
     local data = ForeverGPSImported
     if not data then return end
+    ForeverGPSImported = nil     -- held only for this: it is not worth its memory after
     ForeverGPSDB = ForeverGPSDB or {}
     if ForeverGPSDB.importedFrom == data.id then return end
     ForeverGPSDB.importedFrom = data.id

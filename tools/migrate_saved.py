@@ -37,6 +37,9 @@ end
 # The saved-variables file is plain assignments, so it can be read in place: inside a
 # function that holds EasyFindDB as a local, its assignment lands there.
 ASSIGNMENT = re.compile(r"^EasyFindDB\s*=", re.M)
+# EasyFind's real file is over a megabyte, and all of it would load at every login. Only what
+# EasyFind GPS kept is wanted, which is every key that starts gps.
+KEY = re.compile(r'\s*\[("(?:[^"\\]|\\.)*"|-?\d+)\]\s*=\s*')
 
 
 CHECK_SECONDS, SETTLE_SECONDS = 3, 2
@@ -59,6 +62,49 @@ def sources(forever: Path) -> list[Path]:
     return found
 
 
+def value_end(text: str, at: int) -> int:
+    """Where the value starting at `at` ends: its comma or the table's own closing brace."""
+    depth = 0
+    while at < len(text):
+        ch = text[at]
+        if ch == '"':
+            at += 1
+            while text[at] != '"':
+                at += 2 if text[at] == "\\" else 1
+        elif text.startswith("--", at):
+            end = text.find("\n", at)
+            at = len(text) if end < 0 else end
+            continue
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            if depth == 0:
+                return at
+            depth -= 1
+        elif ch == "," and depth == 0:
+            return at
+        at += 1
+    return at
+
+
+def gps_keys(text: str) -> str:
+    """The saved table with only its gps keys. Indenting cannot be trusted: this client's
+    files have none, so the table is walked by its brackets."""
+    keep = ["EasyFindDB = {"]
+    at = ASSIGNMENT.search(text).end()
+    at = text.index("{", at) + 1
+    while True:
+        key = KEY.match(text, at)
+        if not key:
+            break
+        end = value_end(text, key.end())
+        if key.group(1).startswith('"gps'):
+            keep.append(text[at:end].strip().replace("\r", "") + ",")
+        at = end + 1
+    keep.append("}")
+    return "\n".join(keep)
+
+
 def render(paths: list[Path], stamp: str) -> str:
     out = [HEADER]
     calls = []
@@ -66,7 +112,7 @@ def render(paths: list[Path], stamp: str) -> str:
         text = path.read_text(encoding="utf-8", errors="replace")
         if not ASSIGNMENT.search(text):
             continue
-        out.append(BLOCK.format(index=index, text=text))
+        out.append(BLOCK.format(index=index, text=gps_keys(text)))
         calls.append(f"Saved{index}()")
     out.append(f'ForeverGPSImported = {{ id = "{stamp}", accounts = {{ {", ".join(calls)} }} }}\n')
     return "\n".join(out)
