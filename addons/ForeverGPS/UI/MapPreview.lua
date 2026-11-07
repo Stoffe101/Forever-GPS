@@ -517,7 +517,8 @@ local function ShowBanner()
     banner.go:SetShown(option ~= nil and not shown.active)
     banner.you:SetShown(option ~= nil)
     banner.fit:SetShown(option ~= nil)
-    banner:SetWidth(mmin(mmax(400, banner.title:GetStringWidth() + banner.go:GetWidth() + 152), 700))
+    local room = game and 700 or FG.RouteMap.Canvas():GetWidth() - 12
+    banner:SetWidth(mmin(mmax(400, banner.title:GetStringWidth() + banner.go:GetWidth() + 152), 700, room))
     banner.leg:SetShown(#MapPreview.Legs() > 1)
     banner:Show()
 end

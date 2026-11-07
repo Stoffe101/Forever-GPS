@@ -13,7 +13,7 @@ local L = FG.L
 local mmin, mceil = math.min, math.ceil
 
 local WIDTH, HEIGHT, HEADER = 780, 560, 34
-local PAD = 8
+local PAD, EDGE = 8, 16
 local ASPECT = 1.5          -- the game's map art is 3:2, and an unknown map is drawn so
 
 local f, canvas, art
@@ -65,7 +65,10 @@ local function DrawArt()
     return used
 end
 
+-- As large as it was drawn for, or as the screen allows.
 local function Fit()
+    local scale = FG.Settings.WindowScale()
+    f:SetSize(mmin(WIDTH, UIParent:GetWidth() / scale - EDGE), mmin(HEIGHT, UIParent:GetHeight() / scale - EDGE))
     local w = f:GetWidth() - PAD * 2
     local h = f:GetHeight() - HEADER - PAD * 2
     local cw = mmin(w, h * ASPECT)
@@ -84,7 +87,7 @@ local function Build()
     f:SetMovable(true)
     f:EnableMouse(true)
     f:SetSize(WIDTH, HEIGHT)
-    f:SetPoint("CENTER", UIParent, "CENTER", 0, 20)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     f:Hide()
     FG.Bridge.CloseOnEscape(f)
     f.back = Kit.Shape(f, 12, "BACKGROUND", 0)
@@ -126,8 +129,10 @@ end
 function RouteMap.Show(id)
     if not f then Build() end
     f:SetScale(FG.Settings.WindowScale())
-    if id and id ~= mapID then
-        mapID = id
+    local width = canvas:GetWidth()
+    Fit()
+    if (id and id ~= mapID) or canvas:GetWidth() ~= width then
+        mapID = id or mapID
         DrawArt()
     end
     f.title:SetText(L["ROUTEMAP_TITLE_FMT"]:format(Name(mapID) or L["ROUTEMAP_TITLE"]))

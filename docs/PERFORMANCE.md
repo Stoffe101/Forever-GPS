@@ -95,8 +95,8 @@ Those numbers show the format and are not measurements.
 
 | Measure (stand-in, desktop Lua 5.4) | Value |
 | --- | --- |
-| Quest index, 5,232 real quest names and links | 2.7 MB, built at most about 3 ms a frame |
-| A status for every quest | under 0.5 MB, since quests share records |
+| Quest index, 5,232 real quest names and links | 2.8 MB, built at about 3 ms a frame |
+| A status for every quest | 0.12 MB, since quests share records |
 | Quest search, 5,232 quests | 2 to 4 ms |
 
 The index is built when the window first opens, so a session that never opens it pays nothing.

@@ -43,7 +43,7 @@ def game_running() -> bool:
 def package() -> Path:
     toc = (ROOT / "addons" / "ForeverGPS" / "ForeverGPS.toc").read_text(encoding="utf-8")
     version = re.search(r"^## Version:\s*(\S+)", toc, re.M).group(1)
-    return ROOT / "dist" / f"ForeverGPS-{version}-forever.zip"
+    return Path(os.environ.get("FGPS_DIST") or ROOT / "dist") / f"ForeverGPS-{version}-forever.zip"
 
 
 def main(argv: list[str]) -> int:

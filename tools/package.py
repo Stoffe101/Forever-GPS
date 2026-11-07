@@ -10,6 +10,7 @@ This makes a local file. It never publishes anything.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -17,7 +18,8 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DIST = ROOT / "dist"
+# dist/ holds what was released, and a rollback depends on it. Tests build elsewhere.
+DIST = Path(os.environ.get("FGPS_DIST") or ROOT / "dist")
 FOLDER = ROOT / "build" / "assembled" / "ForeverGPS"
 
 # Patterns of what must never ship.

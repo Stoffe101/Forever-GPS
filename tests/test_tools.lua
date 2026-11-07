@@ -116,13 +116,15 @@ function tests.migrating_withNothingToCarry_writesNothing()
 end
 
 function tests.installing_movesOurFoldersAndNoOthers()
-    assert(os.execute(PYTHON .. " -I tools/package.py > " .. NULL))
+    -- Never into dist/: a build of work in progress there replaced a real rollback.
+    local build = WINDOWS and "set FGPS_DIST=build/test-dist&& " or "FGPS_DIST=build/test-dist "
+    assert(os.execute(build .. PYTHON .. " -I tools/package.py > " .. NULL))
     local forever = Fresh()
     for _, name in ipairs({ "EasyFind", "EasyFind_GPS", "EasyFind_Calc", "EasyFind_Snippets", "ForeverGPS", "Questie", "TomTom", "EasyFishing", "EasyFindMore" }) do
         Addon(forever, name)
     end
     Write(forever .. "/WTF/Account/1234#1/SavedVariables/EasyFind.lua", SAVED)
-    local prefix = WINDOWS and "set FGPS_SKIP_GAME_CHECK=1&& " or "FGPS_SKIP_GAME_CHECK=1 "
+    local prefix = (WINDOWS and "set FGPS_SKIP_GAME_CHECK=1&& " or "FGPS_SKIP_GAME_CHECK=1 ") .. build
     T.ok(os.execute(prefix .. ('%s -I tools/install_local.py "%s" > %s 2>&1'):format(PYTHON, forever, NULL)), "a look first")
     T.ok(Read(forever .. "/Interface/AddOns/EasyFind/EasyFind.toc"), "and looking moves nothing")
     T.ok(os.execute(prefix .. ('%s -I tools/install_local.py "%s" --apply > %s 2>&1'):format(PYTHON, forever, NULL)), "then for real")

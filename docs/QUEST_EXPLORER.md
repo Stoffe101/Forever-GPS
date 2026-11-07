@@ -82,7 +82,7 @@ The limits come from these: 120 quests in a view, 64 deep. "Part 3 of 7" only ap
 
 ## Cost
 
-Nothing is read until the window first opens. The index then takes about 3 ms a frame, and a status scan the same. Both use a few megabytes. A status changes on quests accepted, removed or turned in, on level, skills and reputation, and when Questie appears, never on a kill.
+Nothing is read until the window first opens. The index then takes about 3 ms a frame and 2.8 MB, and a status scan the same time and 0.12 MB. A status changes on quests accepted, removed or turned in, on level, skills and reputation, and when Questie appears, never on a kill.
 
 ## Not verified
 

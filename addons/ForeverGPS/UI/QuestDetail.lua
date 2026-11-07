@@ -27,11 +27,11 @@ local function MakeHead(parent)
     row.mark = Kit.Icon(row, 13, "textDim")
     row.mark:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -7)
     row.word = Kit.Text(row, "label", "text")
-    row.word:SetPoint("LEFT", row.mark, "RIGHT", 6, 0)
-    row.word:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+    row.word:SetPoint("TOPLEFT", row.mark, "TOPRIGHT", 6, 1)
+    row.word:SetPoint("TOPRIGHT", row.name, "BOTTOMRIGHT", 0, -6)
     row.facts = Kit.Text(row, "small", "textDim", 0)
     row.facts:SetPoint("TOPLEFT", row.mark, "BOTTOMLEFT", 0, -6)
-    row.facts:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+    row.facts:SetPoint("TOPRIGHT", row.word, "BOTTOMRIGHT", 0, -6)
     return row
 end
 

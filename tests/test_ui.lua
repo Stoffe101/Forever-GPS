@@ -168,6 +168,35 @@ function tests.everyView_fitsEveryScreen()
     end
 end
 
+function tests.theExplorer_fitsEveryScreen()
+    for _, screen in ipairs(SCREENS) do
+        local c = Start(screen)
+        local FG = c.FG
+        c:Advance(0.5)
+        FG.Window.Show("quests")
+        FG.QuestsView.SetMode("find")
+        T.ok(Stack.Until(c, FG.QuestIndex.Ready, 10), "the index builds")
+        c:Advance(0.5)
+        Check(c, screen[1] .. " find")
+        FG.ExplorerView.ToggleZones()
+        c:Advance(0.2)
+        Check(c, screen[1] .. " zones")
+        FG.ExplorerView.Open(33)
+        c:Advance(1.5)
+        Check(c, screen[1] .. " a quest")
+        FG.QuestDetail.ShowOnMap()
+        c:Advance(0.5)
+        -- Marks may crowd on a small map, as pins do. The window around them may not.
+        c.env.ForeverGPSMapPreview:Hide()
+        Check(c, screen[1] .. " route map", c.env.ForeverGPSRouteMap)
+        FG.RouteMap.Hide()
+        FG.Window.CloseQuest()
+        c:Advance(0.2)
+        Check(c, screen[1] .. " back to the list")
+        T.eq(#c.errors, 0, screen[1] .. ": " .. tostring(c.errors[1]))
+    end
+end
+
 function tests.aSmallScreen_usesOneColumnAndNothingIsLost()
     local c = Start(SCREENS[4])
     local FG = c.FG
