@@ -504,6 +504,9 @@ local function Gather(query, filter, info)
     return friendly
 end
 
+local MY_TRAINERS = { ["my profession trainers"] = true, ["my profession trainer"] = true, ["profession trainers"] = true,
+                      ["my trainers"] = true }
+
 -- results, info. info.kind: the query asks for a kind of thing, not one thing.
 -- info.corrected: what it was read as, when the spelling needed help.
 function Search.Run(text, filter)
@@ -527,7 +530,38 @@ function Search.Run(text, filter)
         FG.Metrics.End("search")
         return results, info
     end
-    local results = Gather(query, filter, info)
+    local results
+    local wanted = FG.Trainers.ProfessionOf(text)
+    if MY_TRAINERS[text:lower()] then
+        results = {}
+        for _, p in ipairs(FG.Professions.List()) do
+            for _, r in ipairs(Gather(Normalize(p.name .. " trainer"), filter, info)) do
+                r.forProfession = p
+                results[#results + 1] = r
+            end
+        end
+        info.kind = true
+    else
+        results = Gather(query, filter, info)
+    end
+    -- Trainers of a profession the character has: what each is known to teach.
+    for _, r in ipairs(results) do
+        local p = r.forProfession or wanted
+        if p and r.data and r.data.npcID then
+            r.trainer = FG.Trainers.ForNext(r.data.npcID, p) or "unknown"
+            local badge, tone = FG.Trainers.Badge(r.data.npcID, p)
+            if badge and not r.hostile then r.note, r.noteTone = badge, tone end
+        end
+    end
+    if wanted or MY_TRAINERS[text:lower()] then
+        info.kind = true
+        for i, r in ipairs(results) do r.order = i end
+        table.sort(results, function(a, b)
+            local ta, tb = FG.Trainers.ORDER[a.trainer] or 2, FG.Trainers.ORDER[b.trainer] or 2
+            if ta ~= tb then return ta < tb end
+            return a.order < b.order
+        end)
+    end
     if #results == 0 then
         local fixed = Corrected(query)
         if fixed then
@@ -590,6 +624,9 @@ local function PriceInstances(result, alive, done)
 end
 
 local function ByTravelTime(a, b)
+    -- A trainer known to teach the rank needed comes first, however far.
+    local ta, tb = FG.Trainers.ORDER[a.trainer] or 2, FG.Trainers.ORDER[b.trainer] or 2
+    if ta ~= tb then return ta < tb end
     local x, y = a.eta and a.eta.sec, b.eta and b.eta.sec
     if x and y then return x < y end
     if x or y then return x ~= nil end

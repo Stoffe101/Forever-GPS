@@ -62,7 +62,7 @@ local function BindCard(row, item)
     if result.note then via = result.note end
     row.eta:SetText(eta or "")
     row.via:SetText(via or "")
-    row.via:SetColorKey(result.noteTone == "danger" and "danger" or "textFaint")
+    row.via:SetColorKey(result.noteTone or "textFaint")
     -- The right column takes what it needs; the name fills the rest.
     local right = math.max(row.eta:GetStringWidth(), row.via:GetStringWidth())
     local room = right > 0 and right + 18 or 10

@@ -37,6 +37,10 @@ Core/Journey.lua
 Core/Continuity.lua
 Core/Trip.lua
 Core/QuestBrowse.lua
+Core/Professions.lua
+Core/Market.lua
+Core/Crafting.lua
+Core/Trainers.lua
 Core/Suggest.lua
 Core/TomTom.lua
 Core/Diagnostics.lua

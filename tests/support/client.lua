@@ -97,6 +97,9 @@ function Client.new(opts)
     self.waypoint = nil
     self.superTrack = { waypoint = false }
     self.completed = opts.completed or {}
+    self.bank, self.items = opts.bank or {}, opts.items or {}
+    self.professions, self.recipes = opts.professions or {}, opts.recipes or {}
+    self.auctions, self.merchant = opts.auctions or {}, opts.merchant or {}
     self.taint = Client.NewTaint(self)
     self.known = opts.knownFlights
     self.env = self:BuildEnv(opts)
@@ -296,7 +299,6 @@ function Client:BuildEnv(opts)
     env.UnitClass = function() return "Warrior", client.player.class end
     env.UnitRace = function() return "Human", client.player.race end
     env.UnitName = function() return "Tester", nil end
-    env.UnitGUID = function() return "Player-1-00000001" end
     env.UnitExists = function() return true end
     env.UnitIsGhost = function() return client.player.ghost end
     env.UnitIsDead = function() return false end
@@ -327,9 +329,98 @@ function Client:BuildEnv(opts)
     env.IsSpellKnownOrOverridesKnown = function() return false end
     env.GetSpellInfo = function() return nil end
     env.GetSpellCooldown = function() return 0, 0, 0 end
-    env.GetItemCount = function(id) return client.bags[id] or 0 end
+    env.GetItemCount = function(id, bank) return (client.bags[id] or 0) + (bank and client.bank[id] or 0) end
     env.GetItemCooldown = function() return 0, 0, 0 end
-    env.GetItemInfo = function() return nil end
+    -- Only the merchant price: the eleventh value, as the game returns it.
+    env.GetItemInfo = function(id)
+        local item = client.items[id]
+        if not item then return nil end
+        return item.name, nil, 1, 1, 1, "Trade Goods", "Parts", 20, "", 0, item.sell or 0
+    end
+
+    -- Professions, as GetProfessions and the profession window give them. client.professions:
+    -- { { name, skill, max, line } }, client.recipes: { [id] = { name, line, learned, diff,
+    -- out, qmin, qmax, reagents = { { id, n } } } }.
+    env.GetProfessions = function()
+        local p = client.professions
+        return p[1] and 1 or nil, p[2] and 2 or nil, nil, nil, p[3] and 3 or nil
+    end
+    env.GetProfessionInfo = function(i)
+        local p = client.professions[i]
+        if not p then return nil end
+        return p.name, 0, p.skill, p.max, 0, 0, p.line
+    end
+    env.C_TradeSkillUI = {
+        GetBaseProfessionInfo = function()
+            local p = client.openProfession
+            return p and { professionID = p.line, skillLevel = p.skill, maxSkillLevel = p.max } or nil
+        end,
+        GetAllRecipeIDs = function()
+            local out = {}
+            for id, r in pairs(client.recipes) do
+                if client.openProfession and r.line == client.openProfession.line then out[#out + 1] = id end
+            end
+            table.sort(out)
+            return out
+        end,
+        GetRecipeInfo = function(id)
+            local r = client.recipes[id]
+            if not r then return nil end
+            local diff = r.diff
+            if r.at then
+                local s = client.openProfession.skill
+                diff = s >= r.at.x and 3 or s >= r.at.g and 2 or s >= r.at.y and 1 or 0
+            end
+            return { recipeID = id, name = r.name, learned = r.learned ~= false, relativeDifficulty = diff, icon = 0 }
+        end,
+        GetRecipeSchematic = function(id)
+            local r = client.recipes[id]
+            if not r then return nil end
+            local slots = {}
+            for i, g in ipairs(r.reagents or {}) do
+                slots[i] = { reagentType = 1, quantityRequired = g.n, reagents = { { itemID = g.id } } }
+            end
+            return { recipeID = id, outputItemID = r.out, quantityMin = r.qmin or 1, quantityMax = r.qmax or r.qmin or 1,
+                     reagentSlotSchematics = slots }
+        end,
+    }
+    -- The auction house's full scan: client.auctions { { itemID, count, buyout } }.
+    env.C_AuctionHouse = {
+        ReplicateItems = function()
+            client.replicated = (client.replicated or 0) + 1
+            client:After(0.5, function() client:Fire("REPLICATE_ITEM_LIST_UPDATE") end)
+        end,
+        GetNumReplicateItems = function() return #client.auctions end,
+        GetReplicateItemInfo = function(i)
+            local a = client.auctions[i + 1]
+            if not a then return nil end
+            return "Item", 0, a.count, 1, true, 1, 0, 0, 0, a.buyout, 0, false, nil, "Seller", nil, 0, a.itemID, true
+        end,
+    }
+    env.GetMerchantNumItems = function() return #client.merchant end
+    env.GetMerchantItemInfo = function(i)
+        local m = client.merchant[i]
+        return "Item", 0, m.price, m.quantity or 1, m.available or -1
+    end
+    env.GetMerchantItemID = function(i) return client.merchant[i] and client.merchant[i].id end
+    -- A trainer's window: client.trainer = { npcID, name, services = { { name, rank, category,
+    -- skill, skillRank, level, cost } } }.
+    env.UnitGUID = function(unit)
+        if unit == "npc" and client.trainer then return ("Creature-0-1-1-1-%d-0000000001"):format(client.trainer.npcID) end
+        return "Player-1-00000001"
+    end
+    env.UnitName = env.UnitName or function() return "Name" end
+    env.GetNumTrainerServices = function() return client.trainer and #client.trainer.services or 0 end
+    env.GetTrainerServiceInfo = function(i)
+        local s = client.trainer.services[i]
+        return s.name, s.rank, s.category or "available"
+    end
+    env.GetTrainerServiceSkillReq = function(i)
+        local s = client.trainer.services[i]
+        return s.skill, s.skillRank, true
+    end
+    env.GetTrainerServiceLevelReq = function(i) return client.trainer.services[i].level end
+    env.GetTrainerServiceCost = function(i) return client.trainer.services[i].cost end
     env.PlayerHasToy = function() return false end
     env.IsUsableItem = function() return true end
     env.C_Item = { GetItemCount = env.GetItemCount, GetItemCooldown = function() return 0, 0, 0 end, GetItemInfo = function() return nil end,
