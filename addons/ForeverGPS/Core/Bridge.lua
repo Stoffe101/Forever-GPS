@@ -610,7 +610,10 @@ function Bridge.HearthSpot()
     local key = ns and ns.CurrentCharacterKey and ns.CurrentCharacterKey()
     local spot = db and db.gpsHearth and key and db.gpsHearth[key]
     if not (spot and spot.m and spot.x) then return nil end
-    local name = spot.bind or (GetBindLocation and GetBindLocation()) or "?"
+    -- Bound somewhere else since: the old landing is not where it goes now.
+    local bound = GetBindLocation and GetBindLocation()
+    if bound and spot.bind and spot.bind ~= bound then return nil end
+    local name = spot.bind or bound or "?"
     return { name = name, mapID = spot.m, x = spot.x, y = spot.y }
 end
 

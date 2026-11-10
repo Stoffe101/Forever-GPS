@@ -205,4 +205,29 @@ function tests.aHearthMustSaveEnough_toBeWorthItsCooldown()
     T.eq(Route.HearthReserve(), 0, "off when set to nothing")
 end
 
+function tests.theHearth_saysWhereAndWhen()
+    local c = Start({ bags = { [6948] = 1 } })
+    c.env.C_Container = c.env.C_Container or {}
+    c.env.C_Container.GetItemCooldown = function() return c.env.GetTime() - 600, 3600 end
+    local s = c.FG.Hearth.Status()
+    T.eq(s.bind, "Lion's Pride Inn")
+    T.no(s.ready)
+    T.ok(s.cooldown > 2900 and s.cooldown <= 3000)
+    T.ok(c.FG.Hearth.Line(s):find("ready in", 1, true))
+    c.env.C_Container.GetItemCooldown = function() return 0, 0 end
+    T.ok(c.FG.Hearth.Status().ready)
+end
+
+function tests.aRebind_dropsTheOldLanding()
+    local c = Start({ bags = { [6948] = 1 } })
+    c.env.EasyFindDB.gpsHearth = c.env.EasyFindDB.gpsHearth or {}
+    local key = c.FG.Bridge.NS().CurrentCharacterKey()
+    c.env.EasyFindDB.gpsHearth[key] = { bind = "Lion's Pride Inn", m = 1429, x = 0.44, y = 0.66 }
+    T.ok(c.FG.Bridge.HearthSpot(), "known while bound there")
+    T.eq(c.FG.Hearth.Status().sure, "learned")
+    c.player.bind = "Thunderbrew Distillery"
+    T.eq(c.FG.Bridge.HearthSpot(), nil, "not after binding elsewhere")
+    T.eq(c.FG.Hearth.Status().sure, "town", "the new town's spot, said to be that")
+end
+
 return tests

@@ -519,7 +519,10 @@ end
 local function PlanNote(target, option)
     if option.estimate then return L["ROUTE_ESTIMATE_NOTE"] end
     if target.predicted then return L["ROUTE_PREDICTED"] end
-    return nil
+    local notes = {}
+    notes[#notes + 1] = FG.Hearth.Note(option.steps)
+    notes[#notes + 1] = FG.Fares.Note(option.cost)
+    return #notes > 0 and table.concat(notes, " ") or nil
 end
 
 local function RenderPlan(plan)

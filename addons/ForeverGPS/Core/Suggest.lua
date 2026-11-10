@@ -68,7 +68,7 @@ function Suggest.List()
     end
     local hearth = Bridge.HearthSpot()
     if hearth then
-        out[#out + 1] = { icon = "hearth", text = L["SUGGEST_HEARTH_FMT"]:format(hearth.name), run = function()
+        out[#out + 1] = { icon = "hearth", text = L["SUGGEST_HEARTH_FMT"]:format(hearth.name), sub = FG.Hearth.Line(), run = function()
             FG.Planner.Inspect({ data = hearth, name = hearth.name, subtitle = L["SUGGEST_HEARTH_SUB"], icon = "hearth" })
             FG.Window.ShowRoute()
         end }
