@@ -173,7 +173,7 @@ function tests.closingMidScan_keepsTheOldPrices()
     local c = Start()
     Scan(c)
     local house = c.FG.db.market.houses[c.FG.Market.Key()]
-    house.scannedAt = house.scannedAt - 3600
+    house.scannedAt, house.askedAt = house.scannedAt - 3600, house.askedAt - 3600
     local before = c.FG.Market.Price(HERB_A).buy
     c.auctions = {}
     for i = 1, 5000 do c.auctions[i] = { itemID = HERB_A, count = 1, buyout = 1 } end
@@ -189,9 +189,10 @@ function tests.eachHouse_isItsOwnMarket()
     local c = Start()
     Scan(c)
     local home = c.FG.Market.Key()
-    c.env.GetMinimapZoneText = function() return "Gadgetzan" end
-    local key, side = c.FG.Market.Key()
+    c:SetPlayer(1446, 0.52, 0.28)   -- Tanaris: Gadgetzan's house
+    local key, side, how = c.FG.Market.Key()
     T.eq(side, "Neutral")
+    T.eq(how, "map", "told by the map, in any language")
     T.ok(key ~= home)
     T.eq(c.FG.Market.Price(HERB_A, key), nil, "no prices carried across")
 end

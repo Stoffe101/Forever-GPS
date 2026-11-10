@@ -40,6 +40,8 @@ Core/QuestBrowse.lua
 Data/Recipes.lua
 Core/Professions.lua
 Core/Market.lua
+Core/MarketSearch.lua
+Core/Quote.lua
 Core/Crafting.lua
 Core/Trainers.lua
 Core/Suggest.lua

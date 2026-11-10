@@ -394,15 +394,79 @@ function Client:BuildEnv(opts)
     }
     -- The auction house's full scan: client.auctions { { itemID, count, buyout } }.
     env.C_AuctionHouse = {
+        -- replicateSpread: the answer arrives over that many seconds, an event each 0.1 s
+        -- and the rows growing with them, as the real client does (hundreds of events).
+        -- replicateSilent: no answer at all.
         ReplicateItems = function()
             client.replicated = (client.replicated or 0) + 1
-            client:After(0.5, function() client:Fire("REPLICATE_ITEM_LIST_UPDATE") end)
+            if client.replicateSilent then return end
+            local spread = client.replicateSpread
+            if not spread then
+                client.replicateVisible = nil
+                client:After(0.5, function() client:Fire("REPLICATE_ITEM_LIST_UPDATE") end)
+                return
+            end
+            client.replicateVisible = 0
+            local steps = math.max(1, math.floor(spread / 0.1))
+            for k = 1, steps do
+                client:After(0.5 + k * 0.1, function()
+                    client.replicateVisible = math.floor(#client.auctions * k / steps)
+                    client:Fire("REPLICATE_ITEM_LIST_UPDATE")
+                end)
+            end
         end,
-        GetNumReplicateItems = function() return #client.auctions end,
+        GetNumReplicateItems = function() return client.replicateVisible or #client.auctions end,
         GetReplicateItemInfo = function(i)
             local a = client.auctions[i + 1]
             if not a then return nil end
             return "Item", 0, a.count, 1, true, 1, 0, 0, 0, a.buyout, 0, false, nil, "Seller", nil, 0, a.itemID, true
+        end,
+        -- Targeted searches: answered from client.auctions after client.searchDelay (0.2 s),
+        -- twice when client.searchTwice; never when client.searchSilent. client.throttled
+        -- counts searches the throttle refuses before letting one through.
+        MakeItemKey = function(id) return { itemID = id, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 } end,
+        IsThrottledMessageSystemReady = function()
+            if (client.throttled or 0) > 0 then
+                client.throttled = client.throttled - 1
+                return false
+            end
+            return true
+        end,
+        SendSearchQuery = function(key)
+            client.searches = client.searches or {}
+            client.searches[#client.searches + 1] = key.itemID
+            if client.searchSilent then return end
+            local id = key.itemID
+            local gear = client.gear and client.gear[id]
+            local function answer()
+                if gear then client:Fire("ITEM_SEARCH_RESULTS_UPDATED", key) else client:Fire("COMMODITY_SEARCH_RESULTS_UPDATED", id) end
+            end
+            client:After(client.searchDelay or 0.2, answer)
+            if client.searchTwice then client:After((client.searchDelay or 0.2) + 0.2, answer) end
+        end,
+        GetNumCommoditySearchResults = function(id)
+            local n = 0
+            for _, a in ipairs(client.auctions) do if a.itemID == id then n = n + 1 end end
+            return n
+        end,
+        GetCommoditySearchResultInfo = function(id, i)
+            local rows = {}
+            for _, a in ipairs(client.auctions) do if a.itemID == id then rows[#rows + 1] = a end end
+            table.sort(rows, function(x, y) return x.buyout / x.count < y.buyout / y.count end)
+            local a = rows[i]
+            return a and { itemID = id, quantity = a.count, unitPrice = math.floor(a.buyout / a.count) } or nil
+        end,
+        GetNumItemSearchResults = function(key)
+            local n = 0
+            for _, a in ipairs(client.auctions) do if a.itemID == key.itemID then n = n + 1 end end
+            return n
+        end,
+        GetItemSearchResultInfo = function(key, i)
+            local rows = {}
+            for _, a in ipairs(client.auctions) do if a.itemID == key.itemID then rows[#rows + 1] = a end end
+            table.sort(rows, function(x, y) return x.buyout < y.buyout end)
+            local a = rows[i]
+            return a and { itemKey = key, quantity = a.count, buyoutAmount = a.buyout } or nil
         end,
     }
     env.GetMerchantNumItems = function() return #client.merchant end

@@ -335,6 +335,21 @@ local function Lists(items)
                                   View.Refresh()
                               end }
     end
+    -- Fresh prices for what is still to buy, one search each, while the house is open.
+    local ask = {}
+    for _, row in ipairs(shop.rows) do
+        if row.left > 0 then ask[#ask + 1] = row.id end
+    end
+    local searching = FG.MarketSearch.Status()
+    if #ask > 0 and Market.IsOpen() and FG.MarketSearch.Available() then
+        local busy = searching.waiting > 0 or searching.current
+        items[#items + 1] = { kind = "card", title = L["PV_REFRESH_LIST"],
+                              body = busy and L["PV_REFRESHING_FMT"]:format(searching.waiting + (searching.current and 1 or 0)) or L["PV_TOTAL_HOW"],
+                              action = not busy and L["PV_REFRESH_LIST"] or nil, run = function()
+                                  FG.MarketSearch.Ask(ask)
+                                  View.Refresh()
+                              end }
+    end
     items[#items + 1] = { kind = "card", title = L["PV_TOTAL_FMT"]:format(Money(shop.total)),
                           body = shop.unknown > 0 and L["PV_TOTAL_UNKNOWN_FMT"]:format(shop.unknown) or L["PV_TOTAL_HOW"],
                           action = L["PV_GO_AUCTION"], run = function()
@@ -343,16 +358,30 @@ local function Lists(items)
                           end }
 end
 
+-- Where a scan stands, in words.
+local function ScanState(scan)
+    if scan.state == "waiting" then return L["PV_SCAN_WAITING"] end
+    if scan.state == "settling" then
+        local n = C_AuctionHouse and C_AuctionHouse.GetNumReplicateItems and C_AuctionHouse.GetNumReplicateItems() or 0
+        return L["PV_SCAN_SETTLING_FMT"]:format(n) .. (scan.by == "other" and ("\n" .. L["PV_SCAN_OTHER"]) or "")
+    end
+    if scan.state == "reading" then return L["PV_SCAN_READING_FMT"]:format(scan.at or 0, scan.total or 0) end
+    if scan.state == "failed" then return scan.why or L["PV_SCAN_FAILED"] end
+    return nil
+end
+
+local AGE_KEY = { fresh = "PV_AGE_fresh", recent = "PV_AGE_recent", stale = "PV_AGE_stale" }
+
 local function MarketView(items)
     local s = Market.Summary()
     local ok, why = Market.CanScan()
-    local scan = Market.Scanning()
-    local state = scan.state == "reading" and L["PV_SCAN_READING_FMT"]:format(scan.at or 0, scan.total or 0)
-        or scan.state == "failed" and (scan.why or L["PV_SCAN_FAILED"]) or nil
+    local state = ScanState(Market.Scanning())
+    local age = s.at and L["PV_PRICES_AGE_FMT"]:format(Format.Duration(time() - s.at) or "?", L[AGE_KEY[s.sure] or "PV_AGE_stale"])
+    local lines = { L["PV_HOUSE_FMT"]:format(s.key), age or L["PV_PRICES_HOW"] }
+    if s.partial then lines[#lines + 1] = L["PV_PARTIAL"] end
+    lines[#lines + 1] = state or why or L["PV_SCAN_READY"]
     items[#items + 1] = { kind = "card", title = s.at and L["PV_PRICES_FMT"]:format(s.count) or L["PV_PRICES_NONE"],
-                          body = table.concat({ L["PV_HOUSE_FMT"]:format(s.key),
-                                                s.at and L["PV_SCANNED_FMT"]:format(Format.Duration(time() - s.at) or "?") or L["PV_PRICES_HOW"],
-                                                state or why or L["PV_SCAN_READY"] }, "\n"),
+                          body = table.concat(lines, "\n"),
                           action = ok and L["PV_SCAN"] or nil, run = function()
                               Market.Scan()
                               View.Refresh()
