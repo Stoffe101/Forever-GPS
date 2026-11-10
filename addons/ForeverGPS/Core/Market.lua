@@ -85,6 +85,7 @@ local function Read()
             return FG.Emit("market:changed")
         end
         local stop = debugprofilestop() + SLICE_MS
+        FG.Metrics.Begin("marketScan")
         local units = scan.units
         while scan.at < scan.total do
             local _, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, _, itemID = C_AuctionHouse.GetReplicateItemInfo(scan.at)
@@ -99,10 +100,12 @@ local function Read()
                 list[#list + 1] = count
             end
             if scan.at % CHECK_EVERY == 0 and debugprofilestop() > stop then
+                FG.Metrics.End("marketScan")
                 FG.Emit("market:changed")
                 return
             end
         end
+        FG.Metrics.End("marketScan")
         self:SetScript("OnUpdate", nil)
         Market.Store(scan.key, units)
         scan.state = "done"

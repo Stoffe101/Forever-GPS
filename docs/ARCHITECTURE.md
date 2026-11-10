@@ -81,6 +81,9 @@ WoW hands an addon only what is saved under its own name, so what EasyFind GPS s
 | `Core/Journey.lua` | The route as the HUD reads it; ride states; quests kept in step |
 | `Core/Trip.lua` | Several stops, the order to visit them in, saved trips, circuits |
 | `Core/QuestBrowse.lua` | Finding quests: lists, filters, near the player, one quest's details |
+| `Core/Continuity.lua` | Keeps a destination when the player travels another way |
+| `Core/Fares.lua`, `Core/Hearth.lua` | Fares, money ways and the hearth's status |
+| `Core/Professions.lua`, `Core/Market.lua`, `Core/Crafting.lua`, `Core/Trainers.lua` | Professions, prices, crafting maths and lists, trainers by what they teach |
 | `Core/Suggest.lua` | What might be useful now, for the home view |
 | `Core/TomTom.lua` | Optional mirror to TomTom |
 | `Core/Diagnostics.lua` | `/fgps diag` and the copyable report |
@@ -89,6 +92,7 @@ WoW hands an addon only what is saved under its own name, so what EasyFind GPS s
 | `UI/MapPreview.lua` | The journey or a quest's places, on our map or over one the player opened |
 | `UI/RoutePanel.lua`, `UI/SearchView.lua`, `UI/QuestsView.lua`, `UI/TripView.lua` | The window's pages |
 | `UI/ExplorerView.lua`, `UI/QuestDetail.lua` | Find quests, and one quest in full |
+| `UI/ProfessionsView.lua` | The Professions tab |
 | `UI/CopyBox.lua`, `UI/Settings.lua`, `UI/MainWindow.lua` | Text to copy, settings, the window |
 | `UI/HUD.lua`, `UI/Quick.lua`, `UI/MinimapButton.lua` | What stays out of the window |
 

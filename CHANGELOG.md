@@ -1,6 +1,23 @@
 # Changelog
 
-## 2.2.0 (unreleased, not yet tested in the game)
+## 2.3.0 (unreleased, not yet tested in the game)
+
+### Fixed
+
+- **Navigation no longer sticks when you go another way.** Waiting for a boat, a flight or a hearth, taking a different flight, boat or teleport on the same continent left the GPS on that step for good. It now follows a flight it did not plan, plans nothing while flying, and plans again from where you land or arrive. The destination and a trip's remaining stops are kept, and a failed plan is retried. [docs/LIFECYCLE.md](docs/LIFECYCLE.md)
+- **One launcher.** EasyFind's own minimap button, broker launcher and compartment entries are gone from the folder. Each opened a search bar that stays hidden.
+
+### Added
+
+- **Travel costs.** Fares learned from flight masters, shown beside every route. **Best value** and **Cheapest** weigh money against time in the search itself, at a rate you set, within limits you set. [docs/TRAVEL_COSTS.md](docs/TRAVEL_COSTS.md)
+- **Hearthstone:** where it is bound, whether it is ready, how sure the landing is, and a minimum time it must save before it is used.
+- **Professions tab.** Your professions and next rank, the cheapest way up with training steps, recipes ranked by profit, lists with combined reagents, and prices from your own auction house scans. Trainers are ranked by what their own window said they teach. No other addon needed. [docs/PROFESSIONS.md](docs/PROFESSIONS.md)
+
+### Changed
+
+- The Quests tab is called Quests.
+
+## 2.2.0 (since installed in the game, not yet confirmed there)
 
 ### Fixed
 

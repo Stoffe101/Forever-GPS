@@ -212,7 +212,25 @@ These quests are real, with ids and data read from the installed QuestieDB 1.0.1
 14. [ ] With a journey running, open a quest and press **Directions**: your journey keeps running until you choose to start the other. Accept a quest you walked to: the walk ends and says so. Turn in a chain quest: the next is named and nothing starts.
 15. [ ] `/reload` mid-journey and mid-fight. `/fgps report`, and send it with any error text. It has the timing lines: planning's busiest frame by part, and search by part.
 
-## 14. Living with it
+## 14. New in 2.3
+
+Everything here is new and untested in the game. Report anything that disagrees with what you see, with `/fgps report`.
+
+1. [ ] **No EasyFind button.** Only the Forever-GPS button, on the minimap and in the addon list. `/fgps` opens the window. Check again after `/reload` and on another character.
+2. [ ] **Another flight.** Start a journey that waits for a boat or uses your hearth. Take a flight instead. The HUD says you are flying and the route picks up where you land. After landing it plans from there by itself.
+3. [ ] **A wrong flight.** On a planned flight, land somewhere else. It plans from the landing, without sending you back.
+4. [ ] **Hearth instead.** Hearth while the plan says to walk or take a boat. It plans from the inn.
+5. [ ] **Reload in the air.** Mid-flight, `/reload`. On landing it plans from there.
+6. [ ] **Fares.** Open a flight master's map, then plan a journey that flies. The price shows without `~`. Before opening one, it shows with `~`.
+7. [ ] **Best value.** Settings, Travel costs: choose Save money. Plan a journey where a flight competes with a tram, boat or walk. Best value shows its price and can differ from Fastest. The comparison says what it saves.
+8. [ ] **Hearth status.** Plan a journey that uses your hearth. The route panel says where it is bound and when it is ready. Rebind at another inn: the old landing is gone.
+9. [ ] **Professions.** The Overview shows your professions with skill, cap and next rank. Open your profession window once, then Skill up shows a plan and Profit lists your recipes.
+10. [ ] **Prices.** Open the auction house, then Professions, Prices: Scan. It reads, then shows how many items. Scan again at once: it says when the server allows it.
+11. [ ] **A trainer.** Open a profession trainer's window. Search `alchemy trainer` (your profession): that trainer says what it teaches, and one that teaches your next rank comes first.
+12. [ ] **A list.** Add recipes from Profit to a list. Lists shows what is left to buy, with bags and bank apart. Mark one bought, then reload: the mark stays.
+13. [ ] Repeat the taint check from section 13 with these in use. Nothing in BugSack names ForeverGPS.
+
+## 15. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.

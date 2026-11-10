@@ -22,6 +22,26 @@ What happens from typing a search to arriving, who owns each piece of state, and
 | Objective finished | `Journey`, `Trip` | The route stops, or the stop drops out of a trip | Any route not bound to that quest |
 | Cancel | `Bridge.Stop` | Route cleared, binding cleared, TomTom waypoint removed, the journey kept to resume | |
 
+## Going another way (2.3)
+
+The destination is kept until you arrive or stop. The route to it is not.
+
+The engine only noticed two things: a walk gone astray, and a crossing taken to the wrong continent. So while it waited for a boat, a flight or a hearth, you could fly, ride or teleport anywhere on the same continent and it stayed on that step. Tests reproduced this before it was fixed.
+
+`Core/Continuity.lua` is now asked each second, before the engine's own check:
+
+| What happens | What it does |
+| --- | --- |
+| A flight that is not the planned step | Holds the route. Plans nothing in the air. The HUD says the route picks up where you land |
+| Landing, from such a flight or somewhere other than the planned field | Plans once from where you are |
+| A jump within a step (hearth, portal, teleport) that lands away from the step's end | Plans once from there |
+| Walking more than 400 yards from both ends of a boat or tram you were waiting for | Plans once from there |
+| Walking with a hearth ahead | Nothing. A hearth can be used from anywhere |
+| A plan that fails | Keeps the destination and tries again 6 seconds later |
+| Position unknown, or a reload mid-flight | Holds, then carries on as above |
+
+The destination, a trip's stops ahead and the way you chose all carry through. A portal that completes its own step is not counted as a jump.
+
 ## Who owns what
 
 - **The route under way** belongs to EasyFind GPS, in `CharDB.route`. Forever-GPS reads it and replaces it only through `GPS.Navigated`.

@@ -9,6 +9,17 @@
 - The Quest Explorer against live Questie. Its data has been read offline, and everything else ran against a stand-in that follows Questie's rules.
 - Fonts, texture quality, real frame times and memory, and how it sits beside EllesmereUI.
 
+## 2.3
+
+- **Nothing new has run in the game.** That covers continuous navigation, travel costs, professions, prices and trainers, all tested only in the stand-in client.
+- **Fares** are only known once a flight master's map has been opened. Until then they are estimated and shown with `~`. Boats, trams and teleport reagents are not priced.
+- **Recipe skill-up thresholds** are not given by the client. They are learned from colours seen and estimated until then. The chance rule is the long-standing one and is not confirmed on Forever.
+- **The cheapest-way plan** uses learned recipes only. Gathering professions have none.
+- **Trainers** are unknown until visited. No rank is assumed from an NPC's title.
+- **Prices** come only from your own scans: one at a time, no sales history, no deposits, and no outside import.
+- **A scan** reads the client's full listing, which the server limits to about one every 15 minutes. Its exact behaviour on Forever is unconfirmed.
+- **Neutral houses** are told apart by the zone they are opened in: Booty Bay, Gadgetzan and Everlook.
+
 ## Data age
 
 - Your client is build **70790**. EasyFind GPS's route data was generated from build **69977** and its instance list from 70532. Those are the same 1.60.1 patch, and the generator is not in the upstream repository, so it cannot be rebuilt here. A transport or flight added or moved since then will not be known until upstream updates. `/fgps diag` shows both numbers.
