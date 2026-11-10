@@ -100,13 +100,52 @@ local COMMANDS = {
     way = Way,
     hud = Hud,
     diag = function() FG.Diagnostics.Print() end,
+    alert = function(rest) FG.Commands.Alert(rest) end,
+    alerts = function() FG.Commands.Alert("") end,
     reset = function() FG.Settings.ResetPlaces() end,
 }
+
+-- "1g20s", "35s", "120c" or plain copper, to copper.
+local function ParseMoney(text)
+    text = (text or ""):lower():gsub("%s", "")
+    if text:match("^%d+$") then return tonumber(text) end
+    local g, s, c = text:match("(%d+)g"), text:match("(%d+)s"), text:match("(%d+)c")
+    if not (g or s or c) then return nil end
+    return (tonumber(g) or 0) * 10000 + (tonumber(s) or 0) * 100 + (tonumber(c) or 0)
+end
+
+FG.Commands = FG.Commands or {}
+
+-- /fgps alert <item> <price>: say when new prices list it at or under that. "off" clears
+-- it; with nothing, lists the alerts.
+function FG.Commands.Alert(rest)
+    local H = FG.PriceHistory
+    local id = tonumber((rest or ""):match("item:(%d+)") or (rest or ""):match("^(%d+)%s"))
+    if not id then
+        local any = false
+        for item, a in pairs(FG.db.alerts or {}) do
+            any = true
+            FG.Print(L["ALERT_LIST_FMT"]:format(GetItemInfo(item) or ("item:" .. item), FG.Fares.Money(a.below)))
+        end
+        if not any then FG.Print(L["ALERT_NONE"]) end
+        return
+    end
+    local tail = rest:match("|r%s*(.*)$") or rest:match("^%d+%s+(.*)$") or ""
+    if tail:lower() == "off" then
+        H.SetAlert(id, nil)
+        return FG.Print(L["ALERT_OFF_FMT"]:format(GetItemInfo(id) or ("item:" .. id)))
+    end
+    local below = ParseMoney(tail)
+    if not below or below <= 0 then return FG.Print(L["ALERT_HOW"]) end
+    H.SetAlert(id, below)
+    FG.Print(L["ALERT_SET_FMT"]:format(GetItemInfo(id) or ("item:" .. id), FG.Fares.Money(below)))
+end
+FG.Commands._ParseMoney = ParseMoney
 
 local function Help()
     FG.Print(L["HELP_HEADER"])
     for _, key in ipairs({ "HELP_TOGGLE", "HELP_GO", "HELP_TARGET", "HELP_QUESTS", "HELP_QUEST", "HELP_TRIP", "HELP_WAY", "HELP_SAVE", "HELP_SHARE", "HELP_RESUME", "HELP_STOP",
-                           "HELP_HUD", "HELP_DIAG", "HELP_REPORT", "HELP_RESET" }) do
+                           "HELP_HUD", "HELP_DIAG", "HELP_REPORT", "HELP_ALERT", "HELP_RESET" }) do
         print("  " .. L[key])
     end
 end

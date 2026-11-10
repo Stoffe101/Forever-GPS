@@ -259,7 +259,7 @@ function tests.aMerchantsPrice_isTheFloor()
 end
 
 function tests.aLoss_isShownAsOne_andRankedLast()
-    local c = Start({ auctions = { { itemID = HERB_A, count = 1, buyout = 5000 }, { itemID = HERB_B, count = 1, buyout = 10 },
+    local c = Start({ auctions = { { itemID = HERB_A, count = 1, buyout = 5000 }, { itemID = HERB_B, count = 5, buyout = 50 },
                                    { itemID = 858, count = 1, buyout = 1000 }, { itemID = 2458, count = 1, buyout = 500 } } })
     Ready(c)
     local list = c.FG.Crafting.Ranking(ALCHEMY, "profit")
@@ -275,7 +275,9 @@ end
 -- The expected cost of each point is a craft's cost over its chance; the cheapest recipe
 -- at each skill is the answer, and this works it out by brute force to compare.
 function tests.thePlan_isTheCheapestByBruteForce()
-    local c = Start()
+    -- Deep markets at one price each: every point stands alone.
+    local c = Start({ auctions = { { itemID = HERB_A, count = 5000, buyout = 500000 }, { itemID = HERB_B, count = 5000, buyout = 1000000 },
+                                   { itemID = 858, count = 1, buyout = 2500 } } })
     Ready(c)
     -- Every turning point seen, so nothing is guessed.
     for _, id in ipairs({ LESSER, ELIXIR }) do
@@ -305,7 +307,7 @@ function tests.thePlan_isTheCheapestByBruteForce()
 end
 
 function tests.thePlan_changesRecipeAsColoursChange()
-    local c = Start({ auctions = { { itemID = HERB_A, count = 1, buyout = 100 }, { itemID = HERB_B, count = 50, buyout = 50 } } })
+    local c = Start({ auctions = { { itemID = HERB_A, count = 1000, buyout = 100000 }, { itemID = HERB_B, count = 1000, buyout = 1000 } } })
     Ready(c)
     for _, id in ipairs({ LESSER, ELIXIR }) do
         local r = c.FG.Professions.Recipe(id)

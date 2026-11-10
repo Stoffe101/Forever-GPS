@@ -11,13 +11,18 @@ local L = FG.L
 
 local VIEWS = { "overview", "leveling", "profit", "lists", "market" }
 local VIEW_LABEL = { overview = "PV_OVERVIEW", leveling = "PV_LEVELING", profit = "PV_PROFIT", lists = "PV_LISTS", market = "PV_MARKET" }
-local SORT_LABEL = { profit = "PV_SORT_PROFIT", share = "PV_SORT_SHARE", cheap = "PV_SORT_CHEAP", safe = "PV_SORT_SAFE" }
+local SORT_LABEL = { profit = "PV_SORT_PROFIT", share = "PV_SORT_SHARE", cheap = "PV_SORT_CHEAP", safe = "PV_SORT_SAFE",
+                     recovery = "PV_SORT_RECOVERY" }
+local FILTER_LABEL = { complete = "PV_ONLY_COMPLETE", makeable = "PV_ONLY_MAKEABLE", sellers = "PV_ONLY_SELLERS", gain = "PV_ONLY_GAIN" }
 local MODE_LABEL = { upfront = "PV_MODE_UPFRONT", net = "PV_MODE_NET", mine = "PV_MODE_MINE" }
+local COVER_LABEL = { known = "PV_COVER_KNOWN", obtainable = "PV_COVER_OBTAINABLE" }
 local SURE_KEY = { fresh = "PV_FRESH", recent = "PV_RECENT", stale = "PV_STALE", vendor = "PV_VENDOR" }
+local TREND_KEY = { up = "PV_TREND_UP", down = "PV_TREND_DOWN", flat = "PV_TREND_FLAT" }
 
 local f, list
-local view, sort, mode = "overview", "profit", "upfront"
+local view, sort, mode, coverage = "overview", "profit", "upfront", "known"
 local chosen, target, project
+local only = {}
 
 local Money = Fares.Money
 
@@ -198,7 +203,24 @@ local function Overview(items)
     items[#items + 1] = { kind = "line", icon = "auction", name = summary.at and L["PV_PRICES_FMT"]:format(summary.count) or L["PV_PRICES_NONE"],
                           sub = summary.at and L["PV_SCANNED_FMT"]:format(Format.Duration(time() - summary.at) or "?") or L["PV_PRICES_HOW"],
                           run = function() View.Show("market") end }
+    -- The account's other characters, as each last showed itself: a copy, with its age.
+    local alts = FG.Alts.List()
+    if #alts > 0 then
+        items[#items + 1] = { kind = "section", text = L["PV_ALTS"] }
+        for _, a in ipairs(alts) do
+            local parts = {}
+            for _, ap in ipairs(a.professions) do parts[#parts + 1] = ("%s %d/%d"):format(ap.name or "?", ap.skill or 0, ap.max or 0) end
+            items[#items + 1] = { kind = "line", icon = "star-line", color = "textDim", name = a.name or a.key,
+                                  sub = (#parts > 0 and table.concat(parts, ", ") or L["PV_ALT_NONE"]) .. " \194\183 "
+                                      .. L["PV_CACHED_FMT"]:format(Format.Duration(time() - (a.at or 0)) or "?") }
+        end
+    end
 end
+
+-- The plan on screen is worked out in slices; this keeps the last one per question.
+local planKey, planShown
+
+local SOURCE_KEY = { client = "PV_SRC_CLIENT", seen = "PV_SRC_SEEN", estimate = "PV_SRC_ESTIMATE" }
 
 local function Leveling(items)
     local p = Chosen()
@@ -225,30 +247,78 @@ local function Leveling(items)
         end }
     end
     items[#items + 1] = { kind = "chips", chips = chips }
-    if #Prof.Recipes(p.line) == 0 then
+    local cover = {}
+    for _, cv in ipairs(Craft.COVERAGE) do
+        cover[#cover + 1] = { label = L[COVER_LABEL[cv]], selected = cv == coverage, run = function()
+            coverage = cv
+            View.Refresh()
+        end }
+    end
+    items[#items + 1] = { kind = "chips", chips = cover }
+    if coverage == "known" and #Prof.Recipes(p.line) == 0 then
         items[#items + 1] = { kind = "card", title = L["PV_NO_RECIPES"], body = L["PV_NO_RECIPES_HINT"] }
         return
     end
-    local plan = Craft.Plan(p.line, p.skill, target, mode)
+    local key = table.concat({ p.line, p.skill, target, mode, coverage, Market.Summary().at or 0 }, ":")
+    if planKey ~= key then
+        planKey, planShown = key, nil
+        Craft.PlanAsync(p.line, p.skill, target, mode, { coverage = coverage, learnUnknownFree = coverage == "obtainable" }, function(plan)
+            if planKey == key then
+                planShown = plan or false
+                View.Refresh()
+            end
+        end)
+    end
+    if planShown == nil then
+        items[#items + 1] = { kind = "card", title = L["PV_PLAN_FMT"]:format(p.name, p.skill, target), body = L["PV_PLANNING"] }
+        return
+    end
+    local plan = planShown
+    if not plan then
+        items[#items + 1] = { kind = "card", title = L["PV_PLAN_FMT"]:format(p.name, p.skill, target), body = L["PV_PLAN_FAILED"] }
+        return
+    end
+    local body = { plan.unsure and L["PV_PLAN_UNSURE"] or L["PV_PLAN_SEEN"], L["PV_PLAN_HOW"] }
+    if plan.learnUnknown then body[#body + 1] = L["PV_LEARN_UNKNOWN"] end
+    if plan.incomplete then body[#body + 1] = L["PV_PLAN_INCOMPLETE"] end
     items[#items + 1] = { kind = "card", title = L["PV_PLAN_FMT"]:format(p.name, p.skill, target),
-                          body = (plan.unsure and L["PV_PLAN_UNSURE"] or L["PV_PLAN_SEEN"]) .. "\n" .. L["PV_PLAN_HOW"],
-                          right = Money(plan.total) }
-    local trains = {}
+                          body = table.concat(body, "\n"), right = plan.total and Money(plan.total) or "?" }
+    local trains, learns = {}, {}
     for _, t in ipairs(plan.train) do trains[t.at] = t end
+    for _, l in ipairs(plan.learn) do learns[l.at] = l end
     for _, seg in ipairs(plan.segments) do
         local t = trains[seg.from]
         if t then
+            local sub = t.known and L["PV_TRAIN_KNOWN_FMT"]:format(t.known) or L["PV_TRAIN_SUB"]
+            if t.level then sub = sub .. " \194\183 " .. L["PV_TRAIN_LEVEL_FMT"]:format(t.level) end
             items[#items + 1] = { kind = "line", icon = "trainer", color = "accent", name = L["PV_TRAIN_FMT"]:format(t.name or "?", t.at),
-                                  sub = L["PV_TRAIN_SUB"], run = function() TrainerSearch(p) end }
+                                  sub = sub, right = t.cost and Money(t.cost) or nil, run = function() TrainerSearch(p) end }
+        end
+        local l = learns[seg.from]
+        if l then
+            items[#items + 1] = { kind = "line", icon = "quest", color = "accent", name = L["PV_LEARN_FMT"]:format(l.recipe.name or "?"),
+                                  sub = L[l.how == "item" and "PV_LEARN_ITEM" or "PV_LEARN_TRAINER"],
+                                  right = l.cost and Money(l.cost) or "?" }
         end
         local r = seg.recipe
+        local sub = L["PV_CRAFTS_SAFE_FMT"]:format(seg.crafts, seg.safe) .. " \194\183 " .. L[SOURCE_KEY[seg.source] or "PV_SRC_ESTIMATE"]
         items[#items + 1] = { kind = "line", icon = "check", color = seg.sure and "good" or "warn",
-                              name = L["PV_SEGMENT_FMT"]:format(seg.from, seg.to, r.name or "?"),
-                              sub = L["PV_CRAFTS_FMT"]:format(seg.crafts) .. (seg.sure and "" or (" \194\183 " .. L["PV_ESTIMATE"])),
-                              right = Money(seg.cost) }
+                              name = L["PV_SEGMENT_FMT"]:format(seg.from, seg.to, r.name or "?"), sub = sub, right = Money(seg.cost) }
     end
     if plan.stuck then
-        items[#items + 1] = { kind = "card", title = L["PV_STUCK_FMT"]:format(plan.stuck), body = L["PV_STUCK_HINT"] }
+        items[#items + 1] = { kind = "card", title = L["PV_STUCK_FMT"]:format(plan.stuck),
+                              body = L[plan.stuckWhy == "rank" and "PV_STUCK_RANK" or plan.stuckWhy == "prices" and "PV_STUCK_PRICES" or "PV_STUCK_HINT"] }
+    end
+    if #plan.shopping > 0 then
+        items[#items + 1] = { kind = "section", text = L["PV_PLAN_BUY"] }
+        for _, row in ipairs(plan.shopping) do
+            local name = GetItemInfo(row.id) or ("#" .. row.id)
+            local sub = L["PV_BUY_SAFE_FMT"]:format(row.expected, row.safe)
+            if row.have > 0 then sub = sub .. " \194\183 " .. L["PV_IN_BAGS_FMT"]:format(row.have) end
+            if row.short and row.short > 0 then sub = sub .. " \194\183 " .. L["PV_SHORT_FMT"]:format(row.short) end
+            items[#items + 1] = { kind = "line", icon = "dot", color = "textDim", name = name, sub = sub,
+                                  right = row.status == "known" and Money(row.cost) or "?" }
+        end
     end
 end
 
@@ -267,9 +337,19 @@ local function ProfitView(items)
         end }
     end
     items[#items + 1] = { kind = "chips", chips = chips }
-    local ranking = Craft.Ranking(p.line, sort)
+    local filters = {}
+    for _, key in ipairs(Craft.FILTERS) do
+        filters[#filters + 1] = { label = L[FILTER_LABEL[key]], selected = only[key] and true or false, run = function()
+            only[key] = not only[key] or nil
+            View.Refresh()
+        end }
+    end
+    items[#items + 1] = { kind = "chips", chips = filters }
+    local ranking = Craft.Ranking(p.line, sort, only)
     if #ranking == 0 then
-        items[#items + 1] = { kind = "card", title = L["PV_NO_RECIPES"], body = L["PV_NO_RECIPES_HINT"] }
+        local any = next(only) ~= nil
+        items[#items + 1] = { kind = "card", title = any and L["PV_NOTHING_FILTERED"] or L["PV_NO_RECIPES"],
+                              body = any and L["PV_NOTHING_FILTERED_HINT"] or L["PV_NO_RECIPES_HINT"] }
         return
     end
     items[#items + 1] = { kind = "card", title = L["PV_PROFIT_TITLE"], body = L["PV_PROFIT_HOW"] }
@@ -278,10 +358,14 @@ local function ProfitView(items)
         local sub
         if e.complete then
             sub = L["PV_PROFIT_SUB_FMT"]:format(Money(e.cost), Money(math.floor(e.sale)), SureWord(e.sure))
+            if e.upfront < e.cost then sub = sub .. " \194\183 " .. L["PV_UPFRONT_FMT"]:format(Money(e.upfront)) end
             if e.listed == 0 then sub = sub .. " \194\183 " .. L["PV_NO_SELLERS"] end
         else
             sub = L["PV_INCOMPLETE"]
         end
+        if e.recovery then sub = sub .. " \194\183 " .. L["PV_RECOVERY_FMT"]:format(Money(math.floor(e.recovery))) end
+        local _, trend = FG.PriceHistory.Of(r.out)
+        if trend then sub = sub .. " \194\183 " .. L[TREND_KEY[trend]] end
         if e.canMake > 0 then sub = sub .. " \194\183 " .. L["PV_CAN_MAKE_FMT"]:format(e.canMake) end
         items[#items + 1] = { kind = "line", icon = e.complete and (e.profit > 0 and "plus" or "close") or "warning",
                               color = e.complete and (e.profit > 0 and "good" or "danger") or "textFaint",
@@ -327,14 +411,43 @@ local function Lists(items)
         local done = row.left == 0
         local sub = L["PV_HAVE_FMT"]:format(row.need, row.bags, row.bank)
         if row.mark then sub = sub .. " \194\183 " .. L[row.mark == "bought" and "PV_MARK_BOUGHT" or "PV_MARK_HAVE"] end
+        if row.short and row.short > 0 and not done then sub = sub .. " \194\183 " .. L["PV_SHORT_FMT"]:format(row.short) end
+        if row.fromVendor and row.fromVendor > 0 and not done then sub = sub .. " \194\183 " .. L["PV_FROM_VENDOR_FMT"]:format(row.fromVendor) end
+        if row.alts then
+            local names = {}
+            for _, a in ipairs(row.alts) do names[#names + 1] = a.name or a.key end
+            sub = sub .. " \194\183 " .. L["PV_ALT_MAKES_FMT"]:format(table.concat(names, ", "))
+        end
         items[#items + 1] = { kind = "line", icon = done and "check" or "dot", color = done and "good" or "textDim",
                               name = done and name or L["PV_ITEM_FMT"]:format(row.left, name), sub = sub,
-                              right = row.unit and row.left > 0 and Money(row.unit * row.left) or (row.left > 0 and "?" or ""),
+                              right = row.left > 0 and (row.cost and Money(row.cost) or "?") or "",
                               run = function()
                                   Craft.Mark(project, row.id, MARK_NEXT[row.mark or false] or nil)
                                   View.Refresh()
                               end }
+        -- Something this character can make, bought for now: make it instead.
+        if row.makes then
+            items[#items + 1] = { kind = "line", icon = "gear", color = "accent", name = L["PV_MAKE_INSTEAD_FMT"]:format(name),
+                                  sub = row.choice == "buy" and L["PV_CHOSEN_BUY"] or L["PV_CHEAPER_BUY"], run = function()
+                                      Craft.Choose(project, row.id, "craft")
+                                      View.Refresh()
+                                  end }
+        end
     end
+    -- What is made on the way, and what each batch leaves over.
+    for _, c in ipairs(shop.crafts) do
+        local name = GetItemInfo(c.id) or ("#" .. c.id)
+        local sub = c.surplus > 0 and L["PV_SURPLUS_FMT"]:format(c.surplus) or L["PV_NO_SURPLUS"]
+        sub = sub .. " \194\183 " .. (project.choose[c.id] == "craft" and L["PV_CHOSEN_CRAFT"] or L["PV_CHEAPER_CRAFT"])
+        items[#items + 1] = { kind = "line", icon = "gear", color = "good", name = L["PV_MAKE_FMT"]:format(c.runs, c.recipe.name or name),
+                              sub = sub, run = function()
+                                  Craft.Choose(project, c.id, "buy")
+                                  View.Refresh()
+                              end }
+    end
+    items[#items + 1] = { kind = "card", title = L["PV_COPY_TITLE"], body = L["PV_COPY_HOW"], action = L["PV_COPY"], run = function()
+        FG.CopyBox.Show((Craft.ShoppingText(project, true)))
+    end }
     -- Fresh prices for what is still to buy, one search each, while the house is open.
     local ask = {}
     for _, row in ipairs(shop.rows) do

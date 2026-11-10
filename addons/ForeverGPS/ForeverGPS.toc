@@ -43,6 +43,8 @@ Core/Market.lua
 Core/MarketSearch.lua
 Core/Quote.lua
 Core/Crafting.lua
+Core/Alts.lua
+Core/PriceHistory.lua
 Core/Trainers.lua
 Core/Suggest.lua
 Core/TomTom.lua

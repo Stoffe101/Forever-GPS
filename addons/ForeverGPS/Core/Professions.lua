@@ -149,20 +149,90 @@ local function Point(th, name, after)
     return nil, false
 end
 
--- The chance a craft gives a point at skill s, and whether that rests on what was seen.
--- The rule is the long-standing one: always while orange, never once grey, and between
--- yellow and grey (grey - s) / (grey - yellow). The turning points are what this
--- character's own window showed; where it has not shown them, a band of BAND is assumed.
+-- ==== the client's recipe data ==============================================
+-- Data/Recipes.lua: every recipe's reagents, output, the skill it is learned at, and the
+-- skills where it turns yellow and grey, from the client's own tables (via profit, MIT:
+-- THIRD_PARTY.md). Parsed on first use, one recipe at a time.
+
+local parsed = {}
+local SOURCE = { t = "trainer", i = "item", f = "trainer?", u = "unknown" }
+
+local function Pairs(text)
+    local out = {}
+    for id, n in (text or ""):gmatch("(%d+):(%d+)") do out[#out + 1] = { id = tonumber(id), n = tonumber(n) } end
+    return out
+end
+
+-- A recipe from the client's data: { id, line, out, count, reagents, learn, trainer,
+-- yellow, grey, sources = { "trainer", ... }, items = { {id, n = skill} }, unsure }, or nil.
+function Prof.Data(id)
+    if parsed[id] ~= nil then return parsed[id] or nil end
+    local packed = FG.RecipeData and FG.RecipeData.recipes[id]
+    if not packed then
+        parsed[id] = false
+        return nil
+    end
+    local f = {}
+    for field in (packed .. "|"):gmatch("([^|]*)|") do f[#f + 1] = field end
+    local make = Pairs(f[2])[1]
+    local d = { id = id, line = tonumber(f[1]), out = make and make.id, count = make and make.n or 1,
+                reagents = Pairs(f[3]), learn = tonumber(f[4]), trainer = tonumber(f[5]),
+                yellow = tonumber(f[6]), grey = tonumber(f[7]), sources = {}, items = Pairs(f[9]),
+                unsure = (f[10] or "") ~= "" }
+    for letter in (f[8] or ""):gmatch("%a") do d.sources[#d.sources + 1] = SOURCE[letter] end
+    parsed[id] = d
+    return d
+end
+
+-- The chance a craft gives a point at skill s, whether that is sure, and what it rests on:
+-- "client" (the game's own turning points), "seen" (this character's window, pinned down)
+-- or "estimate". The rule is the long-standing one: always while orange, never once grey,
+-- and between yellow and grey (grey - s) / (grey - yellow). It is not confirmed on Forever.
+-- Turning points this character saw that disagree with the client's are believed instead.
 function Prof.Chance(r, s)
     local th = r.th or {}
+    local d = r.id and Prof.Data(r.id)
+    if d and d.yellow and d.grey and d.grey > d.yellow then
+        local fits = not ((th.xhi and th.xhi < d.grey) or (th.xlo and th.xlo > d.grey)
+                          or (th.yhi and th.yhi < d.yellow) or (th.ylo and th.ylo > d.yellow))
+        if fits then
+            if s >= d.grey then return 0, true, "client" end
+            if s < d.yellow then return 1, true, "client" end
+            return (d.grey - s) / (d.grey - d.yellow), true, "client"
+        end
+        r.conflict = true
+    end
     local y, ySure = Point(th, "y", function(lo) return lo + BAND / 2 end)
     local x, xSure = Point(th, "x", function(lo) return math.max(lo, y or lo) + 2 * BAND end)
     if not x and y then x = y + 2 * BAND end
     if not y and x then y = x - 2 * BAND end
     if not (y and x) then return nil, false end
-    if s >= x then return 0, xSure end
-    if s < y then return 1, ySure end
-    return math.max(0, math.min(1, (x - s) / math.max(1, x - y))), ySure and xSure
+    local sure = ySure and xSure
+    local source = sure and "seen" or "estimate"
+    if s >= x then return 0, xSure, xSure and "seen" or "estimate" end
+    if s < y then return 1, ySure, ySure and "seen" or "estimate" end
+    return math.max(0, math.min(1, (x - s) / math.max(1, x - y))), sure, source
+end
+
+-- Recipes of a profession this character has not learned, that can be learned somewhere:
+-- from a trainer, or a recipe item. Shaped like a learned recipe, with learned = false and
+-- data = the client's record. Recipes the client's data marks incomplete are left out.
+function Prof.Obtainable(line)
+    local out = {}
+    local known = Store().recipes
+    if not (FG.RecipeData and line) then return out end
+    local name = C_Spell and C_Spell.GetSpellName
+    for id in pairs(FG.RecipeData.recipes) do
+        local d = Prof.Data(id)
+        if d.line == line and d.out and not (known[id] and known[id].learned) and #d.sources > 0
+            and d.sources[1] ~= "unknown" and not d.unsure then
+            out[#out + 1] = { id = id, line = line, out = d.out, qmin = d.count, qmax = d.count, reagents = d.reagents,
+                              learned = false, data = d, learnAt = d.learn or (d.items[1] and d.items[1].n),
+                              name = name and name(id) or ("#" .. id) }
+        end
+    end
+    table.sort(out, function(a, b) return a.id < b.id end)
+    return out
 end
 
 function Prof.Recipes(line)

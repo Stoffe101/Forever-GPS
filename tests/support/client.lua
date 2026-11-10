@@ -87,7 +87,7 @@ function Client.new(opts)
     self.timers = {}
     self.player = {
         mapID = opts.mapID or 1453, x = opts.x or 0.5, y = opts.y or 0.5,
-        level = opts.level or 30, faction = opts.faction or "Alliance", class = opts.class or "WARRIOR", race = opts.race or "Human",
+        name = opts.name or "Tester", level = opts.level or 30, faction = opts.faction or "Alliance", class = opts.class or "WARRIOR", race = opts.race or "Human",
         bind = opts.bind or "Lion's Pride Inn", ghost = false, taxi = false, indoors = false, facing = 0, speed = 0, combat = opts.combat or false,
     }
     self.addons, self.bags = {}, opts.bags or {}
@@ -306,7 +306,7 @@ function Client:BuildEnv(opts)
     env.UnitFactionGroup = function() return client.player.faction, client.player.faction end
     env.UnitClass = function() return "Warrior", client.player.class end
     env.UnitRace = function() return "Human", client.player.race end
-    env.UnitName = function() return "Tester", nil end
+    env.UnitName = function() return client.player.name, nil end
     env.UnitExists = function() return true end
     env.UnitIsGhost = function() return client.player.ghost end
     env.UnitIsDead = function() return false end
