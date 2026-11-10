@@ -499,7 +499,9 @@ local function FillModes(plan)
         for _, o in ipairs(plan.options) do
             if o.mode == chip.mode then option = o end
         end
-        local usable = option and option.steps and not option.noWay and not option.same and not option.impractical
+        -- A money way that found another's route still shows, with its price: that is its answer.
+        local usable = option and option.steps and not option.noWay and not option.impractical
+            and (not option.same or (option.mode.money and option.same.mode.key ~= "fastest"))
         local waiting = option and not option.builtAt
         chip.option = usable and option or nil
         chip.dim = not usable

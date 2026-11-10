@@ -14,6 +14,7 @@ local Bridge = FG.Bridge
 Diagnostics.API = {
     "C_AddOns.GetAddOnMetadata", "C_Map.GetBestMapForUnit", "C_Map.GetMapArtLayers", "C_Map.GetMapArtLayerTextures",
     "C_Map.GetMapInfo", "C_Map.GetUserWaypoint",
+    "C_AuctionHouse.ReplicateItems", "C_TradeSkillUI.GetRecipeSchematic", "GetProfessions", "TaxiNodeCost",
     "C_QuestLog.GetInfo", "C_QuestLog.GetNumQuestLogEntries", "C_QuestLog.GetQuestObjectives", "C_QuestLog.IsComplete",
     "C_QuestLog.IsFailed", "C_Timer.After", "CreateFrame", "GetCursorPosition", "GetPlayerFacing", "UnitClass",
     "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "debugprofilestop",

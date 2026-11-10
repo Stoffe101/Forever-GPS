@@ -245,6 +245,88 @@ local function Quests(c, screen)
     FG.QuestsView.SetMode("log")
 end
 
+-- Professions, travel costs and a journey gone another way. Stand-in data, for the layout.
+local TRADE = {
+    professions = { { name = "Alchemy", skill = 132, max = 150, line = 171 }, { name = "Herbalism", skill = 140, max = 150, line = 182 } },
+    recipes = {
+        [1001] = { name = "Lesser Healing Potion", line = 171, out = 858, reagents = { { id = 900, n = 1 }, { id = 902, n = 1 } },
+                   at = { y = 140, g = 155, x = 170 } },
+        [1002] = { name = "Elixir of Minor Fortitude", line = 171, out = 2458, qmin = 2, qmax = 4,
+                   reagents = { { id = 901, n = 2 }, { id = 902, n = 1 } }, at = { y = 135, g = 145, x = 155 } },
+        [1003] = { name = "Swiftness Potion", line = 171, out = 2459, reagents = { { id = 904, n = 1 }, { id = 902, n = 1 } },
+                   at = { y = 140, g = 150, x = 160 } },
+        [1004] = { name = "Elixir of Wisdom", line = 171, out = 3383, reagents = { { id = 905, n = 2 }, { id = 902, n = 1 } },
+                   at = { y = 150, g = 165, x = 180 } },
+    },
+    auctions = { { itemID = 900, count = 10, buyout = 1000 }, { itemID = 901, count = 20, buyout = 800 }, { itemID = 904, count = 5, buyout = 2500 },
+                 { itemID = 858, count = 4, buyout = 12000 }, { itemID = 2458, count = 6, buyout = 3600 }, { itemID = 2459, count = 2, buyout = 900 } },
+    merchant = { { id = 902, price = 20 } },
+    items = { [900] = { name = "Briarthorn" }, [901] = { name = "Earthroot" }, [902] = { name = "Empty Vial" }, [904] = { name = "Swiftthistle" },
+              [905] = { name = "Bruiseweed" }, [858] = { name = "Lesser Healing Potion", sell = 100 }, [2458] = { name = "Elixir", sell = 40 } },
+}
+
+local function Trade(screen)
+    local opts = { screen = { screen[2], screen[3], screen[4] }, mapID = 1453, x = 0.70, y = 0.72, level = 22,
+                   questie = QUESTIE, quests = QUEST_LOG }
+    for k, v in pairs(TRADE) do opts[k] = v end
+    local c = Stack.new(opts)
+    local FG = c.FG
+    Settle(c, 4)
+    c:Fire("MERCHANT_SHOW")
+    c:Fire("AUCTION_HOUSE_SHOW")
+    FG.Market.Scan()
+    Settle(c, 2)
+    c.openProfession = c.professions[1]
+    FG.Professions.ReadRecipes()
+    FG.Window.Show("professions")
+    for _, which in ipairs({ "overview", "leveling", "profit", "market" }) do
+        FG.ProfessionsView.Show(which)
+        Settle(c, 0.3)
+        Shot(c, screen, "prof-" .. which)
+    end
+    local project = FG.Crafting.NewProject("Potions to sell")
+    FG.Crafting.AddToProject(project, 1001, 10)
+    FG.Crafting.AddToProject(project, 1002, 6)
+    FG.Crafting.Mark(project, 901, "bought")
+    FG.ProfessionsView.Show("lists")
+    Settle(c, 0.3)
+    Shot(c, screen, "prof-lists")
+    c:Fire("AUCTION_HOUSE_CLOSED")
+    c.FG.db.market.houses[FG.Market.Key()].scannedAt = c.env.time() - 5 * 86400
+    FG.ProfessionsView.Show("profit")
+    Settle(c, 0.3)
+    Shot(c, screen, "prof-stale")
+
+    -- Travel costs: a flight that costs five gold against a free way round.
+    local Route = FG.Bridge.NS().GPSRoute
+    Route.recordedKnown = { [2] = true, [4] = true, [5] = true, [6] = true, [7] = true, [8] = true, [12] = true }
+    Route.ForgetKnown()
+    FG.char.fares = { [2] = { [5] = { c = 50000, t = c.env.time() } } }
+    FG.db.travel.preset = "money"
+    FG.Planner.Inspect({ data = { name = "Lakeshire", mapID = 1433, x = 0.26, y = 0.55 }, name = "Lakeshire", subtitle = "Redridge Mountains" })
+    Planned(c)
+    FG.Window.ShowRoute()
+    Settle(c, 0.5)
+    Shot(c, screen, "route-value")
+    for _, o in ipairs(FG.Planner.Current().options) do
+        if o.mode.key == "value" then FG.Planner.Select(o) end
+    end
+    Settle(c, 0.3)
+    Shot(c, screen, "route-value-chosen")
+
+    -- Gone another way: flying while the route waits for something else.
+    FG.Planner.Start()
+    Settle(c, 1.5)
+    c.player.taxi = true
+    Settle(c, 2)
+    Shot(c, screen, "nav-flying-elsewhere")
+    c:SetPlayer(1455, 0.55, 0.48)
+    c.player.taxi = false
+    Settle(c, 1)
+    Shot(c, screen, "nav-rerouting")
+    return c
+end
+
 local function Journey(c, screen)
     local FG = c.FG
     FG.db.autoClose = false
@@ -343,6 +425,8 @@ for i, screen in ipairs(SCREENS) do
         Journey(c, screen)
         if i <= 3 then Map(c, screen) end
         print(screen[1], #c.errors == 0 and "ok" or (#c.errors .. " errors"), c.errors[1] and c.errors[1]:sub(1, 300) or "")
+        local t = Trade(screen)
+        print(screen[1], "trade", #t.errors == 0 and "ok" or (#t.errors .. " errors"), t.errors[1] and t.errors[1]:sub(1, 300) or "")
         local q = NewClient(screen)
         Quests(q, screen)
         print(screen[1], "quests", #q.errors == 0 and "ok" or (#q.errors .. " errors"), q.errors[1] and q.errors[1]:sub(1, 300) or "")

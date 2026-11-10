@@ -128,7 +128,8 @@ local function Finish()
     for _, option in ipairs(current.options) do
         if option.steps and not option.noWay then
             first = first or option
-            if option.mode.key == want and not option.same and not option.impractical then chosen = option end
+            -- The way asked for may have found another's route: that route is the one.
+            if option.mode.key == want and not option.impractical then chosen = option.same or option end
         end
     end
     chosen = chosen or first

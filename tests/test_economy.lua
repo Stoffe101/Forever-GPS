@@ -119,6 +119,16 @@ function tests.bestValue_canChooseOtherThanFastest()
     T.eq(value.cost.sure, "free")
 end
 
+-- Best value found the overland route: asked for best value, that route is the one taken.
+function tests.bestValue_asTheDefault_picksItsRouteEvenWhenAnotherWayFoundIt()
+    local c = Start()
+    Fare(c, 2, 5, 50000)
+    c.FG.db.travel.preset = "money"
+    c.FG.char.mode = "value"
+    local plan = Plan(c, LAKESHIRE)
+    T.no(Flies(plan.selected), "the free way, not the five gold flight")
+end
+
 function tests.bestValue_paysWhenTheTimeIsWorthIt()
     local c = Start()
     Fare(c, 2, 5, 10)

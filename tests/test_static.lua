@@ -78,7 +78,7 @@ local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
+    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo GetItemCount GetItemInfo GetProfessions GetProfessionInfo GetTaxiMapID TaxiNodeCost GetRealmName GetMinimapZoneText GetMerchantNumItems GetMerchantItemInfo GetMerchantItemID UnitGUID UnitName strsplit GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceSkillReq GetTrainerServiceLevelReq GetTrainerServiceCost C_AuctionHouse C_TradeSkillUI C_TaxiMap C_Container GetItemCooldown Enum IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
     .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
@@ -175,6 +175,11 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     -- What the game's own map draws its art with, read in its public source. Absent, the
     -- route map draws on plain ground, and `/fgps diag` says so.
     haystack[#haystack + 1] = "C_Map.GetMapArtLayers C_Map.GetMapArtLayerTextures"
+    -- Professions, prices and fares: the modern APIs this client has, as addons verified on
+    -- interface 16001 use them (Auctionator, NaowhForever). Probed by /fgps diag.
+    haystack[#haystack + 1] = "C_AuctionHouse.ReplicateItems C_AuctionHouse.GetNumReplicateItems C_AuctionHouse.GetReplicateItemInfo "
+        .. "C_TradeSkillUI.GetBaseProfessionInfo C_TradeSkillUI.GetAllRecipeIDs C_TradeSkillUI.GetRecipeInfo C_TradeSkillUI.GetRecipeSchematic "
+        .. "C_TaxiMap.GetAllTaxiNodes C_Container.GetItemCooldown"
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do
@@ -190,7 +195,9 @@ function tests.everyEventListened_isOneTheClientFires()
     local KNOWN = {}
     for name in ("ADDON_LOADED PLAYER_LOGIN QUEST_LOG_UPDATE QUEST_ACCEPTED QUEST_REMOVED QUEST_TURNED_IN UNIT_QUEST_LOG_CHANGED "
         .. "TAXIMAP_OPENED HEARTHSTONE_BOUND UI_SCALE_CHANGED DISPLAY_SIZE_CHANGED PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED "
-        .. "GLOBAL_MOUSE_DOWN PLAYER_LEVEL_UP SKILL_LINES_CHANGED PLAYER_ENTERING_WORLD UPDATE_FACTION"):gmatch("%S+") do KNOWN[name] = true end
+        .. "GLOBAL_MOUSE_DOWN PLAYER_LEVEL_UP SKILL_LINES_CHANGED PLAYER_ENTERING_WORLD UPDATE_FACTION "
+        .. "AUCTION_HOUSE_SHOW AUCTION_HOUSE_CLOSED REPLICATE_ITEM_LIST_UPDATE MERCHANT_SHOW TRAINER_SHOW TRADE_SKILL_SHOW "
+        .. "TRADE_SKILL_LIST_UPDATE"):gmatch("%S+") do KNOWN[name] = true end
     for _, file in ipairs(Sources()) do
         for event in file.src:gmatch('FG%.OnEvent%("([%u_]+)"') do
             T.ok(KNOWN[event], file.path .. " listens for " .. event)
@@ -210,7 +217,7 @@ for name in ("Paint Place SetLabel SetVariant SetSelected SetColor SetColorKey S
     .. "ImportModule GetUiMapIdByAreaId "
     -- GameTooltip.
     .. "SetOwner AddLine"):gmatch("%S+") do OWN_METHODS[name] = true end
-local STRING_METHODS = { find = true, match = true, gmatch = true, gsub = true, sub = true, lower = true, format = true, byte = true }
+local STRING_METHODS = { upper = true, find = true, match = true, gmatch = true, gsub = true, sub = true, lower = true, format = true, byte = true }
 
 function tests.everyWidgetMethod_isReal()
     for _, file in ipairs(Sources()) do
