@@ -81,9 +81,11 @@ function Journey.View()
     local step = route.steps[index]
     if not step then return nil end
     local ride = RideState(step)
+    local off = FG.Continuity and FG.Continuity.Note(route)
+    if off and not ride then ride = route.offPlan == "flying" and "riding" or "rerouting" end
     local view = {
         state = ride or "moving",
-        title = ride == "waiting" and WaitingTitle(step) or Bridge.StepText(step, true),
+        title = off or (ride == "waiting" and WaitingTitle(step)) or Bridge.StepText(step, true),
         icon = Kinds.Icon(step), kind = step.kind, step = step,
         index = index, count = #route.steps, nextText = NextText(route, index),
         eta = route.eta, stepEta = route.stepEta, total = route.total,

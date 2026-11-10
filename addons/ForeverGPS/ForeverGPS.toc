@@ -32,6 +32,7 @@ Core/QuestIndex.lua
 Core/QuestChain.lua
 Core/Search.lua
 Core/Journey.lua
+Core/Continuity.lua
 Core/Trip.lua
 Core/QuestBrowse.lua
 Core/Suggest.lua

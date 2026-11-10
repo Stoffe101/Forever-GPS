@@ -343,6 +343,31 @@ PLANNING_EDITS = [
 """, 1),
 ]
 
+# A destination outlives its route: docs/LIFECYCLE.md. The engine rerouted a walk gone astray
+# and a crossing to the wrong continent, and nothing else, so another flight, a boat or a
+# teleport on the same continent left it waiting on one step for good. Forever-GPS's
+# Core/Continuity.lua is asked first, each second.
+CONTINUITY_EDITS = [
+    ("EasyFind_GPS", "GPS.lua",
+     """    local ci, px, py = PlayerWorldPos()
+    if not ci then return end
+    -- Backtracked or wandered off: the route starts over from here.
+""",
+     """    local ci, px, py = PlayerWorldPos()
+    if not ci then return end
+    if GPS.OffPlan and not planned then
+        local off = GPS.OffPlan(route, step, ci, px, py)
+        if off == "wait" then return end
+        if off == "reroute" then
+            offRoute.ticks, offRoute.at = 0, GetTime()
+            Reroute(route)
+            return
+        end
+    end
+    -- Backtracked or wandered off: the route starts over from here.
+""", 1),
+]
+
 # (addon, file, old, new, how many times). {version} is that addon's own.
 EDITS = [
     # Settled the moment it has its settings, before anything reads them, in a way that
@@ -366,7 +391,7 @@ EDITS = [
     ("EasyFind", "Core/Extensions.lua", "local function Installed(addon) return C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon) end",
      'local function Installed(addon) return addon == "EasyFind_GPS" or addon == "EasyFind_Questie" '
      "or (C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon)) end", 1),
-] + TAINT_EDITS + PLANNING_EDITS
+] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS
 
 # Its own table, not EasyFind's: it has an L of its own, among others.
 QUESTIE_HEADER = ("local _, ns = ...", "local _, shared = ...\nlocal ns = shared.QuestieExtension")
