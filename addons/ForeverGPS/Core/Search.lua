@@ -531,7 +531,10 @@ function Search.Run(text, filter)
         return results, info
     end
     local results
-    local wanted = FG.Trainers.ProfessionOf(text)
+    -- "alchemy trainer", "expert alchemy trainer", "artisan blacksmithing": trainers of
+    -- that profession, by what each is known to teach of that rank (or the next one).
+    local asked = FG.Trainers.Query(text)
+    local wanted = asked and (asked.profession or asked)
     if MY_TRAINERS[text:lower()] then
         results = {}
         for _, p in ipairs(FG.Professions.List()) do
@@ -541,15 +544,24 @@ function Search.Run(text, filter)
             end
         end
         info.kind = true
+    elseif asked then
+        results = Gather(Normalize(asked.name .. " trainer"), filter, info)
+        if #results == 0 then results = Gather(query, filter, info) end
     else
         results = Gather(query, filter, info)
     end
-    -- Trainers of a profession the character has: what each is known to teach.
+    -- Trainers of the profession asked for: what each is known to teach of the rank.
     for _, r in ipairs(results) do
         local p = r.forProfession or wanted
-        if p and r.data and r.data.npcID then
-            r.trainer = FG.Trainers.ForNext(r.data.npcID, p) or "unknown"
-            local badge, tone = FG.Trainers.Badge(r.data.npcID, p)
+        local cap = not r.forProfession and asked and asked.cap
+        if not cap and p and p.max then
+            local nextRank = FG.Professions.NextRank(p)
+            cap = nextRank and nextRank.cap
+        end
+        if p and cap and r.data and r.data.npcID then
+            local want = { line = p.line, cap = cap }
+            r.trainer = FG.Trainers.ForCap(r.data.npcID, want.line, want.cap)
+            local badge, tone = FG.Trainers.Badge(r.data.npcID, p, want)
             if badge and not r.hostile then r.note, r.noteTone = badge, tone end
         end
     end

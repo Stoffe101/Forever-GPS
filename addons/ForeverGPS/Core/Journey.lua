@@ -81,8 +81,13 @@ function Journey.View()
     local step = route.steps[index]
     if not step then return nil end
     local ride = RideState(step)
+    -- Off the plan: "riding" another flight, "rerouting", or "unavailable" while a failed
+    -- plan waits to be tried again (also after too many reroutes in a minute).
     local off = FG.Continuity and FG.Continuity.Note(route)
-    if off and not ride then ride = route.offPlan == "flying" and "riding" or "rerouting" end
+    if off and not ride then
+        local cstate = FG.Continuity.State(route)
+        ride = cstate == "flying" and "riding" or (cstate == "unavailable" or cstate == "held") and "unavailable" or "rerouting"
+    end
     local view = {
         state = ride or "moving",
         title = off or (ride == "waiting" and WaitingTitle(step)) or Bridge.StepText(step, true),

@@ -461,4 +461,165 @@ function tests.aSearchForATrainer_putsTheOneThatTeachesFirst()
     T.eq(first.trainer, "teaches")
 end
 
+-- ==== trainers: one rank of one profession, never just a cap ==================
+local TAILORING, BLACKSMITHING = 197, 164
+
+local function Visit(c, trainer)
+    c.trainer = trainer
+    c:Fire("TRAINER_SHOW")
+    c:Advance(0.5)
+    return c.FG.Trainers.Known(trainer.npcID)
+end
+
+-- 2.3 matched a cap alone: a trainer of Expert Alchemy (cap 225) answered for Expert
+-- Tailoring too. Now the profession is part of every answer.
+function tests.expertAlchemy_isNotExpertTailoring()
+    local c = Start()
+    Visit(c, { npcID = 1386, services = {
+        { name = "Alchemy", rank = "Expert", skill = "Alchemy", skillRank = 125, level = 20, cost = 10000 },
+    } })
+    local T_ = c.FG.Trainers
+    T.eq(T_.Teaches(1386, ALCHEMY, 225), true, "teaches Expert Alchemy")
+    T.eq(T_.Teaches(1386, TAILORING, 225), false, "not Expert Tailoring, same cap or not")
+    T.eq(T_.ForCap(1386, TAILORING, 225), "no")
+    local tailor = { name = "Tailoring", skill = 140, max = 150, line = TAILORING }
+    T.eq(T_.ForNext(1386, tailor), "no", "a tailor's next rank is not offered here")
+end
+
+-- The current window: the next rank is the step service; its cap is the one after the
+-- player's, whatever the service is called.
+function tests.theCurrentWindow_readsTheStepService()
+    local c = Start()
+    local e = Visit(c, { npcID = 3347, shape = "current", step = 2, rankValues = { 140, 150 }, line = "Alchemy", services = {
+        { name = "Elixir of Wisdom", skill = "Alchemy", skillRank = 90, cost = 500 },
+        { name = "Expert Alchemy", skill = "Alchemy", skillRank = 125, level = 20, cost = 10000 },
+        { name = "Greater Mana Potion", skill = "Alchemy", skillRank = 205, category = "unavailable" },
+    } })
+    local rank = e.lines[ALCHEMY].ranks[225]
+    T.ok(rank, "Expert recorded")
+    T.eq(rank.how, "step")
+    T.eq(rank.level, 20)
+    T.eq(rank.skill, 125)
+    T.eq(rank.cost, 10000)
+    T.eq(e.recipes, 2, "the rest are recipes")
+    T.eq(c.FG.Trainers.Teaches(3347, ALCHEMY, 300), nil, "Artisan: not shown yet, so unknown")
+end
+
+-- The current window without a step: this trainer does not teach the next rank.
+function tests.noStepService_meansNotTheNextRank()
+    local c = Start()
+    Visit(c, { npcID = 1215, shape = "current", rankValues = { 140, 150 }, line = "Alchemy", services = {
+        { name = "Elixir of Minor Agility", skill = "Alchemy", skillRank = 50 },
+    } })
+    T.eq(c.FG.Trainers.Teaches(1215, ALCHEMY, 225), false, "Expert not offered at cap 150")
+    T.eq(c.FG.Trainers.Teaches(1215, ALCHEMY, 300), nil, "Artisan unknown")
+    local a = c.FG.Professions.Get(ALCHEMY)
+    T.eq(c.FG.Trainers.ForNext(1215, a), "no")
+end
+
+-- A rank word never sets the cap when the skill it needs says otherwise, and a recipe
+-- whose name starts with a rank word is not a rank.
+function tests.ranksComeFromNumbers_notWords()
+    local c = Start()
+    local e = Visit(c, { npcID = 2000, services = {
+        { name = "Alchemy", rank = "Journeyman", skill = "Alchemy", skillRank = 50 },
+        { name = "Expert's Draught", skill = "Alchemy", skillRank = 165 },
+        { name = "Recipes", category = "header" },
+    } })
+    T.ok(e.lines[ALCHEMY].ranks[150], "Journeyman, from skill 50")
+    T.eq(e.lines[ALCHEMY].ranks[225], nil, "a recipe named Expert's is not the Expert rank")
+    T.eq(e.services, 2, "a header is not a service")
+    T.eq(c.FG.Trainers.Teaches(2000, ALCHEMY, 225), false, "the classic window lists every rank it has")
+end
+
+-- Another language: the profession is found by the game's own name for it.
+function tests.aLocalisedClient_findsTheProfessionByTheGamesName()
+    local c = Start({ professions = { { name = "Alchimie", skill = 140, max = 150, line = ALCHEMY } } })
+    Visit(c, { npcID = 1386, services = {
+        { name = "Alchimie", rank = "Expert", skill = "Alchimie", skillRank = 125 },
+    } })
+    T.eq(c.FG.Trainers.Teaches(1386, ALCHEMY, 225), true, "Alchimie is Alchemy, by line 171")
+end
+
+-- Ranks already learned are kept as learned; a second visit adds, it does not forget.
+function tests.learnedRanks_andRevisits()
+    local c = Start()
+    Visit(c, { npcID = 1386, services = {
+        { name = "Alchemy", rank = "Journeyman", skill = "Alchemy", skillRank = 50, category = "used" },
+        { name = "Alchemy", rank = "Expert", skill = "Alchemy", skillRank = 125 },
+    } })
+    local a = c.FG.Professions.Get(ALCHEMY)
+    local badge = c.FG.Trainers.Badge(1386, a, { line = ALCHEMY, cap = 150 })
+    T.ok(badge:find(c.FG.L["TRAINER_LEARNED"], 1, true), badge)
+    T.ok(badge:find("Journeyman Alchemy", 1, true), "named by rank and profession: " .. badge)
+    -- Later, at cap 225, the current window shows Artisan as the step.
+    Visit(c, { npcID = 1386, shape = "current", step = 1, rankValues = { 210, 225 }, line = "Alchemy", services = {
+        { name = "Artisan Alchemy", skill = "Alchemy", skillRank = 200, level = 35 },
+    } })
+    T.eq(c.FG.Trainers.Teaches(1386, ALCHEMY, 300), true, "Artisan added")
+    T.eq(c.FG.Trainers.Teaches(1386, ALCHEMY, 225), true, "Expert still known")
+end
+
+-- Seen by one character, known to all on the account; marked with who saw it.
+function tests.aTrainerSeenByOneCharacter_isKnownToAll()
+    local c = Start()
+    Visit(c, { npcID = 1386, services = { { name = "Alchemy", rank = "Expert", skill = "Alchemy", skillRank = 125 } } })
+    local e = c.FG.Trainers.Known(1386)
+    T.ok(e.by and e.by:find("-", 1, true), "who saw it")
+    local d = Start({ saved = Stack.Saved(c), professions = { { name = "Alchemy", skill = 10, max = 75, line = ALCHEMY } } })
+    T.eq(d.FG.Trainers.Teaches(1386, ALCHEMY, 225), true, "another character knows it too")
+end
+
+-- What 2.3 saved cannot tell professions apart: it reads as not visited, never as a yes.
+function tests.aRecordFrom23_isNotTrusted()
+    local c = Start()
+    c.FG.db.trainers = c.FG.db.trainers or {}
+    c.FG.db.trainers[1386] = { name = "Old", at = 1, ranks = { { cap = 225, name = "Expert Tailor" } }, services = 1 }
+    T.eq(c.FG.Trainers.Teaches(1386, TAILORING, 225), nil)
+    T.eq(c.FG.Trainers.Teaches(1386, ALCHEMY, 225), nil)
+end
+
+function tests.searches_canAskForARank()
+    local c = Start()
+    local Q = c.FG.Trainers.Query
+    local q = Q("Expert Alchemy trainer")
+    T.eq(q.line, ALCHEMY)
+    T.eq(q.cap, 225)
+    T.ok(q.profession, "the character's own")
+    q = Q("artisan blacksmithing")
+    T.eq(q.line, BLACKSMITHING)
+    T.eq(q.cap, 300)
+    T.eq(q.profession, nil, "not the character's: still a search")
+    q = Q("tailoring trainers")
+    T.eq(q.line, TAILORING)
+    T.eq(q.cap, nil)
+    T.eq(Q("alchemy"), nil, "a bare name is not a trainer search")
+    T.eq(Q("expert"), nil)
+    T.eq(Q("mailbox"), nil)
+end
+
+function tests.aRankSearch_ordersByThatRank()
+    local c = Start()
+    c:Advance(1)
+    c.FG.Bridge.WarmSearch()
+    c:Advance(2)
+    local results = c.FG.Search.Run("expert alchemy trainer", "all")
+    local trainers = {}
+    for _, r in ipairs(results) do
+        if r.data and r.data.npcID then trainers[#trainers + 1] = r end
+    end
+    if #trainers < 2 then return T.ok(true, "the stand-in's data has too few alchemy trainers to order") end
+    local last, first = trainers[#trainers], trainers[1]
+    Visit(c, { npcID = first.data.npcID, services = { { name = "Alchemy", rank = "Journeyman", skill = "Alchemy", skillRank = 50 } } })
+    Visit(c, { npcID = last.data.npcID, services = { { name = "Alchemy", rank = "Expert", skill = "Alchemy", skillRank = 125 } } })
+    local again = c.FG.Search.Run("expert alchemy trainer", "all")
+    local seen = {}
+    for _, r in ipairs(again) do
+        if r.data and r.data.npcID then seen[#seen + 1] = r end
+    end
+    T.eq(seen[1].data.npcID, last.data.npcID, "the Expert trainer leads")
+    T.eq(seen[#seen].data.npcID, first.data.npcID, "the one known not to teach it is last")
+    T.eq(seen[#seen].trainer, "no")
+end
+
 return tests

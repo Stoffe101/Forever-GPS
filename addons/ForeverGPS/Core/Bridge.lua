@@ -360,18 +360,36 @@ end
 -- it, and a replaced plan's done is never called. So who owns the running plan
 -- matters: a plan of ours gone out of date may be replaced; the engine's reroutes
 -- and walks never are. Every plan passes through here to be told apart.
-local planIsOurs, marking = false, false
+-- Each plan is numbered, and "plan:done" says which one finished (never a replaced one).
+local planIsOurs, marking, planSerial = false, false, 0
 local function MarkPlans()
     local g = GPS()
     if not g or g._fgpsPlan then return end
     g._fgpsPlan = g.Plan
-    function g:Plan(...)
+    function g:Plan(name, build, done, quiet)
         planIsOurs, marking = marking, false
-        return self._fgpsPlan(self, ...)
+        planSerial = planSerial + 1
+        local serial = planSerial
+        return self._fgpsPlan(self, name, build, function(...)
+            if done then done(...) end
+            FG.Emit("plan:done", serial)
+        end, quiet)
     end
 end
+FG.On("login", MarkPlans)
 
 function Bridge.PlanIsOurs() return planIsOurs and Bridge.IsPlanning() end
+function Bridge.PlanSerial() return planSerial end
+
+-- The engine's reroute: the route again from where the player stands, to the same place,
+-- the same way. True when its plan started.
+function Bridge.Reroute(route)
+    local g = GPS()
+    if not (g and g.Reroute) or Bridge.IsPlanning() then return false end
+    local before = planSerial
+    g.Reroute(route)
+    return planSerial > before
+end
 
 -- Drops a plan of ours still running: a plan that does nothing takes its place, and
 -- finishes at once. A plan replaced is one the engine already knows how to let go of.

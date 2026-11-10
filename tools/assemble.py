@@ -348,6 +348,14 @@ PLANNING_EDITS = [
 # teleport on the same continent left it waiting on one step for good. Forever-GPS's
 # Core/Continuity.lua is asked first, each second.
 CONTINUITY_EDITS = [
+    # The reroute, for Core/Continuity.lua to start the moment the planner is free.
+    ("EasyFind_GPS", "GPS.lua",
+     """function GPS.Rerouted(route, via, steps, total, advice)
+""",
+     """GPS.Reroute = Reroute   -- Forever-GPS: Core/Continuity.lua starts it once the planner is free
+
+function GPS.Rerouted(route, via, steps, total, advice)
+""", 1),
     ("EasyFind_GPS", "GPS.lua",
      """    local ci, px, py = PlayerWorldPos()
     if not ci then return end

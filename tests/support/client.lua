@@ -173,7 +173,15 @@ function Client:BuildEnv(opts)
     env.seterrorhandler = function() end
     env.CallErrorHandler = onError
     env.debugstack = function() return "" end
-    env.debugprofilestop = function() return os.clock() * 1000 end
+    -- cpuStep: each look at the clock costs that many milliseconds, whatever the machine,
+    -- so a test can stand in for a fast or a slow one and run the same way every time.
+    env.debugprofilestop = function()
+        if client.cpuStep then
+            client.cpuClock = (client.cpuClock or 0) + client.cpuStep
+            return client.cpuClock
+        end
+        return os.clock() * 1000
+    end
     -- Time here is simulated and a plan's slices are real, so a test's deadline buys less
     -- on a slower machine. The largest budget keeps those deadlines far from the work.
     env.GetFramerate = function() return client.fps or 15 end
@@ -411,13 +419,29 @@ function Client:BuildEnv(opts)
     end
     env.UnitName = env.UnitName or function() return "Name" end
     env.GetNumTrainerServices = function() return client.trainer and #client.trainer.services or 0 end
+    -- Two shapes, as the game has had: "classic" (name, rank, type) lists every rank;
+    -- "current" (name, type, icon, level) shows the next rank as its own step service,
+    -- with the player's skill and cap in that profession beside it.
     env.GetTrainerServiceInfo = function(i)
         local s = client.trainer.services[i]
+        if client.trainer.shape == "current" then return s.name, s.category or "available", 136243, s.level or 1 end
         return s.name, s.rank, s.category or "available"
     end
     env.GetTrainerServiceSkillReq = function(i)
         local s = client.trainer.services[i]
         return s.skill, s.skillRank, true
+    end
+    env.GetTrainerServiceSkillLine = function(i)
+        local s = client.trainer.services[i]
+        return s.line or client.trainer.line
+    end
+    env.GetTrainerServiceStepIndex = function()
+        return client.trainer and client.trainer.shape == "current" and client.trainer.step or nil
+    end
+    env.GetTrainerTradeskillRankValues = function()
+        local v = client.trainer and client.trainer.rankValues
+        if not v then return 0, 0, 0 end
+        return v[1], v[2], 0
     end
     env.GetTrainerServiceLevelReq = function(i) return client.trainer.services[i].level end
     env.GetTrainerServiceCost = function(i) return client.trainer.services[i].cost end

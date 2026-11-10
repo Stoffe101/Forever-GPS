@@ -1,0 +1,63 @@
+{
+  "CraftProfit": {
+    "repository": "https://github.com/Renaud-Sto/CraftProfit",
+    "commit": "79e8eda548dd49b4fdbd530d914419076c30b2ab",
+    "license": "MIT, Copyright (c) 2026 Sto",
+    "files": {
+      "AHAdapter.lua": {
+        "upstream_path": "CraftProfit/AHAdapter.lua",
+        "sha256": "9d05ca234ba51876dad155a2206fdcca195fc922220e4e42412dfb9ad8b88466"
+      },
+      "LICENSE": {
+        "upstream_path": "LICENSE",
+        "sha256": "60b68a0264f0c391697a7974d5b03451c1c3eac4f4bd1ba45346e6c801e416f6"
+      },
+      "docs/probe-findings.md": {
+        "upstream_path": "docs/probe-findings.md",
+        "sha256": "4329d914670c79023567bca69c0d2ebd2daefad9e3d94261f062f219c0cc76da"
+      }
+    }
+  },
+  "ForeverNet": {
+    "repository": "https://github.com/thewoolfi/ForeverNet",
+    "commit": "10a81d9d0c01a869a1789b1a18100ee08a4dda01",
+    "license": "MIT, Copyright (c) 2026 Andrew Woolfi",
+    "files": {
+      "Market.lua": {
+        "upstream_path": "Market.lua",
+        "sha256": "9edac8d3ef59c69e935eaf77365bd0e1ed6eaa43435bd343e03c8f44a8173fc6"
+      },
+      "LICENSE": {
+        "upstream_path": "LICENSE",
+        "sha256": "3babd92a71958245201ace366353343b1d34438e8a991b4ed886c7dd7fac719f"
+      }
+    }
+  },
+  "profit": {
+    "repository": "https://github.com/ExcEssIv3/profit",
+    "commit": "823413b68211d37321501d4fc556a89e1b5ed426",
+    "license": "MIT, Copyright (c) 2026 seth",
+    "files": {
+      "Data/Recipes.lua": {
+        "upstream_path": "Data/Recipes.lua",
+        "sha256": "a94a651d47a16ce6d998ca6f6d46fc10b0cf37a46024a2deb24986dad8e207b5"
+      },
+      "Data/Items.lua": {
+        "upstream_path": "Data/Items.lua",
+        "sha256": "c4e02edc6085c6eb2e00e1a8f8e26a1e911e21af70a127f83586e6ad66fb5e77"
+      },
+      "tools/build_recipes.py": {
+        "upstream_path": "tools/build_recipes.py",
+        "sha256": "9a688bb4fcfa3e5931c6bdfc53869abe8b038fe1a5ea2ae37b70b104bfd79f18"
+      },
+      "tools/vendor_items.txt": {
+        "upstream_path": "tools/vendor_items.txt",
+        "sha256": "c7b09c82f1dba37f4280d666c7b32a224d8a930a6aaa744e74ee21fda8195c4e"
+      },
+      "LICENSE": {
+        "upstream_path": "LICENSE",
+        "sha256": "f577704fb6609adc6ef5142cb57f49e0aef4cbb006cbb4a6e5f37ea6d680daa1"
+      }
+    }
+  }
+}

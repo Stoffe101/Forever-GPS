@@ -78,7 +78,7 @@ local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo GetItemCount GetItemInfo GetProfessions GetProfessionInfo GetTaxiMapID TaxiNodeCost GetRealmName GetMinimapZoneText GetMerchantNumItems GetMerchantItemInfo GetMerchantItemID UnitGUID UnitName strsplit GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceSkillReq GetTrainerServiceLevelReq GetTrainerServiceCost C_AuctionHouse C_TradeSkillUI C_TaxiMap C_Container GetItemCooldown Enum IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
+    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo GetItemCount GetItemInfo GetProfessions GetProfessionInfo GetTaxiMapID TaxiNodeCost GetRealmName GetMinimapZoneText GetMerchantNumItems GetMerchantItemInfo GetMerchantItemID UnitGUID UnitName strsplit GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceSkillReq GetTrainerServiceLevelReq GetTrainerServiceCost GetTrainerServiceStepIndex GetTrainerServiceSkillLine GetTrainerTradeskillRankValues C_AuctionHouse C_TradeSkillUI C_TaxiMap C_Container GetItemCooldown Enum IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
     .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
@@ -179,7 +179,12 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     -- interface 16001 use them (Auctionator, NaowhForever). Probed by /fgps diag.
     haystack[#haystack + 1] = "C_AuctionHouse.ReplicateItems C_AuctionHouse.GetNumReplicateItems C_AuctionHouse.GetReplicateItemInfo "
         .. "C_TradeSkillUI.GetBaseProfessionInfo C_TradeSkillUI.GetAllRecipeIDs C_TradeSkillUI.GetRecipeInfo C_TradeSkillUI.GetRecipeSchematic "
-        .. "C_TaxiMap.GetAllTaxiNodes C_Container.GetItemCooldown"
+        .. "C_TaxiMap.GetAllTaxiNodes C_Container.GetItemCooldown "
+    -- Targeted auction searches, as CraftProfit measured them in this client
+    -- (third_party/CraftProfit/docs/probe-findings.md F1 and F13).
+        .. "C_AuctionHouse.SendSearchQuery C_AuctionHouse.MakeItemKey C_AuctionHouse.IsThrottledMessageSystemReady "
+        .. "C_AuctionHouse.GetNumCommoditySearchResults C_AuctionHouse.GetCommoditySearchResultInfo "
+        .. "C_AuctionHouse.GetNumItemSearchResults C_AuctionHouse.GetItemSearchResultInfo"
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do
