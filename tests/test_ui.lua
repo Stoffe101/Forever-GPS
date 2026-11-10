@@ -197,6 +197,44 @@ function tests.theExplorer_fitsEveryScreen()
     end
 end
 
+-- What the Professions page shows, with a profession, recipes and prices to show.
+local PROFESSION = {
+    professions = { { name = "Alchemy", skill = 132, max = 150, line = 171 }, { name = "Herbalism", skill = 140, max = 150, line = 182 } },
+    recipes = {
+        [1001] = { name = "Lesser Healing Potion", line = 171, out = 858, reagents = { { id = 900, n = 1 }, { id = 902, n = 1 } },
+                   at = { y = 140, g = 155, x = 170 } },
+        [1002] = { name = "Elixir of Minor Fortitude, a recipe with quite a long name", line = 171, out = 2458, qmin = 2, qmax = 4,
+                   reagents = { { id = 901, n = 2 }, { id = 902, n = 1 } }, at = { y = 135, g = 145, x = 155 } },
+    },
+    auctions = { { itemID = 900, count = 10, buyout = 1000 }, { itemID = 901, count = 5, buyout = 500 }, { itemID = 858, count = 2, buyout = 6000 } },
+    merchant = { { id = 902, price = 20 } },
+}
+
+function tests.theProfessions_fitEveryScreen()
+    for _, screen in ipairs(SCREENS) do
+        local opts = {}
+        for k, v in pairs(PROFESSION) do opts[k] = v end
+        local c = Start(screen, opts)
+        local FG = c.FG
+        c:Advance(4)
+        c:Fire("MERCHANT_SHOW")
+        c:Fire("AUCTION_HOUSE_SHOW")
+        FG.Market.Scan()
+        c:Advance(2)
+        c.openProfession = c.professions[1]
+        FG.Professions.ReadRecipes()
+        FG.Window.Show("professions")
+        for _, which in ipairs({ "overview", "leveling", "profit", "lists", "market" }) do
+            FG.ProfessionsView.Show(which)
+            if which == "profit" then FG.ProfessionsView.AddToList(1001) end
+            c:Advance(0.3)
+            T.ok(#FG.ProfessionsView.ItemsNow() > 0, which .. " has something to show")
+            Check(c, screen[1] .. " professions " .. which)
+        end
+        T.eq(#c.errors, 0, screen[1] .. ": " .. tostring(c.errors[1]))
+    end
+end
+
 function tests.aSmallScreen_usesOneColumnAndNothingIsLost()
     local c = Start(SCREENS[4])
     local FG = c.FG

@@ -55,6 +55,7 @@ UI/ExplorerView.lua
 UI/QuestDetail.lua
 UI/QuestsView.lua
 UI/TripView.lua
+UI/ProfessionsView.lua
 UI/CopyBox.lua
 UI/Settings.lua
 UI/MainWindow.lua

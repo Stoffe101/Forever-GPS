@@ -18,7 +18,7 @@ local PAD = 12
 local HEADER_H = 46
 
 local f
-local view = "search"            -- search, quests, trip or settings
+local view = "search"            -- search, quests, professions, trip or settings
 local showRoute = false          -- narrow layout: the journey has the screen
 local showQuest = false          -- a quest is open in the journey's place
 local compact = false
@@ -75,6 +75,7 @@ local function Layout()
     f.searchPage:SetShown(view == "search" and listOn)
     f.questsPage:SetShown(view == "quests" and listOn)
     f.tripPage:SetShown(view == "trip" and listOn)
+    f.professionsPage:SetShown(view == "professions" and listOn)
 
     left:ClearAllPoints()
     left:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -HEADER_H)
@@ -99,11 +100,13 @@ local function Layout()
     f.tabs.search:SetSelected(view == "search")
     f.tabs.quests:SetSelected(view == "quests")
     f.tabs.trip:SetSelected(view == "trip")
+    f.tabs.professions:SetSelected(view == "professions")
     Window.UpdateStatus()
 
     if view == "settings" then FG.SettingsView.Layout() end
     if f.searchPage:IsShown() then FG.SearchView.Layout() end
     if f.questsPage:IsShown() then FG.QuestsView.Layout() end
+    if f.professionsPage:IsShown() then FG.ProfessionsView.Layout() end
 end
 
 local function ShowContent()
@@ -111,6 +114,7 @@ local function ShowContent()
     if f.searchPage:IsVisible() then FG.SearchView.Show() end
     if f.questsPage:IsVisible() then FG.QuestsView.Show() end
     if f.tripPage:IsVisible() then FG.TripView.Show() end
+    if f.professionsPage:IsVisible() then FG.ProfessionsView.Show() end
     if f.route:IsVisible() then FG.RoutePanel.Render() end
     if f.detail:IsVisible() then FG.QuestDetail.Refresh(true) end
 end
@@ -157,8 +161,10 @@ local function Build()
     f.tabs.search = Kit.Chip(f.header, L["TAB_SEARCH"], function() Window.Show("search") end)
     f.tabs.quests = Kit.Chip(f.header, L["QUESTS_TITLE"], function() Window.Show("quests") end)
     f.tabs.quests:SetPoint("LEFT", f.tabs.search, "RIGHT", 6, 0)
+    f.tabs.professions = Kit.Chip(f.header, L["PV_TAB"], function() Window.Show("professions") end)
+    f.tabs.professions:SetPoint("LEFT", f.tabs.quests, "RIGHT", 6, 0)
     f.tabs.trip = Kit.Chip(f.header, L["TRIP_TITLE"], function() Window.Show("trip") end)
-    f.tabs.trip:SetPoint("LEFT", f.tabs.quests, "RIGHT", 6, 0)
+    f.tabs.trip:SetPoint("LEFT", f.tabs.professions, "RIGHT", 6, 0)
 
     f.close = Kit.IconButton(f.header, "close", 12, nil, function() Window.Hide() end)
     f.close:SetPoint("RIGHT", f.header, "RIGHT", -8, 0)
@@ -178,6 +184,8 @@ local function Build()
     f.questsPage:SetAllPoints(f.left)
     f.tripPage = FG.TripView.Get(f.left)
     f.tripPage:SetAllPoints(f.left)
+    f.professionsPage = FG.ProfessionsView.Get(f.left)
+    f.professionsPage:SetAllPoints(f.left)
     f.route = FG.RoutePanel.Get(f.right)
     f.route:SetAllPoints(f.right)
     f.detail = FG.QuestDetail.Get(f.right)
