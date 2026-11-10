@@ -499,11 +499,12 @@ local function FillModes(plan)
         for _, o in ipairs(plan.options) do
             if o.mode == chip.mode then option = o end
         end
-        local usable = option and option.steps and not option.noWay and not option.same
+        local usable = option and option.steps and not option.noWay and not option.same and not option.impractical
         local waiting = option and not option.builtAt
         chip.option = usable and option or nil
         chip.dim = not usable
-        chip:SetLabel(usable and (L[chip.mode.label] .. "  " .. Format.Duration(option.total)) or L[chip.mode.label])
+        local money = usable and option.cost and option.cost.paid > 0 and ("  " .. FG.Fares.Label(option.cost)) or ""
+        chip:SetLabel(usable and (L[chip.mode.label] .. "  " .. Format.Duration(option.total) .. money) or L[chip.mode.label])
         chip:SetShown((usable or waiting) and true or false)
         chip:SetSelected(usable and plan.selected == option or false)
     end
@@ -537,7 +538,8 @@ local function RenderPlan(plan)
     SetHeader(target.name, target.subtitle, favorite)
     local option = plan.selected
     ShowContent(true)
-    f.time:SetText(Format.Duration(option.total) or "?")
+    local cost = option.cost and option.cost.paid > 0 and ("  \194\183  " .. FG.Fares.Label(option.cost)) or ""
+    f.time:SetText((Format.Duration(option.total) or "?") .. cost)
     f.via:SetText(option.estimate and L["ROUTE_ESTIMATE_ONLY"] or Kinds.Summary(option.steps))
     FillModes(plan)
     local areas = target.areas

@@ -400,6 +400,28 @@ LAUNCHER_EDITS = [
 """, 1),
 ]
 
+# Money in the search, not after it: docs/TRAVEL_COSTS.md. A flight leg weighs its fare at
+# the player's rate for the money ways, and a hearth weighs its cooldown, so the engine
+# finds the trade-off itself. With neither set, both add nothing and routes are as before.
+ECONOMY_EDITS = [
+    ("EasyFind_GPS", "Route.lua",
+     """            local pen = Avoided("taxi")
+            if not nodes[ib].unknown then""",
+     """            local pen = Avoided("taxi")
+            local farePen = Route.FarePenalty
+            if not nodes[ib].unknown then""", 1),
+    ("EasyFind_GPS", "Route.lua",
+     """                tinsert(legs[ia], { to = ib, sec = measured and measured(a, b) or sec, pen = pen })""",
+     """                tinsert(legs[ia], { to = ib, sec = measured and measured(a, b) or sec, pen = pen + (farePen and farePen(a, b, yd, avoid) or 0) })""", 1),
+    ("EasyFind_GPS", "Route.lua",
+     """                tinsert(legs[ib], { to = ia, sec = measured and measured(b, a) or sec, pen = pen })""",
+     """                tinsert(legs[ib], { to = ia, sec = measured and measured(b, a) or sec, pen = pen + (farePen and farePen(b, a, yd, avoid) or 0) })""", 1),
+    ("EasyFind_GPS", "Route.lua",
+     """                                     pen = Avoided("teleport"), ability = a })""",
+     """                                     pen = Avoided("teleport") + (a.bind and Route.HearthReserve and Route.HearthReserve(avoid) or 0),
+                                     ability = a })""", 1),
+]
+
 # (addon, file, old, new, how many times). {version} is that addon's own.
 EDITS = [
     # Settled the moment it has its settings, before anything reads them, in a way that
@@ -423,7 +445,7 @@ EDITS = [
     ("EasyFind", "Core/Extensions.lua", "local function Installed(addon) return C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon) end",
      'local function Installed(addon) return addon == "EasyFind_GPS" or addon == "EasyFind_Questie" '
      "or (C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon)) end", 1),
-] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS + LAUNCHER_EDITS
+] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS + LAUNCHER_EDITS + ECONOMY_EDITS
 
 # Its own table, not EasyFind's: it has an L of its own, among others.
 QUESTIE_HEADER = ("local _, ns = ...", "local _, shared = ...\nlocal ns = shared.QuestieExtension")

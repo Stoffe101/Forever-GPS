@@ -127,7 +127,7 @@ end
 function tests.theModes_collapseWhenTheyAreTheSameRoute()
     local c = Start()
     local plan = Plan(c, AUBERDINE)
-    T.eq(#plan.options, 4, "fastest, safer, roads and overland were each tried")
+    T.eq(#plan.options, 6, "fastest, safer, roads, overland, best value and cheapest were each tried")
     T.ok(plan.options[1].steps, "fastest planned")
     for i = 2, #plan.options do
         local o = plan.options[i]

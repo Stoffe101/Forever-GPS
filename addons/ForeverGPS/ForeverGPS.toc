@@ -22,6 +22,7 @@ Core/Bridge.lua
 Core/Kinds.lua
 Core/Eta.lua
 Core/Risk.lua
+Core/Fares.lua
 Core/Planner.lua
 Core/Saved.lua
 Core/Quests.lua

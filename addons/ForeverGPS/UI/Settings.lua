@@ -46,6 +46,33 @@ local GROUPS = {
         ui.choice(ModeChoices(), function() return FG.char.mode end, function(value) FG.char.mode = value end)
         ui.check("SET_AUTOCLOSE", function() return FG.db.autoClose end, function(on) FG.db.autoClose = on end)
     end },
+    { label = "SETG_TRAVEL", build = function(ui)
+        ui.heading("SET_VALUE")
+        local choices = {}
+        for _, p in ipairs(FG.Fares.PRESETS) do choices[#choices + 1] = { p.key, L[p.label] } end
+        choices[#choices + 1] = { "custom", L["VALUE_CUSTOM"] }
+        ui.choice(choices, function() return FG.db.travel.preset end, function(value)
+            FG.db.travel.preset = value
+            FG.Planner.Forget()
+        end)
+        ui.heading("SET_VALUE_CUSTOM")
+        ui.scale(5, 1000, 5, function() return FG.db.travel.customRate end, function(value)
+            FG.db.travel.customRate = value
+            FG.db.travel.preset = "custom"
+            FG.Planner.Forget()
+        end, function(value) return FG.Fares.Money(value) end)
+        ui.heading("SET_MAX_EXTRA")
+        ui.scale(1, 30, 1, function() return FG.db.travel.maxExtraMinutes end, function(value)
+            FG.db.travel.maxExtraMinutes = value
+            FG.Planner.Forget()
+        end, function(value) return ("%d min"):format(value) end)
+        ui.heading("SET_HEARTH_MIN")
+        ui.scale(0, 20, 1, function() return FG.db.travel.hearthMinutes end, function(value)
+            FG.db.travel.hearthMinutes = value
+            FG.Planner.Forget()
+        end, function(value) return ("%d min"):format(value) end)
+        ui.note("SET_TRAVEL_NOTE")
+    end },
     { label = "SETG_MAP", build = function(ui)
         ui.check("SET_MAP_PREVIEW", function() return FG.db.map.preview end, function(on)
             FG.db.map.preview = on

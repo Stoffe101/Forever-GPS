@@ -15,6 +15,8 @@ local DEFAULTS = {
             locked = true, opacity = 0.86, font = "normal", arrowStyle = "solid", outline = false, sound = false },
     window = {},
     map = { preview = true, areas = true, beacon = true },
+    -- Copper a minute is worth, the most a cheaper way may add, and what a hearth must save.
+    travel = { preset = "balanced", customRate = 100, maxExtraMinutes = 10, maxExtraShare = 0.5, hearthMinutes = 3 },
     search = { prices = true, world = true },
     quests = { offerNext = true },
     minimap = { shown = true, angle = 215 },

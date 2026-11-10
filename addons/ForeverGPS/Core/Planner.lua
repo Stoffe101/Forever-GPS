@@ -28,7 +28,11 @@ local MODES = {
     { key = "safer", label = "MODE_SAFER", tip = "MODE_SAFER_TT", avoid = "danger" },
     { key = "roads", label = "MODE_ROADS", tip = "MODE_ROADS_TT", avoid = "offroad" },
     { key = "overland", label = "MODE_OVERLAND", tip = "MODE_OVERLAND_TT", also = NO_TRANSPORT },
+    -- Money as well as time, at the player's own rate: docs/TRAVEL_COSTS.md.
+    { key = "value", label = "MODE_VALUE", tip = "MODE_VALUE_TT", money = "value" },
+    { key = "cheap", label = "MODE_CHEAP", tip = "MODE_CHEAP_TT", money = "cheap" },
 }
+local CHEAP_RATE = 2          -- copper a minute: money all but decides, within the limits
 Planner.MODES = MODES
 
 local WAIT_SECONDS = 0.15     -- until the engine is free again
@@ -61,6 +65,7 @@ end
 local function AvoidFor(mode)
     local avoid = Bridge.BaseAvoid()
     if mode.avoid then avoid[mode.avoid] = true end
+    if mode.money then avoid.money = mode.money == "cheap" and CHEAP_RATE or FG.Fares.Rate() end
     for _, kind in ipairs(mode.also or {}) do avoid[kind] = true end
     return avoid
 end
@@ -123,7 +128,7 @@ local function Finish()
     for _, option in ipairs(current.options) do
         if option.steps and not option.noWay then
             first = first or option
-            if option.mode.key == want and not option.same then chosen = option end
+            if option.mode.key == want and not option.same and not option.impractical then chosen = option end
         end
     end
     chosen = chosen or first
@@ -161,6 +166,7 @@ local function Keep(id, index, steps, total, extra)
         option.estimate = true
     end
     if steps and not option.noWay then
+        option.cost = FG.Fares.RouteCost(steps)
         option.yards = WalkYards(option)
         option.quality = Quality(option)
         for i = 1, index - 1 do
@@ -170,6 +176,10 @@ local function Keep(id, index, steps, total, extra)
                 break
             end
         end
+    end
+    if option.mode.money == "cheap" and option.cost and not option.same then
+        local base = current.options[1]
+        if base ~= option and not Planner.Practical(option, base) then option.impractical = true end
     end
     -- The first answer is enough to show; the others fill in.
     if not current.selected and steps and not option.noWay then
@@ -199,6 +209,13 @@ local function BuildOption(dest, option, stops)
     return steps, total, extra
 end
 
+local function UsesPaid(steps)
+    for _, step in ipairs(steps) do
+        if step.kind == "taxi" then return true end
+    end
+    return false
+end
+
 local function UsesTransport(steps)
     for _, step in ipairs(steps) do
         for _, kind in ipairs(NO_TRANSPORT) do
@@ -220,14 +237,28 @@ local function Settled(option, base)
     if option.mode.also and not UsesTransport(base.steps) then return "same" end
     -- Ground the fastest never touches is ground it has no need to go around.
     if option.mode.avoid == "danger" and base.risk and base.risk.assessed and not base.risk.deadly then return "same" end
+    -- Nothing paid on the fastest: money cannot make another way better.
+    if option.mode.money and not UsesPaid(base.steps) then return "same" end
     return nil
+end
+
+-- Whether a cheaper way is worth offering against the fastest: within the player's limits
+-- of extra time, and saving something. A long walk to save a few copper is not offered.
+function Planner.Practical(option, base)
+    if not (option.cost and base.cost and option.total and base.total) then return true end
+    if option.cost.copper >= base.cost.copper then return option == base end
+    local t = FG.db.travel
+    local extra = option.total - base.total
+    if extra > (t.maxExtraMinutes or 10) * 60 then return false end
+    if extra > base.total * (t.maxExtraShare or 0.5) and extra > 60 then return false end
+    return true
 end
 
 local function SettleOption(option, base, verdict)
     option.builtAt, option.from = GetTime(), base.from
     if verdict == "same" then
         option.steps, option.total, option.risk, option.walks = base.steps, base.total, base.risk, base.walks
-        option.yards, option.quality, option.same = base.yards, base.quality, base
+        option.yards, option.quality, option.same, option.cost = base.yards, base.quality, base, base.cost
     else
         option.noWay = true
     end
@@ -444,6 +475,10 @@ function Planner.Compare(option, base)
     end
     for _, label in ipairs(mine) do
         if not Has(theirs, label) then parts[#parts + 1] = L["CMP_ADDS_FMT"]:format(label:lower()) end
+    end
+    local a1, b1 = option.cost and option.cost.copper or 0, base.cost and base.cost.copper or 0
+    if a1 ~= b1 then
+        parts[#parts + 1] = L[a1 < b1 and "CMP_SAVES_MONEY_FMT" or "CMP_COSTS_MORE_FMT"]:format(FG.Fares.Money(math.abs(a1 - b1)))
     end
     local walked = (option.yards or 0) - (base.yards or 0)
     if math.abs(walked) >= 100 then
