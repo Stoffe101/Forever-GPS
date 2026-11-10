@@ -82,6 +82,7 @@ function tests.waitingForABoat_aFlightElsewhere_isFollowedFromTheLanding()
     local now = c.FG.Bridge.ActiveRoute()
     T.ok(now and not now.arrived, "still under way")
     T.eq(now.dest.name, "Auberdine", "to the same place")
+    Stack.Until(c, function() return Near(c, IRONFORGE) end, 90)
     T.ok(Near(c, IRONFORGE), "from where it landed")
 end
 
@@ -99,6 +100,7 @@ function tests.aDifferentFlight_isFollowedFromWhereItLands()
     c:SetPlayer(IRONFORGE.m, IRONFORGE.x, IRONFORGE.y)
     c.player.taxi = false
     Settle(c)
+    Stack.Until(c, function() return Near(c, IRONFORGE) end, 90)
     T.ok(Near(c, IRONFORGE), "rerouted from the landing")
     T.eq(c.FG.Bridge.ActiveRoute().dest.name, "Auberdine")
 end
@@ -111,6 +113,7 @@ function tests.aJumpFarFromAWaitingCrossing_isGuidedOnFromThere()
     for i = 1, boat - 1 do Reach(c, route.steps[i]) end
     c:SetPlayer(IRONFORGE.m, IRONFORGE.x, IRONFORGE.y)
     Settle(c, 4)
+    Stack.Until(c, function() return Near(c, IRONFORGE) end, 90)
     T.ok(Near(c, IRONFORGE), "rerouted")
     T.eq(c.FG.Bridge.ActiveRoute().dest.name, "Auberdine")
 end
@@ -128,6 +131,7 @@ function tests.aHearthSuggested_aFlightTaken_isFollowed()
     c:SetPlayer(IRONFORGE.m, IRONFORGE.x, IRONFORGE.y)
     c.player.taxi = false
     Settle(c)
+    Stack.Until(c, function() return Near(c, IRONFORGE) end, 90)
     T.ok(Near(c, IRONFORGE), "on from the landing")
 end
 
@@ -158,6 +162,7 @@ function tests.aTeleportMidWalk_isGuidedOnFromThere()
     c:SetPlayer(IRONFORGE.m, IRONFORGE.x, IRONFORGE.y)
     Settle(c, 6)
     Stack.Until(c, function() return Near(c, IRONFORGE) end, 60)
+    Stack.Until(c, function() return Near(c, IRONFORGE) end, 90)
     T.ok(Near(c, IRONFORGE), "rerouted")
     T.eq(c.FG.Bridge.ActiveRoute().dest.name, "Goldshire")
 end
@@ -195,6 +200,7 @@ function tests.aReloadMidFlight_stillReroutesOnLanding()
     d.player.taxi = false
     -- A reload redraws the route's walks first; the reroute waits its turn behind them.
     Settle(d, 10)
+    Stack.Until(d, function() return Near(d, IRONFORGE) end, 90)
     T.ok(Near(d, IRONFORGE), "and goes on from the landing")
 end
 
@@ -216,6 +222,7 @@ function tests.aRerouteThatFails_keepsTheDestination_andTriesAgain()
     T.ok(c.FG.Journey.View(), "and the view has something to say")
     ns.GPS.BuildStops = build
     Settle(c, 12)
+    Stack.Until(c, function() return Near(c, IRONFORGE) end, 90)
     T.ok(Near(c, IRONFORGE), "the next try succeeds")
 end
 
