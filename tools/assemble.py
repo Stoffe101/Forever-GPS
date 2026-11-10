@@ -368,6 +368,38 @@ CONTINUITY_EDITS = [
 """, 1),
 ]
 
+# One launcher: Forever-GPS's. EasyFind made its own minimap button, a broker launcher (which
+# button gatherers turn into a LibDBIcon button) and an addon-compartment entry for each of
+# its apps, the GPS among them. In one folder each opened a search bar that stays hidden.
+LAUNCHER_EDITS = [
+    ("EasyFind", "Core/Main.lua",
+     """        if ns.RegisterDataBroker then ns.RegisterDataBroker() end
+        if ns.RegisterMinimapIcon then ns.RegisterMinimapIcon() end
+        if EasyFind.db.showMinimapButton then
+            EasyFind:UpdateMinimapButton()
+        end
+""",
+     """        -- Forever-GPS has the one launcher: nothing of EasyFind's is registered.
+""", 1),
+    ("EasyFind", "Core/Main.lua",
+     """function EasyFind:UpdateMinimapButton()
+""",
+     """function EasyFind:UpdateMinimapButton()
+    do
+        if minimapButton then minimapButton:Hide() end
+        return
+    end
+""", 1),
+    ("EasyFind", "Search/ExtensionButtons.lua",
+     """function ExtensionButtons:RegisterLaunchSurfaces()
+    if registeredSurfaces then return end
+""",
+     """function ExtensionButtons:RegisterLaunchSurfaces()
+    do return end
+    if registeredSurfaces then return end
+""", 1),
+]
+
 # (addon, file, old, new, how many times). {version} is that addon's own.
 EDITS = [
     # Settled the moment it has its settings, before anything reads them, in a way that
@@ -391,7 +423,7 @@ EDITS = [
     ("EasyFind", "Core/Extensions.lua", "local function Installed(addon) return C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon) end",
      'local function Installed(addon) return addon == "EasyFind_GPS" or addon == "EasyFind_Questie" '
      "or (C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon)) end", 1),
-] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS
+] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS + LAUNCHER_EDITS
 
 # Its own table, not EasyFind's: it has an L of its own, among others.
 QUESTIE_HEADER = ("local _, ns = ...", "local _, shared = ...\nlocal ns = shared.QuestieExtension")

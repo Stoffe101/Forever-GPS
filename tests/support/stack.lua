@@ -129,6 +129,23 @@ function Stack.new(opts)
     end
     if opts.questie then InstallQuestie(c, opts.questie) end
     if opts.tomtom then c.env.TomTom = opts.tomtom; c.addons.TomTom = true end
+    -- A button gatherer's libraries and the game's addon compartment, counting what
+    -- registers with them.
+    if opts.launchers then
+        local seen = { broker = {}, icons = {}, compartment = {} }
+        c.launchers = seen
+        local broker = {
+            NewDataObject = function(_, name, obj) seen.broker[name] = obj return obj end,
+            GetDataObjectByName = function(_, name) return seen.broker[name] end,
+        }
+        local icon = { Register = function(_, name) seen.icons[name] = true end, Show = function() end, Hide = function() end,
+                       GetMinimapButton = function() return nil end, IsRegistered = function(_, name) return seen.icons[name] end }
+        c.env.LibStub = setmetatable({}, { __call = function(_, name)
+            if name == "LibDataBroker-1.1" then return broker end
+            if name == "LibDBIcon-1.0" then return icon end
+        end })
+        c.env.AddonCompartmentFrame = { RegisterAddon = function(_, entry) seen.compartment[#seen.compartment + 1] = entry.text end }
+    end
     local skip = opts.ui == false and function(file) return file:find("^UI/") end or nil
     c:LoadAddon("ForeverGPS", skip)
     if c.importing then c.env.ForeverGPSImported = c.importing end
