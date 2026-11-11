@@ -18,6 +18,9 @@ local DEFAULTS = {
     -- Copper a minute is worth, the most a cheaper way may add, and what a hearth must save.
     travel = { preset = "balanced", customRate = 100, maxExtraMinutes = 10, maxExtraShare = 0.5, hearthMinutes = 3 },
     search = { prices = true, world = true },
+    -- Prices kept fresh at the auction house: "permitted" (whenever the server allows),
+    -- "hour", "day", "off"; and searches for the items that matter while a scan waits.
+    prices = { auto = "permitted", targeted = true },
     quests = { offerNext = true },
     minimap = { shown = true, angle = 215 },
     reducedMotion = false,

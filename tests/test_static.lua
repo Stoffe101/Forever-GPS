@@ -78,7 +78,7 @@ local GAME = {}
 for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
-    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo GetItemCount GetItemInfo GetProfessions GetProfessionInfo GetTaxiMapID TaxiNodeCost GetRealmName GetMinimapZoneText GetMerchantNumItems GetMerchantItemInfo GetMerchantItemID UnitGUID UnitName strsplit GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceSkillReq GetTrainerServiceLevelReq GetTrainerServiceCost GetTrainerServiceStepIndex GetTrainerServiceSkillLine GetTrainerTradeskillRankValues C_AuctionHouse C_TradeSkillUI C_TaxiMap C_Container GetItemCooldown Enum IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
+    .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo GetProfessions GetProfessionInfo GetTaxiMapID TaxiNodeCost GetRealmName GetMinimapZoneText GetMerchantNumItems GetMerchantItemID UnitGUID UnitName strsplit GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceSkillReq GetTrainerServiceLevelReq GetTrainerServiceCost GetTrainerServiceStepIndex GetTrainerServiceSkillLine GetTrainerTradeskillRankValues IsTradeskillTrainer C_MerchantFrame C_Item C_AuctionHouse C_TradeSkillUI C_TaxiMap C_Container Enum IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
     .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G coroutine"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
@@ -154,6 +154,23 @@ function tests.theGamesWaypoint_hasOneDoorInTheFolderThatShips()
     T.ok(Scan("Vendor") > 20, "the scan saw the vendored files")
 end
 
+-- Globals the game itself no longer has (absent from its UI code of build 12.1.5.70783, the
+-- line WoW Forever 1.60.1.70790 is built on), found missing in the real client by 2.4's
+-- errors. Only Core/Compat.lua may even name them, as a fallback for other clients.
+local GONE = { "GetItemInfo", "GetItemCount", "GetItemCooldown", "GetMerchantItemInfo", "GetContainerItemInfo",
+               "GetContainerNumSlots", "GetSpellInfo", "GetAddOnMetadata" }
+
+function tests.noGoneGlobal_isCalled()
+    for _, file in ipairs(Sources()) do
+        if not file.path:find("Compat.lua", 1, true) then
+            local code = CodeOnly(file.src)
+            for _, name in ipairs(GONE) do
+                T.ok(not code:find("%f[%w_.:]" .. name .. "%s*%("), file.path .. " calls " .. name .. ", which the client does not have")
+            end
+        end
+    end
+end
+
 function tests.everyGameApi_isOneUpstreamAlreadyUses()
     -- Upstream runs on this client. A name it uses is one the client has.
     local haystack = {}
@@ -185,6 +202,10 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
         .. "C_AuctionHouse.SendSearchQuery C_AuctionHouse.MakeItemKey C_AuctionHouse.IsThrottledMessageSystemReady "
         .. "C_AuctionHouse.GetNumCommoditySearchResults C_AuctionHouse.GetCommoditySearchResultInfo "
         .. "C_AuctionHouse.GetNumItemSearchResults C_AuctionHouse.GetItemSearchResultInfo"
+    -- Items and merchants as the game's own UI calls them (Blizzard_UIPanels_Game/Mainline/
+    -- MerchantFrame.lua, ItemDocumentation.lua; build 12.1.5.70783): Core/Compat.lua.
+    haystack[#haystack + 1] = "C_MerchantFrame.GetItemInfo C_Item.RequestLoadItemDataByID C_Item.GetItemInfo C_Item.GetItemCount "
+        .. "C_Item.GetItemNameByID C_Container.GetItemCooldown C_Item.GetItemCooldown C_TradeSkillUI.IsTradeSkillReady"
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do
@@ -201,7 +222,7 @@ function tests.everyEventListened_isOneTheClientFires()
     for name in ("ADDON_LOADED PLAYER_LOGIN QUEST_LOG_UPDATE QUEST_ACCEPTED QUEST_REMOVED QUEST_TURNED_IN UNIT_QUEST_LOG_CHANGED "
         .. "TAXIMAP_OPENED HEARTHSTONE_BOUND UI_SCALE_CHANGED DISPLAY_SIZE_CHANGED PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED "
         .. "GLOBAL_MOUSE_DOWN PLAYER_LEVEL_UP SKILL_LINES_CHANGED PLAYER_ENTERING_WORLD UPDATE_FACTION "
-        .. "AUCTION_HOUSE_SHOW AUCTION_HOUSE_CLOSED REPLICATE_ITEM_LIST_UPDATE COMMODITY_SEARCH_RESULTS_UPDATED ITEM_SEARCH_RESULTS_UPDATED MERCHANT_SHOW TRAINER_SHOW TRADE_SKILL_SHOW "
+        .. "AUCTION_HOUSE_SHOW AUCTION_HOUSE_CLOSED REPLICATE_ITEM_LIST_UPDATE COMMODITY_SEARCH_RESULTS_UPDATED ITEM_SEARCH_RESULTS_UPDATED GET_ITEM_INFO_RECEIVED TRADE_SKILL_DATA_SOURCE_CHANGED TRADE_SKILL_CLOSE AUCTION_HOUSE_BROWSE_RESULTS_UPDATED BAG_UPDATE_DELAYED MERCHANT_SHOW TRAINER_SHOW TRADE_SKILL_SHOW "
         .. "TRADE_SKILL_LIST_UPDATE"):gmatch("%S+") do KNOWN[name] = true end
     for _, file in ipairs(Sources()) do
         for event in file.src:gmatch('FG%.OnEvent%("([%u_]+)"') do

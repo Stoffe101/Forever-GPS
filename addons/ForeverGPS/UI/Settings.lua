@@ -73,6 +73,18 @@ local GROUPS = {
         end, function(value) return ("%d min"):format(value) end)
         ui.note("SET_TRAVEL_NOTE")
     end },
+    { label = "SETG_PRICES", build = function(ui)
+        ui.heading("SET_PRICES_AUTO")
+        local choices = {}
+        for _, c in ipairs(FG.AutoPrices.CHOICES) do choices[#choices + 1] = { c[1], L[c[2]] } end
+        ui.choice(choices, function() return FG.AutoPrices.Settings().auto end, function(value)
+            FG.AutoPrices.Settings().auto = value
+        end)
+        ui.check("SET_PRICES_TARGETED", function() return FG.AutoPrices.Settings().targeted end, function(on)
+            FG.AutoPrices.Settings().targeted = on
+        end)
+        ui.note("SET_PRICES_NOTE")
+    end },
     { label = "SETG_MAP", build = function(ui)
         ui.check("SET_MAP_PREVIEW", function() return FG.db.map.preview end, function(on)
             FG.db.map.preview = on
@@ -227,7 +239,8 @@ local function BuildGroup(group)
 end
 
 local function PlaceRail(width)
-    local rail = width >= RAIL_AT
+    -- A rail beside the page when it fits both ways; otherwise the groups wrap above it.
+    local rail = width >= RAIL_AT and f:GetHeight() >= #f.rail * 30 + 16
     if rail then
         for i, chip in ipairs(f.rail) do
             chip:SetWidth(RAIL_W - 8)

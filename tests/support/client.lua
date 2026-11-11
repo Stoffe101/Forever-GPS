@@ -337,13 +337,24 @@ function Client:BuildEnv(opts)
     env.IsSpellKnownOrOverridesKnown = function() return false end
     env.GetSpellInfo = function() return nil end
     env.GetSpellCooldown = function() return 0, 0, 0 end
-    env.GetItemCount = function(id, bank) return (client.bags[id] or 0) + (bank and client.bank[id] or 0) end
-    env.GetItemCooldown = function() return 0, 0, 0 end
-    -- Only the merchant price: the eleventh value, as the game returns it.
-    env.GetItemInfo = function(id)
+    -- Items, as WoW Forever 1.60.1 has them: through C_Item and C_Container only. The old
+    -- globals GetItemInfo, GetItemCount, GetItemCooldown and GetMerchantItemInfo do not exist
+    -- there (2.4 failed in the game on exactly that), so they do not exist here.
+    -- client.uncached = { [itemID] = true }: not cached until asked for, then sent after
+    -- client.itemDelay (0.2 s) with GET_ITEM_INFO_RECEIVED; client.itemNever: never sent.
+    local function ItemCount(id, bank) return (client.bags[id] or 0) + (bank and client.bank[id] or 0) end
+    local function ItemInfo(id)
         local item = client.items[id]
-        if not item then return nil end
+        if not item or (client.uncached and client.uncached[id]) then return nil end
         return item.name, nil, 1, 1, 1, "Trade Goods", "Parts", 20, "", 0, item.sell or 0
+    end
+    local function RequestLoad(id)
+        client.itemRequests = (client.itemRequests or 0) + 1
+        if not (client.uncached and client.uncached[id]) or (client.itemNever and client.itemNever[id]) then return end
+        client:After(client.itemDelay or 0.2, function()
+            client.uncached[id] = nil
+            client:Fire("GET_ITEM_INFO_RECEIVED", id, true)
+        end)
     end
 
     -- Professions, as GetProfessions and the profession window give them. client.professions:
@@ -358,6 +369,9 @@ function Client:BuildEnv(opts)
         if not p then return nil end
         return p.name, 0, p.skill, p.max, 0, 0, p.line
     end
+    -- The window's data may arrive late, as a real client's can: client.recipesAt (no
+    -- recipes before that time) and client.schematicsAt (no reagents before it).
+    -- client.noListUpdate: TRADE_SKILL_LIST_UPDATE never fires.
     env.C_TradeSkillUI = {
         GetBaseProfessionInfo = function()
             local p = client.openProfession
@@ -365,6 +379,7 @@ function Client:BuildEnv(opts)
         end,
         GetAllRecipeIDs = function()
             local out = {}
+            if client.recipesAt and client.now < client.recipesAt then return out end
             for id, r in pairs(client.recipes) do
                 if client.openProfession and r.line == client.openProfession.line then out[#out + 1] = id end
             end
@@ -384,6 +399,9 @@ function Client:BuildEnv(opts)
         GetRecipeSchematic = function(id)
             local r = client.recipes[id]
             if not r then return nil end
+            if client.schematicsAt and client.now < client.schematicsAt then
+                return { recipeID = id, outputItemID = nil, quantityMin = 1, quantityMax = 1, reagentSlotSchematics = {} }
+            end
             local slots = {}
             for i, g in ipairs(r.reagents or {}) do
                 slots[i] = { reagentType = 1, quantityRequired = g.n, reagents = { { itemID = g.id } } }
@@ -470,10 +488,13 @@ function Client:BuildEnv(opts)
         end,
     }
     env.GetMerchantNumItems = function() return #client.merchant end
-    env.GetMerchantItemInfo = function(i)
+    -- The current shape: a table. Unlimited stock reads -1, as the game shows no count.
+    env.C_MerchantFrame = { GetItemInfo = function(i)
         local m = client.merchant[i]
-        return "Item", 0, m.price, m.quantity or 1, m.available or -1
-    end
+        if not m then return nil end
+        return { name = "Item", texture = 0, price = m.price, stackCount = m.quantity or 1, numAvailable = m.available or -1,
+                 isPurchasable = true, isUsable = true, hasExtendedCost = false }
+    end }
     env.GetMerchantItemID = function(i) return client.merchant[i] and client.merchant[i].id end
     -- A trainer's window: client.trainer = { npcID, name, services = { { name, rank, category,
     -- skill, skillRank, level, cost } } }.
@@ -495,6 +516,7 @@ function Client:BuildEnv(opts)
         local s = client.trainer.services[i]
         return s.skill, s.skillRank, true
     end
+    env.IsTradeskillTrainer = function() return not (client.trainer and client.trainer.class) end
     env.GetTrainerServiceSkillLine = function(i)
         local s = client.trainer.services[i]
         return s.line or client.trainer.line
@@ -511,8 +533,8 @@ function Client:BuildEnv(opts)
     env.GetTrainerServiceCost = function(i) return client.trainer.services[i].cost end
     env.PlayerHasToy = function() return false end
     env.IsUsableItem = function() return true end
-    env.C_Item = { GetItemCount = env.GetItemCount, GetItemCooldown = function() return 0, 0, 0 end, GetItemInfo = function() return nil end,
-                   GetItemNameByID = function() return nil end, GetItemIconByID = function() return nil end, IsUsableItem = function() return true end,
+    env.C_Item = { GetItemCount = ItemCount, GetItemCooldown = function() return 0, 0, 0 end, GetItemInfo = ItemInfo,
+                   RequestLoadItemDataByID = RequestLoad, GetItemNameByID = function(id) return (ItemInfo(id)) end, GetItemIconByID = function() return nil end, IsUsableItem = function() return true end,
                    GetItemSubClassInfo = function() return "Subclass" end, GetItemClassInfo = function() return "Class" end }
     env.GetItemSubClassInfo, env.GetItemClassInfo = env.C_Item.GetItemSubClassInfo, env.C_Item.GetItemClassInfo
     env.C_Spell = { GetSpellInfo = function() return nil end, GetSpellCooldown = function() return { startTime = 0, duration = 0 } end,

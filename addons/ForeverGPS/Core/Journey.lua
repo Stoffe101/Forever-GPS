@@ -207,7 +207,9 @@ FG.OnEvent("QUEST_ACCEPTED", function(questID)
     local binding = Journey.Binding()
     if not (binding and binding.questID == questID and binding.kind == "start") then return end
     FG.Emit("toast", L["QUEST_ACCEPTED_FMT"]:format(binding.title or "?"))
-    if #Bridge.StopsAhead(Bridge.ActiveRoute() or { steps = {} }) <= 1 then Stop() else FG.char.binding = nil end
+    -- Seen in the game (2.2, BugSack): a route without stops of its own gave nil here.
+    local ahead = Bridge.StopsAhead(Bridge.ActiveRoute() or { steps = {} }) or {}
+    if #ahead <= 1 then Stop() else FG.char.binding = nil end
 end)
 
 FG.OnEvent("QUEST_REMOVED", function(questID)

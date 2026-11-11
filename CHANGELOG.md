@@ -1,6 +1,32 @@
 # Changelog
 
-## 2.4.0 (unreleased, not yet tested in the game)
+## 2.5.0 (unreleased, not yet tested in the game)
+
+Fixes for what 2.4 did in the real game, found from the player's BugSack and saved data. [docs/REALCLIENT.md](docs/REALCLIENT.md)
+
+### Fixed
+
+- **Profit and Skill up never showed anything in the game.** The item functions they called (`GetItemCount`, `GetItemInfo`) do not exist in WoW Forever. Every figure raised an error, and the page stayed as it was. Items are now asked for the way this client has them.
+- **Merchant prices were never learned**, for the same reason.
+- **Professions rows could overlap.** They were measured at one width and drawn at another, at fixed heights. Rows are now as tall as their text, measured as drawn, and checked again once drawn. A card's button no longer covers its text.
+- **A plan could stay on "working it out" for good.** A plan now finishes, fails with its reason, or is given up after 10 seconds without progress. Each of those offers to try again.
+- **Class and pet trainers** were kept as if they were profession trainers.
+- **Accepting a quest** on a route without stops raised an error (seen in 2.2).
+
+### Added
+
+- **Prices that update by themselves.** Opening an auction house asks for a full scan when the server allows it, and searches the items you need while it does not. It keeps out of other addons' way, and stops when you search yourself. Settings, Prices.
+- **Unpriced recipes are shown**, with the reagent that has no price, and a summary of what is missing. The page offers to refresh those prices at the auction house.
+- **Make 1, 5 or 10** on Profit, priced for the quantity.
+- **Clear loading states:** reading recipes, working out a plan (with progress), partial plans that say how far they got and why, and failures that say so.
+- **The page remembers** your profession, view, sort, filters and mode.
+- **`/fgps report`** now covers professions, recipe reading, item lookups, the Professions page and automatic prices, with no character or realm names.
+
+### Changed
+
+- CI installs its tools from the runner's own package mirror and retries network failures. A tool that cannot be installed fails the job.
+
+## 2.4.0 (installed in the game on 2026-11-11; its profession pages failed there, fixed in 2.5.0)
 
 Built on open-source work where it was stronger than this project's own: CraftProfit's measured auction house scanner, ForeverNet's quantity pricing, and profit's recipe data from the game client, all MIT. [docs/REUSE.md](docs/REUSE.md), [THIRD_PARTY.md](THIRD_PARTY.md)
 

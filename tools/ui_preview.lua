@@ -274,12 +274,21 @@ local function Trade(screen)
     local FG = c.FG
     Settle(c, 4)
     c:Fire("MERCHANT_SHOW")
-    c:Fire("AUCTION_HOUSE_SHOW")
-    FG.Market.Scan()
-    Settle(c, 2)
+    -- Before any auction house: recipes read, nothing priced. Every recipe is still shown.
     c.openProfession = c.professions[1]
-    FG.Professions.ReadRecipes()
+    c:Fire("TRADE_SKILL_SHOW")
+    Settle(c, 1)
     FG.Window.Show("professions")
+    FG.ProfessionsView.Show("profit")
+    Settle(c, 0.5)
+    Shot(c, screen, "prof-profit-unpriced")
+    -- At the auction house: it scans by itself.
+    c:Fire("AUCTION_HOUSE_SHOW")
+    Settle(c, 3.6)
+    FG.ProfessionsView.Show("market")
+    Settle(c, 0.2)
+    Shot(c, screen, "prof-market-auto")
+    Settle(c, 4)
     for _, which in ipairs({ "overview", "leveling", "profit", "market" }) do
         FG.ProfessionsView.Show(which)
         Settle(c, 0.6)

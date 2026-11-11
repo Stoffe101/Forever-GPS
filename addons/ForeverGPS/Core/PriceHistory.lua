@@ -118,7 +118,7 @@ function History.CheckAlerts(key)
         if price and price.buy <= alert.below and alert.lastSaid ~= price.buy then
             alert.lastSaid = price.buy
             said[#said + 1] = id
-            local name = GetItemInfo(id) or ("item:" .. id)
+            local name = FG.Item.Label(id)
             FG.Print(L["ALERT_BELOW_FMT"]:format(name, FG.Fares.Money(price.buy), FG.Fares.Money(alert.below)))
         elseif price and price.buy > alert.below then
             alert.lastSaid = nil
@@ -129,6 +129,7 @@ function History.CheckAlerts(key)
 end
 
 FG.On("market:prices", function(key)
+    if key == "merchant" then return end
     History.Note(key)
     History.CheckAlerts(key)
 end)

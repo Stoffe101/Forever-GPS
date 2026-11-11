@@ -30,33 +30,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: leafo/gh-actions-lua@v10
-        with:
-          luaVersion: '5.1.5'
+      # From the runner's package mirror, tried again on network failures (tools/ci/install_lua.sh).
+      - name: Install Lua 5.1
+        run: bash tools/ci/install_lua.sh lua5.1
       - name: Compile every Forever-GPS file with the game's Lua version
         run: |
-          find addons/ForeverGPS tools -name '*.lua' -print0 | xargs -0 -n1 luac -p
+          luac5.1 -v
+          find addons/ForeverGPS tools -name '*.lua' -print0 | xargs -0 -n1 luac5.1 -p
 
   luacheck:
     name: Luacheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: nebularg/actions-luacheck@v1
-        with:
-          files: 'addons/ForeverGPS'
-          args: '--no-color -q'
+      - name: Install luacheck
+        run: bash tools/ci/install_lua.sh lua-check
+      - name: Lint Forever-GPS's own code
+        run: |
+          luacheck --version
+          luacheck addons/ForeverGPS --no-color -q
 
   tests:
     name: Tests (EasyFind, GPS, Questie, Forever-GPS)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: leafo/gh-actions-lua@v10
-        with:
-          luaVersion: '5.4'
+      - name: Install Lua 5.4
+        run: bash tools/ci/install_lua.sh lua5.4
       - name: Run every suite
-        run: python3 tools/run_tests.py
+        run: |
+          lua5.4 -v
+          LUA=lua5.4 python3 tools/run_tests.py
 
   package:
     name: Package builds and validates

@@ -129,6 +129,9 @@ end
 function Trainers.Learn()
     local id = NpcID(UnitGUID and UnitGUID("npc"))
     if not (id and GetNumTrainerServices and GetTrainerServiceInfo) then return nil end
+    -- Class and pet trainers use the same window. Seen in the game: 2.4 kept a class
+    -- trainer's 79 spells and a pet trainer as if they were profession trainers.
+    if IsTradeskillTrainer and not IsTradeskillTrainer() then return nil end
     local who = (UnitName("player") or "?") .. "-" .. (GetRealmName and GetRealmName() or "?")
     local entry = { name = UnitName("npc"), at = time(), by = who, lines = {}, services = 0, recipes = 0 }
     local count = GetNumTrainerServices()

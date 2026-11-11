@@ -185,6 +185,7 @@ function Diagnostics.Lines()
     local scan, search = FG.Market.Scanning(), FG.MarketSearch.Status()
     out[#out + 1] = ("Prices: scan %s%s, searches asked %d answered %d missed %d"):format(scan.state,
         scan.why and (" (" .. scan.why .. ")") or "", search.asked, search.answered, search.missed)
+    for _, line in ipairs(Diagnostics.ProfessionLines()) do out[#out + 1] = line end
     out[#out + 1] = CacheLine()
     for _, line in ipairs(Diagnostics.GameLines()) do out[#out + 1] = line end
     for _, line in ipairs(Diagnostics.Timing()) do out[#out + 1] = line end
@@ -199,6 +200,50 @@ end
 function Diagnostics.Print()
     FG.Print("diagnostics")
     for _, line in ipairs(Diagnostics.Lines()) do print("  " .. line) end
+end
+
+-- Professions, recipes, items and prices: what each step of the professions page rests on.
+-- Numbers and states only: no character, realm or guild name.
+function Diagnostics.ProfessionLines()
+    local out = {}
+    local P = FG.Professions
+    local parts = {}
+    for _, p in ipairs(P.List()) do
+        local learned, priced = 0, 0
+        for _, r in ipairs(P.Recipes(p.line)) do
+            if r.learned then
+                learned = learned + 1
+                if r.out and r.reagents then priced = priced + 1 end
+            end
+        end
+        parts[#parts + 1] = ("%d %d/%d (%d learned, %d with reagents)"):format(p.line or 0, p.skill or 0, p.max or 0, learned, priced)
+    end
+    out[#out + 1] = "Professions: " .. (#parts > 0 and table.concat(parts, "; ") or "none read")
+    local st = P.status
+    local events = {}
+    for name, n in pairs(st.events) do events[#events + 1] = name .. "=" .. n end
+    table.sort(events)
+    out[#out + 1] = ("Recipe reading: api %s, reads %d, last %s (%d recipes, %d learned, %d missing reagents, %d in the client's data)%s"):format(
+        tostring(st.path or "not tried"), st.reads, tostring(st.lastWhy or "-"), st.lastCount, st.lastLearned, st.missing, st.matched,
+        st.at and (", " .. (time() - st.at) .. " s ago") or "")
+    out[#out + 1] = "Profession events: " .. (#events > 0 and table.concat(events, ", ") or "none yet")
+    if st.lastError then out[#out + 1] = "Recipe reading error: " .. st.lastError end
+    local paths = FG.Item.Paths()
+    out[#out + 1] = ("Items: info %s, count %s, merchant %s, load %s; %d waiting, %d asked, %d arrived"):format(paths.info, paths.count,
+        paths.merchant, paths.load, FG.Item.Pending(), FG.Item.stats.asked, FG.Item.stats.received)
+    local view = FG.ProfessionsView and FG.ProfessionsView.state or {}
+    out[#out + 1] = ("Professions page: %s ranked, %s priced, plan %s, page errors %d, rows grown %d"):format(tostring(view.ranked or "-"),
+        tostring(view.complete or "-"), tostring(view.lastPlan or "-"), view.errors or 0, FG.ProfessionsView and FG.ProfessionsView.overflows or 0)
+    if view.lastError then out[#out + 1] = "Professions page error: " .. view.lastError end
+    if FG.Crafting.lastError then out[#out + 1] = "Plan error: " .. FG.Crafting.lastError end
+    local s = FG.Market.Summary()
+    local _, side, how = FG.Market.Key()
+    out[#out + 1] = ("Market: %s house (told by %s), %d items, scanned %s, %d searched since%s"):format(tostring(side), tostring(how), s.count,
+        s.at and ((time() - s.at) .. " s ago") or "never", s.searched or 0, s.partial and ", partial" or "")
+    local auto = FG.AutoPrices.status
+    out[#out + 1] = ("Automatic prices: %s, last %s%s%s"):format(FG.AutoPrices.Settings().auto, tostring(auto.last or "nothing yet"),
+        auto.why and (" (" .. auto.why .. ")") or "", auto.at and (", " .. (time() - auto.at) .. " s ago") or "")
+    return out
 end
 
 -- All of it as text to paste into a report.

@@ -117,9 +117,19 @@ Click a reagent to mark it bought, then collected. A mark you set is never chang
 
 ## Prices
 
+**By itself (2.5):**
+
+- Open an auction house and do nothing: 3 seconds later, Forever-GPS decides.
+- **A full scan** when the server allows one (about every 15 minutes) and the prices are older than you chose in Settings, Prices: whenever allowed (the default), older than an hour, or older than a day.
+- **Otherwise, searches** for up to 20 items that matter now, one at a time: a list's reagents, alerts, and recipes' missing prices.
+- **Other addons:** a scan another addon starts in those 3 seconds is read instead, and Auctionator's record of its last scan counts toward the wait.
+- **Your own searching** stops Forever-GPS's searches.
+- **Off:** Settings, Prices can turn this off, so scans only happen when you press Scan.
+- **What happened:** Prices says what this visit did: "Scanning by itself", the searches, or why not.
+
 **A full scan:**
 
-- Open the auction house, then press **Scan** under Prices. The server allows one about every 15 minutes, and the page says when the next is allowed.
+- Open the auction house, then press **Scan** under Prices, or let it start by itself. The server allows one about every 15 minutes, and the page says when the next is allowed.
 - The client sends hundreds of updates for one scan. CraftProfit measured this in the game. The scan reads once the updates and the row count have both stopped for a second.
 - **Never left running:**
   - No answer in 30 seconds: the scan ends and says so, and you can ask again a minute later.
@@ -175,6 +185,17 @@ A trainer's title says nothing about the ranks it teaches. When you open a train
   3. Known not to teach it
 - Without a rank, the rank is your next one.
 - Within each group, results are ordered by travel time.
+
+## When something is missing (2.5)
+
+- **Every learned recipe is listed**, priced or not. An unpriced one says which reagent has no price, or that nothing sells the output.
+- **The summary** says how many are priced and what is missing. At the auction house it offers to refresh those prices.
+- **Loading:**
+  - "Reading your recipes" while the profession window loads.
+  - "Working out the cheapest way... 40%" while planning.
+  - A partial plan: "Worked out through skill 175. Past 175 it cannot go on", with the reason.
+  - A plan that fails or stops making progress says so, and offers to try again.
+- **Items not cached yet** show as "Item 1234 (loading)" until the game sends their names.
 
 ## How it was tested
 

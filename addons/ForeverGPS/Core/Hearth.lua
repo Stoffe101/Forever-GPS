@@ -12,12 +12,7 @@ local L = FG.L
 local HEARTHSTONE = 6948
 
 local function Cooldown()
-    local start, duration
-    if C_Container and C_Container.GetItemCooldown then
-        start, duration = C_Container.GetItemCooldown(HEARTHSTONE)
-    elseif GetItemCooldown then
-        start, duration = GetItemCooldown(HEARTHSTONE)
-    end
+    local start, duration = FG.Item.Cooldown(HEARTHSTONE)
     if not (start and duration and duration > 2) then return 0 end
     return math.max(0, start + duration - GetTime())
 end

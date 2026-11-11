@@ -329,18 +329,17 @@ end)
 
 -- What a merchant sells, and for how much, kept for every merchant seen.
 function Market.LearnMerchant()
-    if not (GetMerchantNumItems and GetMerchantItemInfo and GetMerchantItemID) then return 0 end
     local vendor = DB().vendor
     local n = 0
-    for i = 1, GetMerchantNumItems() do
-        local _, _, price, quantity, available = GetMerchantItemInfo(i)
-        local id = GetMerchantItemID(i)
-        -- Limited stock is not a price to plan on.
-        if id and price and price > 0 and (available or -1) < 0 then
+    for i = 1, FG.Merchant.Count() do
+        local price, quantity, available, id = FG.Merchant.Item(i)
+        -- Limited stock (a positive count left) is not a price to plan on.
+        if id and price and price > 0 and not (available and available > 0) then
             vendor[id] = math.floor(price / math.max(1, quantity or 1))
             n = n + 1
         end
     end
+    if n > 0 then FG.Emit("market:prices", "merchant") end
     return n
 end
 FG.OnEvent("MERCHANT_SHOW", function() FG.After(0.2, Market.LearnMerchant) end)
@@ -382,9 +381,7 @@ end
 
 -- What a merchant pays for it: the game's own figure.
 function Market.VendorSell(itemID)
-    if not GetItemInfo then return nil end
-    local sell = select(11, GetItemInfo(itemID))
-    return type(sell) == "number" and sell > 0 and sell or nil
+    return FG.Item.SellPrice(itemID)
 end
 
 -- The cheapest way to get one: a merchant's price, or the auction house's lowest.
@@ -402,9 +399,21 @@ function Market.Summary(key)
     key = key or Market.Current()
     local house = DB().houses[key]
     local at = house and (house.scannedAt or house.partialAt)
-    return { key = key, count = house and house.count or 0, at = at, open = open,
+    -- Items searched one by one since: how many, and the latest.
+    local searched, searchedAt = 0, nil
+    for _, t in pairs(house and house.fresh or {}) do
+        searched = searched + 1
+        if not searchedAt or t > searchedAt then searchedAt = t end
+    end
+    return { key = key, count = house and house.count or 0, at = at, open = open, searched = searched, searchedAt = searchedAt,
              sure = at and Age(time() - at) or nil, partial = house and house.partialAt and not house.scannedAt or nil,
              by = house and house.by }
 end
 
 function Market.IsOpen() return open end
+
+-- Goes up whenever any price changes (a scan, a search, a merchant): figures worked out
+-- from older prices are out of date.
+local version = 0
+function Market.Version() return version end
+FG.On("market:prices", function() version = version + 1 end)

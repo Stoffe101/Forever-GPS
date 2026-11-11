@@ -69,7 +69,7 @@ end
 
 local function Free(book, id)
     if not book.owned then return 0 end
-    if book.stock[id] == nil then book.stock[id] = GetItemCount(id) or 0 end
+    if book.stock[id] == nil then book.stock[id] = FG.Item.Count(id) end
     return math.max(0, book.stock[id] - (book.used[id] or 0))
 end
 
@@ -142,13 +142,15 @@ end
 --   sale      the output at today's lowest listing, less the cut ("if it sells")
 --   recovery  what a merchant pays for the output: the floor, sold or not
 --   profit    sale - cost: a hypothetical margin, not a sale
-function Craft.Profit(r)
-    local cost, missing = Craft.MaterialCost(r)
-    local upfront = Craft.MaterialCost(r, { owned = true })
+function Craft.Profit(r, times)
+    times = math.max(1, times or 1)
+    local cost, missing = Craft.MaterialCost(r, { times = times })
+    local upfront = Craft.MaterialCost(r, { owned = true, times = times })
     local sale, where, price = Craft.SaleValue(r)
+    if sale then sale = sale * times end
     local recovery = r.out and Market.VendorSell(r.out)
-    local p = { recipe = r, cost = cost, upfront = upfront, missingPrices = #missing, sale = sale, where = where,
-                price = price, recovery = recovery and recovery * Yield(r) or nil }
+    local p = { recipe = r, times = times, cost = cost, upfront = upfront, missingPrices = #missing, missing = missing,
+                sale = sale, where = where, price = price, recovery = recovery and recovery * Yield(r) * times or nil }
     p.complete = #missing == 0 and sale ~= nil
     if p.complete then
         p.profit = math.floor(sale - cost)
@@ -166,7 +168,7 @@ end
 function Craft.CanMake(r)
     local n
     for _, g in ipairs(r.reagents or {}) do
-        local k = math.floor((GetItemCount(g.id) or 0) / g.n)
+        local k = math.floor(FG.Item.Count(g.id) / g.n)
         n = n and math.min(n, k) or k
     end
     return n or 0
@@ -198,11 +200,11 @@ Craft.FILTERS = { "complete", "makeable", "sellers", "gain" }
 
 -- Every learned recipe that makes something, by sort, kept by every filter in `only`.
 -- Incomplete ones go last.
-function Craft.Ranking(line, sort, only)
+function Craft.Ranking(line, sort, only, times)
     local out = {}
     for _, r in ipairs(Prof.Recipes(line)) do
         if r.learned and r.out then
-            local p = Craft.Profit(r)
+            local p = Craft.Profit(r, times)
             local keep = true
             for key in pairs(only or {}) do
                 if FILTERS[key] and not FILTERS[key](p) then keep = false end
@@ -216,6 +218,28 @@ function Craft.Ranking(line, sort, only)
         if by(a, b) ~= by(b, a) then return by(a, b) end
         return (a.recipe.name or "") < (b.recipe.name or "")
     end)
+    return out
+end
+
+-- Items a profession's learned recipes need priced: reagents with no price, and outputs
+-- with neither a listing nor a merchant's figure. For a targeted refresh, at most `most`.
+function Craft.MissingPrices(line, most)
+    local out, seen = {}, {}
+    most = most or 30
+    local function Add(id)
+        if id and not seen[id] and #out < most then
+            seen[id] = true
+            out[#out + 1] = id
+        end
+    end
+    for _, r in ipairs(Prof.Recipes(line)) do
+        if r.learned then
+            for _, g in ipairs(r.reagents or {}) do
+                if not Market.Cost(g.id) then Add(g.id) end
+            end
+            if r.out and not Market.Price(r.out) then Add(r.out) end
+        end
+    end
     return out
 end
 
@@ -421,6 +445,7 @@ function Craft.Plan(line, a, b, mode, opts)
         -- The choices at this point, and the greedy pick among them.
         local here, best, bestCost = {}, nil, nil
         if opts.yield then opts.yield() end
+        if opts.progress then opts.progress(s - a, b - a) end
         for _, r in ipairs(recipes) do
             local learnAt = r.learned and 0 or (r.learnAt or 0)
             local chance, sure, source = Prof.Chance(r, s)
@@ -509,7 +534,7 @@ function Craft.Plan(line, a, b, mode, opts)
     end
     for id, row in pairs(buy) do
         row.expected = math.ceil(row.expected - 0.001)
-        row.have = mode == "mine" and math.min(row.safe, GetItemCount(id) or 0) or 0
+        row.have = mode == "mine" and math.min(row.safe, FG.Item.Count(id)) or 0
         local q = FG.Quote.Buy(id, math.max(0, row.safe - row.have))
         row.cost, row.short, row.status = q.cost, q.remaining, q.status
         out.shopping[#out.shopping + 1] = row
@@ -552,14 +577,18 @@ function Craft.PlanAsync(line, a, b, mode, opts, done)
         local ok, plan = coroutine.resume(co)
         FG.Metrics.End("craftPlan")
         if not ok then
+            -- Said, not swallowed: the page shows the message and offers to try again.
             running = nil
             planFrame:SetScript("OnUpdate", nil)
-            FG.Try(function() error(plan) end)
-            return done(nil)
+            Craft.lastError = tostring(plan)
+            FG.Metrics.Note("plan failed: " .. tostring(plan))
+            return done(nil, plan)
         end
         if coroutine.status(co) == "dead" then
             running = nil
             planFrame:SetScript("OnUpdate", nil)
+            Craft.lastPlan = { total = plan and plan.total, stuck = plan and plan.stuck, why = plan and plan.stuckWhy,
+                               segments = plan and #plan.segments or 0, at = time() }
             done(plan)
         end
     end)
@@ -684,8 +713,8 @@ function Craft.Shopping(project, craft)
     end
     local rows, total, unknown, short = {}, 0, 0, 0
     for _, itemID in ipairs(order) do
-        local bags = GetItemCount(itemID) or 0
-        local all = GetItemCount(itemID, true) or bags
+        local bags = FG.Item.Count(itemID)
+        local all = math.max(bags, FG.Item.Count(itemID, true))
         local left = math.max(0, need[itemID] - bags)
         local mark = project.marks[itemID]
         if mark == "bought" or mark == "have" then left = 0 end
@@ -720,7 +749,7 @@ function Craft.ShoppingText(project, craft)
     local lines = { project.name }
     for _, row in ipairs(shop.rows) do
         if row.left > 0 then
-            local name = GetItemInfo(row.id) or ("item:" .. row.id)
+            local name = FG.Item.Label(row.id)
             lines[#lines + 1] = ("%s x%d"):format(name, row.left)
         end
     end

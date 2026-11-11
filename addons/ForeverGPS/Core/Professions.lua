@@ -102,39 +102,105 @@ local function See(th, skill, diff)
 end
 Prof._See = See
 
--- Reads the open profession window's recipes. Runs once the window says it has its list.
+-- What reading the profession window has done this session, for /fgps report. Confirmed in
+-- the game (2.4's saved data): C_TradeSkillUI gives every recipe of the open profession,
+-- learned or not, with outputs and reagents, and its recipe IDs are the spell IDs of the
+-- client's data. Whether TRADE_SKILL_LIST_UPDATE always follows the window opening is not
+-- confirmed, so the window opening also reads, and reads again, a few times, while the
+-- list is empty or a learned recipe has no reagents yet.
+Prof.status = { path = nil, events = {}, reads = 0, lastCount = 0, lastLearned = 0, missing = 0, matched = 0,
+                lastError = nil, lastWhy = nil, at = nil }
+local READ_TRIES, READ_GAP = 6, 1
+
+-- Reads the open profession window's recipes. Returns how many were read, or nil and why:
+-- "api" (no such API), "window" (none open), "not ready", "empty".
 function Prof.ReadRecipes()
     local T = C_TradeSkillUI
-    if not (T and T.GetAllRecipeIDs and T.GetRecipeInfo) then return 0 end
+    local status = Prof.status
+    if not (T and T.GetAllRecipeIDs and T.GetRecipeInfo) then
+        status.path, status.lastWhy = "missing", "api"
+        return nil, "api"
+    end
+    status.path = "C_TradeSkillUI"
+    if T.IsTradeSkillReady and not T.IsTradeSkillReady() then
+        status.lastWhy = "not ready"
+        return nil, "not ready"
+    end
     local base = T.GetBaseProfessionInfo and T.GetBaseProfessionInfo()
     local line = base and base.professionID
-    local p = line and Prof.Get(line)
-    local skill = base and base.skillLevel or (p and p.skill) or 0
+    if not line or line == 0 then
+        status.lastWhy = "window"
+        return nil, "window"
+    end
+    local p = Prof.Get(line)
+    local skill = base.skillLevel or (p and p.skill) or 0
+    local ids = T.GetAllRecipeIDs() or {}
+    if #ids == 0 then
+        status.lastWhy = "empty"
+        return nil, "empty"
+    end
     local store = Store()
-    local count = 0
-    for _, id in ipairs(T.GetAllRecipeIDs() or {}) do
+    local count, learned, missing, matched = 0, 0, 0, 0
+    for _, id in ipairs(ids) do
         local info = T.GetRecipeInfo(id)
         if info and not info.isDummyRecipe then
             local r = store.recipes[id] or { id = id }
             store.recipes[id] = r
-            r.name, r.icon, r.line, r.learned = info.name, info.icon, line, info.learned and true or false
+            r.name, r.icon, r.line, r.learned = info.name or r.name, info.icon or r.icon, line, info.learned and true or false
             r.diff = info.relativeDifficulty
             r.th = r.th or {}
             if r.learned and r.diff then See(r.th, skill, r.diff) end
-            if not r.out and T.GetRecipeSchematic then
+            if not (r.out and r.reagents) and T.GetRecipeSchematic then
                 local s = T.GetRecipeSchematic(id, false)
-                if s then
+                if s and s.outputItemID then
                     r.out, r.qmin, r.qmax = s.outputItemID, s.quantityMin or 1, s.quantityMax or s.quantityMin or 1
                     r.reagents = Reagents(s)
                 end
+            end
+            -- The client's data knows it too: its reagents stand in until the window's arrive.
+            local d = Prof.Data(id)
+            if d then
+                matched = matched + 1
+                if not r.out and d.out then r.out, r.qmin, r.qmax, r.fromData = d.out, d.count, d.count, true end
+                if not r.reagents and #d.reagents > 0 then r.reagents, r.fromData = d.reagents, true end
+            end
+            if r.learned then
+                learned = learned + 1
+                if not (r.out and r.reagents) then missing = missing + 1 end
             end
             count = count + 1
         end
     end
     store.readAt = time()
+    status.reads, status.lastCount, status.lastLearned, status.missing, status.matched = status.reads + 1, count, learned, missing, matched
+    status.at, status.lastWhy, status.line = time(), missing > 0 and "partial" or "ok", line
     FG.Emit("recipes:changed", line)
-    return count
+    return count, missing > 0 and "partial" or nil
 end
+
+-- A read soon, once however many events ask for it; tried again a few times while the
+-- window's data is not all there. Never more than READ_TRIES in a row.
+local readWaits, readTries = false, 0
+local function ReadSoon(delay)
+    if readWaits then return end
+    readWaits = true
+    FG.After(delay or 0.3, function()
+        readWaits = false
+        local ok, n, why = pcall(Prof.ReadRecipes)
+        if not ok then
+            Prof.status.lastError = tostring(n)
+            FG.Metrics.Note("recipe read failed: " .. tostring(n))
+            return
+        end
+        if (not n or why) and readTries < READ_TRIES and Prof.status.windowOpen then
+            readTries = readTries + 1
+            ReadSoon(READ_GAP)
+        else
+            readTries = 0
+        end
+    end)
+end
+Prof._ReadSoon = ReadSoon
 
 -- Unseen ground: a colour band assumed this wide past the last skill it was seen at.
 local BAND = 10
@@ -248,9 +314,36 @@ end
 
 function Prof.Recipe(id) return Store().recipes[id] end
 
+-- When the recipes were last read: a plan made before is out of date.
+function Prof.ReadAt() return Store().readAt end
+
 -- ==== events ================================================================
 
-FG.OnEvent("SKILL_LINES_CHANGED", function() Prof.Refresh() end)
-FG.OnEvent("TRADE_SKILL_SHOW", function() Prof.Refresh() end)
-FG.OnEvent("TRADE_SKILL_LIST_UPDATE", function() FG.After(0.1, Prof.ReadRecipes) end)
+local function Saw(event)
+    Prof.status.events[event] = (Prof.status.events[event] or 0) + 1
+end
+
+FG.OnEvent("SKILL_LINES_CHANGED", function()
+    Saw("SKILL_LINES_CHANGED")
+    Prof.Refresh()
+end)
+FG.OnEvent("TRADE_SKILL_SHOW", function()
+    Saw("TRADE_SKILL_SHOW")
+    Prof.status.windowOpen = true
+    readTries = 0
+    Prof.Refresh()
+    ReadSoon(0.5)
+end)
+FG.OnEvent("TRADE_SKILL_LIST_UPDATE", function()
+    Saw("TRADE_SKILL_LIST_UPDATE")
+    ReadSoon(0.3)
+end)
+FG.OnEvent("TRADE_SKILL_DATA_SOURCE_CHANGED", function()
+    Saw("TRADE_SKILL_DATA_SOURCE_CHANGED")
+    ReadSoon(0.3)
+end)
+FG.OnEvent("TRADE_SKILL_CLOSE", function()
+    Saw("TRADE_SKILL_CLOSE")
+    Prof.status.windowOpen = false
+end)
 FG.On("login", function() FG.After(3, Prof.Refresh) end)

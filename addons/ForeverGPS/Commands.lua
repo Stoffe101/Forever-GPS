@@ -125,7 +125,7 @@ function FG.Commands.Alert(rest)
         local any = false
         for item, a in pairs(FG.db.alerts or {}) do
             any = true
-            FG.Print(L["ALERT_LIST_FMT"]:format(GetItemInfo(item) or ("item:" .. item), FG.Fares.Money(a.below)))
+            FG.Print(L["ALERT_LIST_FMT"]:format(FG.Item.Label(item), FG.Fares.Money(a.below)))
         end
         if not any then FG.Print(L["ALERT_NONE"]) end
         return
@@ -133,12 +133,12 @@ function FG.Commands.Alert(rest)
     local tail = rest:match("|r%s*(.*)$") or rest:match("^%d+%s+(.*)$") or ""
     if tail:lower() == "off" then
         H.SetAlert(id, nil)
-        return FG.Print(L["ALERT_OFF_FMT"]:format(GetItemInfo(id) or ("item:" .. id)))
+        return FG.Print(L["ALERT_OFF_FMT"]:format(FG.Item.Label(id)))
     end
     local below = ParseMoney(tail)
     if not below or below <= 0 then return FG.Print(L["ALERT_HOW"]) end
     H.SetAlert(id, below)
-    FG.Print(L["ALERT_SET_FMT"]:format(GetItemInfo(id) or ("item:" .. id), FG.Fares.Money(below)))
+    FG.Print(L["ALERT_SET_FMT"]:format(FG.Item.Label(id), FG.Fares.Money(below)))
 end
 FG.Commands._ParseMoney = ParseMoney
 

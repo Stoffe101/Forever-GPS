@@ -96,6 +96,34 @@ do
     Say("40 units from 30 whole auctions (covering knapsack): %.2f ms each", ms / 100)
 end
 
+-- The profession window read, profit ranking and the page drawn, with 600 recipes.
+do
+    local recipes, auctions = {}, {}
+    for i = 1, 600 do
+        recipes[20000 + i] = { name = "Recipe " .. i, line = 171, out = 30000 + i, learned = i <= 120,
+                               reagents = { { id = 40000 + i % 80, n = 1 + i % 3 }, { id = 902, n = 1 } }, at = { y = 140, g = 155, x = 170 } }
+        auctions[#auctions + 1] = { itemID = 30000 + i, count = 2, buyout = 2000 + i }
+    end
+    for i = 0, 79 do auctions[#auctions + 1] = { itemID = 40000 + i, count = 20, buyout = 2000 } end
+    local c = Stack.new({ mapID = 1453, x = 0.6, y = 0.6, ui = true, recipes = recipes, auctions = auctions,
+                          merchant = { { id = 902, price = 20 } }, professions = { { name = "Alchemy", skill = 132, max = 150, line = 171 } } })
+    c:Advance(4)
+    c:Fire("MERCHANT_SHOW")
+    c:Fire("AUCTION_HOUSE_SHOW")
+    Stack.Until(c, function() return c.FG.Market.Scanning().state == "done" end, 60)
+    c.openProfession = c.professions[1]
+    local first = Clock(function() return c.FG.Professions.ReadRecipes() end)
+    local again = Clock(function() return c.FG.Professions.ReadRecipes() end)
+    Say("Reading 600 recipes from the profession window: %.0f ms the first time, %.0f ms again", first, again)
+    local rank = Clock(function() return c.FG.Crafting.Ranking(171, "profit", nil, 1) end)
+    local rank10 = Clock(function() return c.FG.Crafting.Ranking(171, "profit", nil, 10) end)
+    Say("Ranking 120 learned recipes by profit: %.0f ms; for 10 of each: %.0f ms", rank, rank10)
+    c.FG.Window.Show("professions")
+    local open = Clock(function() c.FG.ProfessionsView.Show("profit") end)
+    local again2 = Clock(function() c.FG.ProfessionsView.Refresh() end)
+    Say("Professions page, Profit, drawn: %.0f ms the first time, %.0f ms after a price update", open, again2)
+end
+
 local f = io.open("build/bench_professions.txt", "w")
 if f then
     f:write(table.concat(out, "\n"), "\n")

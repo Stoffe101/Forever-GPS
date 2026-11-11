@@ -251,7 +251,25 @@ Everything here is new and untested in the game. Report anything that disagrees 
 15. [ ] **An alert.** `/fgps alert <a reagent> <a price above today's>`. Scan: chat says it is under your price, once.
 16. [ ] Repeat the taint check from section 13. Nothing in BugSack names ForeverGPS.
 
-## 16. Living with it
+## 16. 2.5 in the real game
+
+The first things to check. Each is quick, and together they show whether 2.5 fixed what 2.4 got wrong. Before starting, empty BugSack.
+
+1. [ ] `/fgps report`: the Items line says `info C_Item.GetItemInfo` and `merchant C_MerchantFrame.GetItemInfo`.
+2. [ ] Open a profession window. Recipes load. The report's "Recipe reading" line says `last ok` with your recipe count.
+3. [ ] Professions, Profit: your recipes are listed, unpriced ones with "No figure yet: ... has no price". Nothing is stuck.
+4. [ ] Professions, Skill up: a plan appears, or a card saying how far it got and why. Never a lasting "working it out".
+5. [ ] Professions, Lists: add a few recipes. No text overlaps. Make the window narrower: still none.
+6. [ ] Open a merchant that sells vials or thread. A list using them shows "from a merchant".
+7. [ ] Open an auction house and touch nothing. Within a few seconds, Prices says "Scanning by itself", or why not. Afterwards Profit shows figures.
+8. [ ] Close and open it again at once: no second full scan. Prices says what it did instead.
+9. [ ] Close the auction house mid-scan. Prices says what was kept. Nothing stays "scanning".
+10. [ ] Search the auction house yourself while it searches items: it stops ("you are searching yourself").
+11. [ ] Repeat 2 to 4 with another profession.
+12. [ ] `/reload`. The Professions page opens where you left it, and prices and lists are still there.
+13. [ ] BugSack: nothing names ForeverGPS. Then paste `/fgps report` with any report.
+
+## 17. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.

@@ -26,6 +26,18 @@ Measured with `lua tools/bench_professions.lua`, in the stand-in client, on desk
 
 The 2.4 scan is slower because it reads after the client stops sending and keeps the price depth, and rereads once if rows arrive. A long plan runs as a coroutine a few milliseconds a frame, like the route planner, and its search is capped at 30,000 whole-plan totals.
 
+## The Professions page in 2.5
+
+Measured with `lua tools/bench_professions.lua`, in the stand-in client, on desktop Lua 5.4:
+
+| Measure | Time |
+| --- | --- |
+| Reading 600 recipes from the profession window | 3 ms the first time, 1 ms again |
+| Ranking 120 learned recipes by profit | 3 ms, the same for 10 of each |
+| Drawing Profit with 120 recipes | 27 ms the first time, 24 ms after a price update |
+
+A page redraw after events (prices, items arriving, bags) happens at most once every quarter second, and only while the page is shown.
+
 ## 2.0 against 2.1
 
 Package figures are exact. Planning figures are simulated, the time from asking to the last way being settled.

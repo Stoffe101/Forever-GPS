@@ -45,6 +45,10 @@ On this machine that folder is `D:\Battle.net games\World of Warcraft\_forever_\
 - **Questie**: objective locations for From Your Quests. Install it as usual; Forever-GPS finds it on its own. Questie 12.6.2 was checked against this build.
 - **TomTom**: choose it under Settings, Direction arrow, if you prefer its arrow. Not required.
 
+## Updating from 2.4
+
+As below: move `Interface/AddOns/ForeverGPS` aside and unzip the new package. Everything 2.4 saved is kept. To roll back, unzip `ForeverGPS-2.4.0-forever.zip` from `dist/`, or move back the backup folder the installer made.
+
 ## Updating from 2.3 or 2.2
 
 As below: move `Interface/AddOns/ForeverGPS` aside and unzip the new package. To roll back, put it back, or unzip `ForeverGPS-2.3.0-forever.zip` or `ForeverGPS-2.2.0-forever.zip` from `dist/`. 2.4 keeps the saved data 2.3 wrote. Trainer records from 2.3 are dropped, because they could not tell professions apart.

@@ -9,6 +9,15 @@
 - The Quest Explorer against live Questie. Its data has been read offline, and everything else ran against a stand-in that follows Questie's rules.
 - Fonts, texture quality, real frame times and memory, and how it sits beside EllesmereUI.
 
+## 2.5
+
+- **2.5 has not run in the game.** It fixes what 2.4 did there, as BugSack and the saved data showed. See [REALCLIENT.md](REALCLIENT.md).
+- **Overlap:** the overlap the player saw is not confirmed to be the one fixed. The row heights now follow the game's own text measurements once drawn, and `/fgps report` counts any row that had to grow.
+- **The automatic scan** relies on the server allowing `ReplicateItems` without a click. Auctionator does this in the same game, but Forever-GPS's own call has not been seen there yet.
+- **Searches while you browse:** item searches can still run while you browse, but stop on your first search.
+- **Known recipes:** which recipes a character knows is still read from the profession window. It is not guessed from the client's data.
+- **The 2.2 taint** seen in session 35 (quest map pins, auras) is not explained yet. See REALCLIENT.md.
+
 ## 2.4
 
 - **Nothing new has run in the game.** That covers the scan timing, searches, quantities, plans, trainers, alts, history, alerts, plans from elsewhere and the new navigation states. All were tested only in the stand-in client.

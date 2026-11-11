@@ -76,14 +76,18 @@ function Next()
 end
 
 -- Asks for these items' prices. Returns how many were added to the queue.
-function Search.Ask(ids)
+-- opts.auto: asked by Core/AutoPrices.lua, not by the player; stopped when they search.
+function Search.Ask(ids, opts)
     if not (open and Available()) then return 0 end
     local n = 0
+    local how = opts and opts.auto and "auto" or "asked"
     for _, id in ipairs(ids) do
         if type(id) == "number" and not queued[id] and not (current and current.id == id) then
             queue[#queue + 1] = id
-            queued[id] = true
+            queued[id] = how
             n = n + 1
+        elseif queued[id] == "auto" and how == "asked" then
+            queued[id] = how
         end
     end
     if n > 0 then
@@ -96,6 +100,22 @@ end
 function Search.Cancel()
     queue, queued, current = {}, {}, nil
     FG.Emit("market:changed")
+end
+
+-- Drops the searches the addon queued by itself. Returns how many.
+function Search.CancelAuto()
+    local kept, n = {}, 0
+    for _, id in ipairs(queue) do
+        if queued[id] == "auto" then
+            queued[id] = nil
+            n = n + 1
+        else
+            kept[#kept + 1] = id
+        end
+    end
+    queue = kept
+    if n > 0 then FG.Emit("market:changed") end
+    return n
 end
 
 -- Every row the answer holds, as unit price and count pairs. full: every unit on offer.

@@ -57,10 +57,11 @@ function List.New(parent, opts)
         return self:GetWidth() - (self.total > self:GetHeight() and 8 or 0)
     end
 
-    function list:Measure()
-        local width = self:GetWidth()
+    -- Rows are measured at the width they are drawn at. With a scrollbar they draw 8
+    -- narrower, so a list that scrolls is measured again at that width: text measured
+    -- wider than it is drawn takes a line more than its row has, and runs into the next.
+    local function MeasureAt(self, width)
         local y = 0
-        -- Measured at full width first; rows narrow by a hair for the scrollbar.
         for i = 1, #self.items do
             local h = opts.height(self.items[i], width)
             self.tops[i], self.heights[i] = y, h
@@ -68,6 +69,13 @@ function List.New(parent, opts)
         end
         for i = #self.items + 1, #self.tops do self.tops[i], self.heights[i] = nil, nil end
         self.total = y
+    end
+
+    function list:Measure()
+        local width = self:GetWidth()
+        MeasureAt(self, width)
+        -- Narrower is never shorter, so it still scrolls and draws at that width.
+        if self.total > self:GetHeight() then MeasureAt(self, width - 8) end
     end
 
     function list:Render()
