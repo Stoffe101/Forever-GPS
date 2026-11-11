@@ -30,6 +30,7 @@ ADAPTED = {
     "addons/ForeverGPS/Core/MarketSearch.lua": ("CraftProfit", "79e8eda"),
     "addons/ForeverGPS/Core/Quote.lua": ("ForeverNet", "10a81d9"),
     "addons/ForeverGPS/Data/Recipes.lua": ("profit", "823413b"),
+    "addons/ForeverGPS/Core/Pad.lua": ("Easy Controller", "cf2ad94"),
 }
 
 

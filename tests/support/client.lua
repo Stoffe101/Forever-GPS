@@ -850,6 +850,8 @@ function Client:BuildEnv(opts)
     env.GetCVar = function() return nil end
     env.MinimapCluster = env.CreateFrame("Frame", "MinimapCluster", self.root)
     env.ObjectiveTrackerFrame = env.CreateFrame("Frame", "ObjectiveTrackerFrame", self.root)
+    -- The controller: bindings, protected calls in combat, the secure combat handler.
+    require("support.gamepad").Install(self, env, UI)
     return env
 end
 

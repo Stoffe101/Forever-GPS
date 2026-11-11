@@ -9,6 +9,14 @@
 - The Quest Explorer against live Questie. Its data has been read offline, and everything else ran against a stand-in that follows Questie's rules.
 - Fonts, texture quality, real frame times and memory, and how it sits beside EllesmereUI.
 
+## 2.6
+
+- **2.6 has not run in the game, and has not been used with a real controller or a Steam Deck.** It was tested against a simulation of how the client delivers controller input. [CONTROLLER.md](CONTROLLER.md) has the checklist.
+- **The left stick** is off by default: whether the game also moves the character while Forever-GPS hears the stick is not known.
+- **Steam Deck back buttons** reach the game as whatever the Steam Input template sends. They can be bound by pressing them, whatever that is.
+- **The route map** has no zoom by controller; up shows the whole route and left and right step through it.
+- **Other addons' override bindings** on the same buttons cannot be seen. While Forever-GPS's window is open, its own win.
+
 ## 2.5
 
 - **2.5 has not run in the game.** It fixes what 2.4 did there, as BugSack and the saved data showed. See [REALCLIENT.md](REALCLIENT.md).

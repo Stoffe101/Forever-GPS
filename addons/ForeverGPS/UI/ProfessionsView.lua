@@ -798,6 +798,13 @@ end
 
 function View.Current() return view end
 
+-- For the controller: the five views in turn.
+function View.Cycle(dir)
+    local i = 1
+    for k, key in ipairs(VIEWS) do if key == view then i = k end end
+    View.Show(VIEWS[(i - 1 + dir) % #VIEWS + 1])
+end
+
 -- The page's choices, kept per character across reloads.
 function View.Remember()
     if not FG.char then return end

@@ -457,6 +457,8 @@ function Kit.Scale(parent, low, high, step, get, set, shown)
     s:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
     s:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
     s:SetScript("OnMouseWheel", function(self, delta) self:Set(get() + delta * step) end)
+    -- A controller's left and right (UI/Focus.lua).
+    s.padAdjust = function(dir) s:Set(get() + dir * step) end
     s:SetScript("OnSizeChanged", s.Sync)
     return s
 end

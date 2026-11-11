@@ -19,6 +19,7 @@ local HEADER_H = 46
 
 local f
 local view = "search"            -- search, quests, professions, trip or settings
+local lastView = "search"         -- where Back from the settings returns
 local showRoute = false          -- narrow layout: the journey has the screen
 local showQuest = false          -- a quest is open in the journey's place
 local compact = false
@@ -27,9 +28,18 @@ function Window.IsCompact() return compact end
 
 local function Parent() return UIParent end
 
+-- Handheld (a Steam Deck in the hand, docs/CONTROLLER.md): the window fills the screen,
+-- a little larger, one column, so text reads and rows are easy to land on.
+local HANDHELD_SCALE = 1.12
+function Window.Handheld() return FG.Pad ~= nil and FG.Pad.Layout() == "handheld" end
+
+local function Scale()
+    return FG.Settings.WindowScale() * (Window.Handheld() and HANDHELD_SCALE or 1)
+end
+
 -- The largest the window may be at its own scale.
 local function Limits()
-    local scale = FG.Settings.WindowScale()
+    local scale = Scale()
     return (Parent():GetWidth() - MARGIN * 2) / scale, (Parent():GetHeight() - MARGIN * 2) / scale
 end
 
@@ -37,11 +47,13 @@ local function Fit()
     local maxW, maxH = Limits()
     local w = math.min(FG.db.window.width or PREFERRED_W, maxW)
     local h = math.min(FG.db.window.height or PREFERRED_H, maxH)
+    if Window.Handheld() then w, h = maxW, maxH end
     f:SetSize(math.max(math.min(MIN_W, maxW), w), math.max(math.min(MIN_H, maxH), h))
 end
 
 local function Place()
     f:ClearAllPoints()
+    if Window.Handheld() then return f:SetPoint("CENTER", UIParent, "CENTER", 0, 0) end
     local p = FG.db.window.point
     if p then
         f:SetPoint(p[1], UIParent, p[2], p[3], p[4])
@@ -57,9 +69,10 @@ end
 
 -- ==== layout ================================================================
 
+local HINTS_H = 24
 local function Layout()
     local width = f:GetWidth()
-    compact = width < TWO_COLUMNS_AT
+    compact = width < TWO_COLUMNS_AT or Window.Handheld()
     local contentW = width - PAD * 2
     local panelW = compact and contentW or math.floor(contentW * PANEL_SHARE)
     local left, right, settings = f.left, f.right, f.settingsPage
@@ -77,16 +90,21 @@ local function Layout()
     f.tripPage:SetShown(view == "trip" and listOn)
     f.professionsPage:SetShown(view == "professions" and listOn)
 
+    -- The controller's button line at the foot takes its own room.
+    local foot = f.hints and f.hints:IsShown() and HINTS_H or PAD
     left:ClearAllPoints()
     left:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -HEADER_H)
     if compact then
-        left:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, PAD)
+        left:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, foot)
     else
-        left:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(PAD * 2 + panelW), PAD)
+        left:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -(PAD * 2 + panelW), foot)
     end
     right:ClearAllPoints()
     right:SetPoint("TOPRIGHT", f, "TOPRIGHT", -PAD, -HEADER_H)
-    right:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, PAD)
+    right:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, foot)
+    settings:ClearAllPoints()
+    settings:SetPoint("TOPLEFT", f, "TOPLEFT", PAD, -HEADER_H)
+    settings:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD, foot)
     right:SetWidth(panelW)
 
     -- The tabs give way to the window's width; the title goes first.
@@ -198,6 +216,7 @@ local function Build()
 
     -- The corner that resizes it.
     f.grip = CreateFrame("Button", nil, f)
+    f.grip.padSkip = true      -- a mouse handle: the controller passes it by
     f.grip:SetSize(16, 16)
     f.grip:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -2, 2)
     f.grip.glyph = Kit.Icon(f.grip, 9, "textFaint")
@@ -216,6 +235,11 @@ local function Build()
         if f:IsShown() then Layout() end
     end)
     f:HookScript("OnShow", function() FG.Emit("window:shown") end)
+    f:HookScript("OnHide", function() FG.Emit("window:hidden") end)
+    f.hints = Kit.Text(f, "small", "textDim")
+    f.hints:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD, 4)
+    f.hints:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 4)
+    f.hints:Hide()
     Window.ApplyScale()
     Fit()
     Place()
@@ -225,7 +249,8 @@ end
 
 function Window.ApplyScale()
     if not f then return end
-    f:SetScale(FG.Settings.WindowScale())
+    f:SetScale(Scale())
+    Place()
     local maxW, maxH = Limits()
     f:SetResizeBounds(math.min(MIN_W, maxW), math.min(MIN_H, maxH), maxW, maxH)
     Fit()
@@ -234,6 +259,7 @@ end
 
 function Window.Show(page)
     if not f then Build() end
+    if page and page ~= view and view ~= "settings" then lastView = view end
     view = page or view
     -- Reopened mid-journey on a narrow window, the journey is what was wanted.
     showRoute = page == nil and Bridge.ActiveRoute() ~= nil
@@ -299,6 +325,123 @@ FG.On("plan:changed", function(plan)
 end)
 
 function Window.Frame() return f end
+function Window.View() return view end
+
+-- ==== the controller ========================================================
+
+local ORDER = { "search", "quests", "professions", "trip", "settings" }
+
+-- Back: one step out (a quest, the journey on a narrow window, the settings); false
+-- when there is nothing to go back from, and the window closes.
+function Window.Back()
+    if not (f and f:IsShown()) then return false end
+    if showQuest then
+        Window.CloseQuest()
+        return true
+    end
+    if compact and showRoute then
+        Window.ShowList()
+        return true
+    end
+    if view == "settings" then
+        Window.Show(lastView ~= "settings" and lastView or "search")
+        return true
+    end
+    return false
+end
+
+-- Where the controller starts on each page: a frame, or (nil, the part of the window to
+-- start in), so it starts on the page and not on the tabs above it.
+function Window.FirstFocus()
+    if not f then return nil end
+    if view == "search" and FG.SearchView.FirstFocus and not (compact and showRoute) then return FG.SearchView.FirstFocus() end
+    if view == "settings" then return nil, f.settingsPage end
+    if showRoute and f.right:IsShown() and (compact or not f.left:IsShown()) then return nil, f.right end
+    return nil, f.left
+end
+
+local function Cycle(dir)
+    local i = 1
+    for k, key in ipairs(ORDER) do if key == view then i = k end end
+    Window.Show(ORDER[(i - 1 + dir) % #ORDER + 1])
+end
+
+local SUB = {
+    professions = function(dir) return FG.ProfessionsView.Cycle and FG.ProfessionsView.Cycle(dir) end,
+    settings = function(dir) return FG.SettingsView.Cycle and FG.SettingsView.Cycle(dir) end,
+    quests = function(dir) return FG.QuestsView.Cycle and FG.QuestsView.Cycle(dir) end,
+    search = function(dir) return FG.SearchView.Cycle and FG.SearchView.Cycle(dir) end,
+}
+
+-- The window's own pad actions; true when one was done.
+function Window.PadAction(id)
+    if id == "prevTab" or id == "nextTab" then
+        Cycle(id == "nextTab" and 1 or -1)
+    elseif id == "prevSub" or id == "nextSub" then
+        local fn = SUB[view]
+        if fn then fn(id == "nextSub" and 1 or -1) end
+    elseif id == "search" then
+        -- The page's own search: the Quest Explorer's on it, else the main one.
+        local box
+        if view == "quests" and FG.QuestsView.Mode() == "find" then
+            box = FG.ExplorerView.Box()
+        else
+            Window.Show("search")
+            box = FG.SearchView.Box and FG.SearchView.Box()
+        end
+        if box and FG.PadKeyboard then FG.PadKeyboard.Open(box) end
+    elseif id == "home" then
+        Window.Show("search")
+    elseif id == "startNav" then
+        local plan = Planner.Current()
+        if plan and plan.selected then Planner.Start() end
+    elseif id == "stopNav" then
+        Bridge.Stop()
+    elseif id == "showRoute" then
+        if Bridge.ActiveRoute() or Planner.Current() then Window.ShowRoute() end
+    elseif id == "openMap" then
+        if not FG.MapPreview.Open() then FG.MapPreview.OpenActive() end
+    elseif id == "save" then
+        local plan = Planner.Current()
+        if plan and plan.target then FG.Saved.ToggleFavorite(plan.target) end
+    elseif id == "replan" then
+        Planner.Replan()
+    elseif id == "help" then
+        Window.Show("settings")
+        if FG.SettingsView.SelectByLabel then FG.SettingsView.SelectByLabel("SETG_CONTROLLER") end
+    else
+        return false
+    end
+    return true
+end
+
+local HINTS = { { "confirm", "PAD_HINT_confirm" }, { "back", "PAD_HINT_back" }, { "search", "PAD_HINT_search" },
+                { "prevTab", "PAD_HINT_prevTab" }, { "context", "PAD_HINT_context" } }
+
+-- A line at the foot of the window with the buttons that matter here, while the pad is
+-- the input in use.
+function Window.UpdateHints()
+    if not f then return end
+    local Pad = FG.Pad
+    local on = (Pad and Pad.InUse() and Pad.Capturing()) and true or false
+    local changed = f.hints:IsShown() ~= on
+    f.hints:SetShown(on)
+    if changed and f:IsShown() then Layout() end
+    if not on then return end
+    local parts = {}
+    for _, hint in ipairs(HINTS) do
+        local chord = Pad.Binding(hint[1])
+        if chord then parts[#parts + 1] = Pad.Label(chord) .. " " .. L[hint[2]] end
+    end
+    f.hints:SetText(table.concat(parts, "   "))
+end
+FG.On("pad:capture", Window.UpdateHints)
+FG.On("pad:input", function()
+    Window.UpdateHints()
+    if f and f:IsShown() then Window.ApplyScale() end
+end)
+FG.On("pad:bindings", Window.UpdateHints)
+FG.On("pad:layout", function() if f then Window.ApplyScale() end end)
 
 -- A line in the header for the journey under way, where there is room for it.
 function Window.UpdateStatus()

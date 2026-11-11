@@ -20,6 +20,7 @@ Forever-GPS is the product layer on top of [EasyFind](https://github.com/falleng
 - **Journey panel** compares ways of going and says how they differ, with each step, transport and wait, how sure the route is, a plain risk label, and toggles to avoid flights, boats, zeppelins, portals or your hearth.
 - **Map preview** shows the journey on the world map before anything starts.
 - **HUD** shows what to do now, distance, time left and the next step, in three sizes. At a dock it says it is waiting, and gives a departure only when a real ride has timed that boat. A hearth or teleport is offered as a button and never used for you.
+- **Controller and Steam Deck:** every page works with a controller alone, every button can be changed by pressing it, with profiles and a handheld layout for 1280×800. Your own key bindings are never touched, and in combat the controller is always the game's. See [docs/CONTROLLER.md](docs/CONTROLLER.md).
 - **Automatic progress** recognizes arrivals, reroutes when you wander, leads a ghost to its corpse, and survives a reload. A route for a quest stops if you abandon the quest or finish that objective.
 
 Route lines on the world map and minimap, and the route's beacon, are EasyFind GPS's own.
@@ -55,7 +56,7 @@ The zip holds one folder, `ForeverGPS`. Unzip `dist/ForeverGPS-2.1.0-forever.zip
 | `/fgps report` | The same as text to copy |
 | `/fgps reset` | Reset window and HUD positions |
 
-Key bindings are under Forever-GPS in the game's key binding settings. Alt-click the world map for directions to any spot.
+Key bindings are under Forever-GPS in the game's key binding settings. Alt-click the world map for directions to any spot. With a controller: Settings, Controller, and [docs/CONTROLLER.md](docs/CONTROLLER.md).
 
 ## Repository
 

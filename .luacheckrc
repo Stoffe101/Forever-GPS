@@ -25,4 +25,7 @@ read_globals = {
     "STANDARD_TEXT_FONT", "UIParent", "UnitClass", "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "UpdateAddOnMemoryUsage",
     "WOW_PROJECT_ID", "debugprofilestop", "geterrorhandler", "issecretvalue", "strtrim", "tinsert", "wipe",
     "WorldMapFrame", "GetCursorPosition", "GetCVar", "GetClassInfo", "GetProfessions", "GetProfessionInfo", "GetTaxiMapID", "TaxiNodeCost", "GetRealmName", "GetMinimapZoneText", "GetMerchantNumItems", "GetMerchantItemID", "UnitGUID", "UnitName", "strsplit", "GetNumTrainerServices", "GetTrainerServiceInfo", "GetTrainerServiceSkillReq", "GetTrainerServiceLevelReq", "GetTrainerServiceCost", "GetTrainerServiceStepIndex", "GetTrainerServiceSkillLine", "GetTrainerTradeskillRankValues", "IsTradeskillTrainer", "C_MerchantFrame", "C_Item", "C_AuctionHouse", "C_TradeSkillUI", "C_TaxiMap", "C_Container", "Enum", "IsShiftKeyDown", "Minimap", "CANCEL", "ReloadUI", "StaticPopup_Show", "GetFramerate", "UnitName", "GetBindLocation", "time", "PlaySound", "SOUNDKIT",
+    -- The controller (Core/Pad.lua; docs/CONTROLLER.md lists where Blizzard's code uses each).
+    "C_GamePad", "SetOverrideBindingClick", "SetOverrideBinding", "ClearOverrideBindings", "GetBindingAction", "GetBindingText",
+    "IsKeyDown", "IsControlKeyDown", "IsAltKeyDown", "RegisterStateDriver", "GetPhysicalScreenSize",
 }

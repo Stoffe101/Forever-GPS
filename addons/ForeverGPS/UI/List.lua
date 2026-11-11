@@ -15,6 +15,7 @@ local THUMB_MIN = 24
 function List.New(parent, opts)
     local list = CreateFrame("Frame", nil, parent)
     list:SetClipsChildren(true)
+    list.padList = true       -- moved through by its items (UI/Focus.lua)
     list:EnableMouseWheel(true)
     list.items, list.offset, list.total = {}, 0, 0
     list.tops, list.heights = {}, {}
@@ -98,6 +99,7 @@ function List.New(parent, opts)
             end
         end
         local scrollable = self.total > height
+        FG.Emit("list:rendered", self)
         thumb:SetShown(scrollable)
         if scrollable then
             local h = math.max(THUMB_MIN, height * height / self.total)

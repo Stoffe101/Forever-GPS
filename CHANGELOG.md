@@ -1,6 +1,31 @@
 # Changelog
 
-## 2.5.0 (unreleased, not yet tested in the game)
+## 2.6.0 (unreleased, not yet tested in the game or on a controller)
+
+Forever-GPS with a controller, on a PC or a Steam Deck. [docs/CONTROLLER.md](docs/CONTROLLER.md)
+
+### Added
+
+- **Every page by controller:** search and results, routes and their alternatives, the route map, saved places, Your Quests and the Quest Explorer, trips, all five Professions views, lists, prices and settings. The D-pad moves a visible selection; A selects, B goes back, Y searches, the shoulders change page and the triggers change view.
+- **Customize Controls** (Settings, Controller): change any button by pressing it, with a modifier if you like. A button already in use offers Swap, Replace or Cancel; the game's own use of a button is named. Undo, Reset one, Reset all, and layouts for Steam Deck, Xbox, PlayStation and Minimal.
+- **Profiles:** as many as you like, named, duplicated, renamed and deleted. One for the handheld layout and one for desktop, switched by themselves, and a per-character choice.
+- **An on-screen keyboard** for the search, the Quest Explorer and profile names. Y searches at once and selects the first result.
+- **Handheld layout** for 1280×800: larger, one column, the buttons named at the foot, and a compact navigation display that the controller can place.
+- **A short introduction** the first time a controller is used, skippable.
+- **Open from anywhere** with one button, only if you allow it.
+- Feel settings: a held direction's repeat, highlight strength, a soft click, the left stick.
+
+### Safe by design
+
+- The buttons are Forever-GPS's only while its window is open. In combat they are the game's at once, and come back afterwards.
+- Your saved key bindings are never changed. Mouse and keyboard work as before.
+- No dependency. Easy Controller and ConsolePort keep working beside it.
+
+### Changed
+
+- The search box no longer takes the keyboard when the window opens with a controller in use.
+
+## 2.5.0 (installed in the game on 2026-11-11 and confirmed working)
 
 Fixes for what 2.4 did in the real game, found from the player's BugSack and saved data. [docs/REALCLIENT.md](docs/REALCLIENT.md)
 

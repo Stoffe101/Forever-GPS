@@ -469,12 +469,25 @@ function Frame:SetBackdropColor() end
 function Frame:SetBackdropBorderColor() end
 function Frame:ApplyBackdrop() end
 
+-- The controller's frame methods. EnableGamePadButton, EnableGamePadStick and
+-- EnableKeyboard are protected: UI.Protected (set by support/gamepad.lua) refuses them in
+-- combat, as the game does.
+local function Allowed(what) return not UI.Protected or UI.Protected(what) end
+function Frame:EnableGamePadButton(on) if Allowed("EnableGamePadButton") then self._padButtons = on and true or nil end end
+function Frame:EnableGamePadStick(on) if Allowed("EnableGamePadStick") then self._padStick = on and true or nil end end
+function Frame:IsGamePadButtonEnabled() return self._padButtons == true end
+function Frame:IsGamePadStickEnabled() return self._padStick == true end
+do
+    local keyboard = Frame.EnableKeyboard
+    function Frame:EnableKeyboard(on) if Allowed("EnableKeyboard") then keyboard(self, on) end end
+end
+
 -- Buttons
 local Button = setmetatable({}, { __index = Frame })
 function Button:RegisterForClicks(...) self._clicks = { ... } end
-function Button:Click(button)
+function Button:Click(button, down)
     if self._disabled then return end
-    if self._scripts.OnClick then self._scripts.OnClick(self, button or "LeftButton") end
+    if self._scripts.OnClick then self._scripts.OnClick(self, button or "LeftButton", down) end
 end
 function Button:Enable() self._disabled = nil end
 function Button:Disable() self._disabled = true end
@@ -515,7 +528,8 @@ function EditBox:ClearFocus()
     if self._scripts.OnEditFocusLost then self._scripts.OnEditFocusLost(self) end
 end
 function EditBox:HasFocus() return self._focused == true end
-function EditBox:SetMaxLetters() end
+function EditBox:SetMaxLetters(n) self._maxLetters = n end
+function EditBox:GetMaxLetters() return self._maxLetters or 0 end
 function EditBox:SetMultiLine(on) self._multi = on end
 function EditBox:SetTextInsets() end
 function EditBox:SetJustifyH() end

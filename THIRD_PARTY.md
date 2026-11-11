@@ -1,6 +1,6 @@
 # Third-party code and data
 
-Forever-GPS reuses parts of three MIT-licensed WoW Forever addons. Why these parts were chosen over the alternatives is in [docs/REUSE.md](docs/REUSE.md).
+Forever-GPS reuses parts of four MIT-licensed WoW Forever addons. Why these parts were chosen over the alternatives is in [docs/REUSE.md](docs/REUSE.md).
 
 - **Pinned copies:** the exact upstream files are kept in `third_party/`, with their hashes in `third_party/THIRD_PARTY.lock.json`.
 - **Check:** `python -I tools/third_party.py verify` checks them, and CI runs it.
@@ -70,6 +70,25 @@ Not used: the buy-quantity preset, the chart and history views, the price store,
   - Merchant prices are marked as listed until a merchant is seen.
 - **Data license:** profit generated this data from the WoW Forever client's own tables, build 1.60.1.70790. The MIT license covers seth's generator, the layout and his hand-made lists. The facts belong to the game. They are used as facts the client already holds and are not claimed to be MIT or Forever-GPS's. See [docs/REUSE.md](docs/REUSE.md).
 - **Not used:** disenchanting data, item names, the UI, the tooltips and the recording code.
+
+## Easy Controller - Forever
+
+- **Repository:** https://github.com/moust4ki/EasyControllerWowForever
+- **Commit:** `cf2ad94a33efd50bbd9b36055b6d8f111ac33233` (version 1.20.1)
+- **License:** MIT, Copyright (c) 2026 moust4ki. Shipped as `Licenses/EasyController-LICENSE.txt`. Its `ConsolePort.lua` and `textures/consoleport` (Artistic License 2.0, after ConsolePort) and its `Dict_*.lua` (CC-BY-SA-4.0) are under other licenses: nothing was taken from them.
+- **Files used:** `ConfigWindow.lua`, read for how it drives its own window with a controller on Forever.
+- **Used in:** `Core/Pad.lua`. No code was copied; the approach was followed and written anew.
+
+| From Easy Controller | Changes in Forever-GPS |
+| --- | --- |
+| While its window is open, the window's buttons are priority override bindings (`SetOverrideBindingClick`) to hidden buttons, cleared when it closes | Kept. Bindings come from the player's profile, with modifier chords, and every action is a click on a hidden `ForeverGPSPad_<action>` button that hears down and up |
+| A button already held when the window opens is bound only once released (`IsKeyDown`), so its release stays the game's | Kept |
+| Learning a binding: a frame with `EnableKeyboard`, `SetPropagateKeyboardInput(false)` and `EnableGamePadButton`, a 10-second limit, the back button alone cancels | Kept, with Escape also cancelling and a held modifier making a chord |
+| Everything that binds checked against `InCombatLockdown` | Kept, and added: a secure state handler (`SecureHandlerStateTemplate`, `RegisterStateDriver` on `[combat]`) drops the window's bindings the moment combat starts, and `PLAYER_REGEN_DISABLED` drops them just before. They come back after combat if the window is still open |
+
+Not used: its input methods, wheels, reticle, dictionaries, keyboards, chat, glyph textures, profiles and everything outside the config window.
+
+Also read, and not used: **ConsolePort** (https://github.com/seblindfors/ConsolePort, Artistic License 2.0). Its keyboard would have fitted, but its license asks more of a Modified Version than a small built-in keyboard warrants. Forever-GPS's keyboard (`UI/PadKeyboard.lua`) is its own.
 
 ## Not used
 

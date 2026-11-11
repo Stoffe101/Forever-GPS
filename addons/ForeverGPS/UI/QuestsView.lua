@@ -375,6 +375,11 @@ end
 
 function View.Mode() return mode end
 
+-- For the controller: the two modes in turn.
+function View.Cycle()
+    View.SetMode(mode == "log" and "find" or "log")
+end
+
 function View.SetFilter(key)
     filter = key
     for _, chip in ipairs(f.chips) do

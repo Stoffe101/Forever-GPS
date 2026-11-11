@@ -79,7 +79,14 @@ for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyF
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
     .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo GetProfessions GetProfessionInfo GetTaxiMapID TaxiNodeCost GetRealmName GetMinimapZoneText GetMerchantNumItems GetMerchantItemID UnitGUID UnitName strsplit GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceSkillReq GetTrainerServiceLevelReq GetTrainerServiceCost GetTrainerServiceStepIndex GetTrainerServiceSkillLine GetTrainerTradeskillRankValues IsTradeskillTrainer C_MerchantFrame C_Item C_AuctionHouse C_TradeSkillUI C_TaxiMap C_Container Enum IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "
-    .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G coroutine"):gmatch("%S+") do GAME[name] = true end
+    .. "StaticPopup_Show ForeverGPSPreflight ForeverGPSImported EasyFindDB _G coroutine "
+    -- The controller (Core/Pad.lua), each in Blizzard's own UI code of build 12.1.5.70783:
+    -- C_GamePad (Blizzard_APIDocumentationGenerated/GamePadDocumentation.lua),
+    -- override bindings, GetBindingAction, GetBindingText and IsKeyDown
+    -- (Blizzard_Settings_Shared/Keybindings), RegisterStateDriver (SecureStateDriver.lua),
+    -- GetPhysicalScreenSize (Blizzard_Settings_Shared/Graphics).
+    .. "C_GamePad SetOverrideBindingClick SetOverrideBinding ClearOverrideBindings GetBindingAction GetBindingText IsKeyDown "
+    .. "IsControlKeyDown IsAltKeyDown RegisterStateDriver GetPhysicalScreenSize"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
 for name in ("ForeverGPS ForeverGPSDB ForeverGPSCharDB ForeverGPS_OnCompartmentClick SLASH_FOREVERGPS1 SLASH_FOREVERGPS2 "
@@ -206,6 +213,8 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     -- MerchantFrame.lua, ItemDocumentation.lua; build 12.1.5.70783): Core/Compat.lua.
     haystack[#haystack + 1] = "C_MerchantFrame.GetItemInfo C_Item.RequestLoadItemDataByID C_Item.GetItemInfo C_Item.GetItemCount "
         .. "C_Item.GetItemNameByID C_Container.GetItemCooldown C_Item.GetItemCooldown C_TradeSkillUI.IsTradeSkillReady"
+    -- The controller (Core/Pad.lua), from GamePadDocumentation.lua of the same build line.
+    haystack[#haystack + 1] = "C_GamePad.IsEnabled"
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do
@@ -222,7 +231,7 @@ function tests.everyEventListened_isOneTheClientFires()
     for name in ("ADDON_LOADED PLAYER_LOGIN QUEST_LOG_UPDATE QUEST_ACCEPTED QUEST_REMOVED QUEST_TURNED_IN UNIT_QUEST_LOG_CHANGED "
         .. "TAXIMAP_OPENED HEARTHSTONE_BOUND UI_SCALE_CHANGED DISPLAY_SIZE_CHANGED PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED "
         .. "GLOBAL_MOUSE_DOWN PLAYER_LEVEL_UP SKILL_LINES_CHANGED PLAYER_ENTERING_WORLD UPDATE_FACTION "
-        .. "AUCTION_HOUSE_SHOW AUCTION_HOUSE_CLOSED REPLICATE_ITEM_LIST_UPDATE COMMODITY_SEARCH_RESULTS_UPDATED ITEM_SEARCH_RESULTS_UPDATED GET_ITEM_INFO_RECEIVED TRADE_SKILL_DATA_SOURCE_CHANGED TRADE_SKILL_CLOSE AUCTION_HOUSE_BROWSE_RESULTS_UPDATED BAG_UPDATE_DELAYED MERCHANT_SHOW TRAINER_SHOW TRADE_SKILL_SHOW "
+        .. "AUCTION_HOUSE_SHOW AUCTION_HOUSE_CLOSED REPLICATE_ITEM_LIST_UPDATE COMMODITY_SEARCH_RESULTS_UPDATED ITEM_SEARCH_RESULTS_UPDATED GET_ITEM_INFO_RECEIVED GAME_PAD_ACTIVE_CHANGED GAME_PAD_CONNECTED GAME_PAD_DISCONNECTED PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED TRADE_SKILL_DATA_SOURCE_CHANGED TRADE_SKILL_CLOSE AUCTION_HOUSE_BROWSE_RESULTS_UPDATED BAG_UPDATE_DELAYED MERCHANT_SHOW TRAINER_SHOW TRADE_SKILL_SHOW "
         .. "TRADE_SKILL_LIST_UPDATE"):gmatch("%S+") do KNOWN[name] = true end
     for _, file in ipairs(Sources()) do
         for event in file.src:gmatch('FG%.OnEvent%("([%u_]+)"') do
@@ -238,6 +247,10 @@ for name in ("Paint Place SetLabel SetVariant SetSelected SetColor SetColorKey S
     .. "Width Measure Render Clamp SetItems Refresh Reveal "
     -- EasyFind and EasyFind GPS objects, reached through the Bridge.
     .. "IsPlanning Plan BuildRoute Clear Build Guiding HasGlobalInstanceCache SetStart "
+    -- A secure handler's own method, inside its restricted snippet (Core/Pad.lua).
+    .. "ClearBindings "
+    -- C_Timer.NewTimer and NewTicker's handles (Blizzard_SharedXMLBase/FunctionUtil.lua).
+    .. "Cancel "
     .. "Line Begin Finish GetMapID GetXY "
     -- Questie's loader, reached only from Core/QuestDB.lua.
     .. "ImportModule GetUiMapIdByAreaId "

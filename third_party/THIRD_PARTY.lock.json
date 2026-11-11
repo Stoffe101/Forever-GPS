@@ -59,5 +59,20 @@
         "sha256": "f577704fb6609adc6ef5142cb57f49e0aef4cbb006cbb4a6e5f37ea6d680daa1"
       }
     }
+  },
+  "EasyController": {
+    "repository": "https://github.com/moust4ki/EasyControllerWowForever",
+    "commit": "cf2ad94a33efd50bbd9b36055b6d8f111ac33233",
+    "license": "MIT, Copyright (c) 2026 moust4ki (the parts reused; ConsolePort.lua, textures/consoleport and Dict_*.lua are under other licenses and were not used)",
+    "files": {
+      "ConfigWindow.lua": {
+        "upstream_path": "ConfigWindow.lua",
+        "sha256": "21be0aafdcf3d583ac2eb97a8944a98259383b9143fe0bfe70ccd4cbe54ec175"
+      },
+      "LICENSE": {
+        "upstream_path": "LICENSE",
+        "sha256": "fef4bf71def787097addbf0109fdcb4e73bf6251e3108d213bdde729c4d8ee17"
+      }
+    }
   }
 }

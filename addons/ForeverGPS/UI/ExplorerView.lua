@@ -361,6 +361,14 @@ local function Build(parent)
     f.box:SetScript("OnArrowPressed", function(_, key)
         if key == "DOWN" then Move(1) elseif key == "UP" then Move(-1) end
     end)
+    -- Done on the controller's keyboard: the search now, the selection on its first result.
+    f.box.padAccept = function()
+        runToken = runToken + 1
+        View.Refresh(false)
+        for _, row in ipairs(list.shown or {}) do
+            if row.item and row.item.kind == "result" then return FG.Focus.To(row) end
+        end
+    end
 
     f.chips = {}
     f.nearChip = Kit.Chip(f, L["XF_NEAR"], function() View.ShowNear() end)
@@ -411,3 +419,6 @@ function View.Show()
 end
 
 function View.Get(parent) return f or Build(parent) end
+
+-- For the controller: its box, for the search button (UI/MainWindow.lua).
+function View.Box() return f and f.box end

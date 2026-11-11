@@ -131,6 +131,14 @@ Those numbers show the format and are not measurements.
 
 The index is built when the window first opens, so a session that never opens it pays nothing.
 
+## The controller in 2.6
+
+- **With the window closed:** nothing of the controller's runs. No `OnUpdate`: the repeat timer and the watcher for a button held as the window opens are hidden until needed, and a test holds that. One override binding exists only if you allowed a button to open Forever-GPS from anywhere.
+- **A press:** one click on a hidden button, then one move of the selection. Moving within a list is a step through its items; moving elsewhere looks at the clickable frames of the window in front once. In the stand-in client, whose layout solving is far slower than the game's, a press averages about 3.6 ms including redrawing the list; a test keeps it under 5 ms there.
+- **Long lists:** the selection moves through items, not frames, so a list of 400 items still builds only a screenful of rows (tested).
+- **The input becoming the controller** (`GAME_PAD_ACTIVE_CHANGED`) relayouts the window once, for the handheld size and the hint line. The client sends it when the input in use changes, not at every press.
+- **Memory:** one profile is about 30 short strings. The keyboard, dialog and highlight are built the first time they are needed.
+
 ## What keeps it cheap
 
 - Nothing runs with the window closed and no route: no `OnUpdate`, no polling.

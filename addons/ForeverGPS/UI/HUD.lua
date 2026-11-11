@@ -32,7 +32,19 @@ local since = 0
 local aim                    -- the arrow's rotation now
 
 local function Enabled() return FG.db and FG.db.hud.enabled end
-local function Look() return LAYOUT[FG.db.hud.mode] or LAYOUT.standard end
+local function Handheld() return FG.Window and FG.Window.Handheld and FG.Window.Handheld() end
+local function Look()
+    if Handheld() and FG.db.hud.handheldCompact ~= false then return LAYOUT.compact end
+    return LAYOUT[FG.db.hud.mode] or LAYOUT.standard
+end
+
+-- Places a controller can choose (Settings, Controller): the top, its corners, the foot.
+HUD.SPOTS = {
+    top = { "TOP", "TOP", 0, HOME_Y },
+    topleft = { "TOPLEFT", "TOPLEFT", 24, -24 },
+    topright = { "TOPRIGHT", "TOPRIGHT", -24, -200 },
+    bottom = { "BOTTOM", "BOTTOM", 0, 150 },
+}
 
 function HUD.Guiding()
     return f ~= nil and f:IsVisible() and f.arrow:IsShown()
@@ -374,6 +386,26 @@ end)
 FG.On("arrow:changed", function()
     if f then HUD.Render(Journey.View()) end
 end)
+
+-- A spot chosen with the controller: the HUD goes there, as a drag would put it.
+function HUD.MoveTo(spot)
+    local s = HUD.SPOTS[spot]
+    if not s then return false end
+    FG.db.hud.point = { s[1], s[2], s[3], s[4] }
+    FG.db.hud.spot = spot
+    if f then Place() end
+    return true
+end
+function HUD.Spot() return FG.db.hud.point and FG.db.hud.spot or "top" end
+
+local function Relook()
+    if not f then return end
+    ApplyLook()
+    ApplyScale()
+    HUD.Render(Journey.View())
+end
+FG.On("pad:layout", Relook)
+FG.On("pad:input", Relook)
 
 FG.On("places:reset", function()
     if f then

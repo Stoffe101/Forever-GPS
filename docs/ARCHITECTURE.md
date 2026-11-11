@@ -93,7 +93,9 @@ WoW hands an addon only what is saved under its own name, so what EasyFind GPS s
 | `Core/Suggest.lua` | What might be useful now, for the home view |
 | `Core/TomTom.lua` | Optional mirror to TomTom |
 | `Core/Diagnostics.lua` | `/fgps diag` and the copyable report |
+| `Core/Pad.lua` | The controller: actions, layouts, profiles, taking the window's buttons while it is open, learning a binding ([CONTROLLER.md](CONTROLLER.md)) |
 | `UI/Theme.lua`, `UI/Kit.lua`, `UI/List.lua` | Tokens, widgets, a list that builds only what fits |
+| `UI/Focus.lua`, `UI/PadKeyboard.lua`, `UI/PadSettings.lua` | The controller's selection, its on-screen keyboard, and Settings, Controller |
 | `UI/RouteMap.lua` | A map of our own, so nothing here has to open or turn the game's |
 | `UI/MapPreview.lua` | The journey or a quest's places, on our map or over one the player opened |
 | `UI/RoutePanel.lua`, `UI/SearchView.lua`, `UI/QuestsView.lua`, `UI/TripView.lua` | The window's pages |
@@ -143,13 +145,17 @@ Addons cannot reach the network, so Wowhead could only ever be static data shipp
 
 Nothing here opens, closes or turns the game's map, and every change to its waypoint and tracking waits out a fight and an open map: [TAINT.md](TAINT.md) says why, and a static test holds it.
 
-Only one secure frame exists: the HUD's cast button for teleport steps. It hangs from `UIParent`, not the HUD, because a frame a secure frame is anchored to becomes protected. It is hidden and unanchored at `PLAYER_REGEN_DISABLED`, and never touched in combat. Everything else is plain frames, so the window and HUD work during a fight.
+The controller's buttons are the window's only while it is open and never in combat: they are dropped at `PLAYER_REGEN_DISABLED`, and the frame that owns them is a secure state handler that drops them itself when combat starts ([CONTROLLER.md](CONTROLLER.md)). That handler's only job is clearing its own bindings.
+
+Apart from it, only one secure frame exists: the HUD's cast button for teleport steps. It hangs from `UIParent`, not the HUD, because a frame a secure frame is anchored to becomes protected. It is hidden and unanchored at `PLAYER_REGEN_DISABLED`, and never touched in combat. Everything else is plain frames, so the window and HUD work during a fight.
 
 ## Testing
 
 The test client (`tests/support/client.lua`) loads the real addons through their real TOC files, under the real load rules. Routing tests run the real engine on the real data and walking grid, and search tests run the real map search and NPC catalog. Only the player and the screen are pretended, plus a small stand-in Questie. Map geometry is exact, taken from the catalog's own map planes.
 
 `tests/support/fakeui.lua` really solves anchors, so layout can be tested. It estimates font widths on the wide side and refuses over-constrained anchors. `tools/ui_preview.lua` renders the same thing to HTML for a person to look at, and [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) sets out what they should see.
+
+`tests/support/gamepad.lua` delivers controller presses the way the client does, refuses protected calls in combat lockdown, and runs the secure combat handler; `tests/test_controller.lua` drives every page with presses alone.
 
 `tests/test_golden.lua` takes six journeys from typing to arriving. `tests/test_invariants.lua` holds what must be true for any input, with a fixed seed so a failure repeats.
 

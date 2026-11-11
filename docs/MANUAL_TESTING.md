@@ -269,7 +269,17 @@ The first things to check. Each is quick, and together they show whether 2.5 fix
 12. [ ] `/reload`. The Professions page opens where you left it, and prices and lists are still there.
 13. [ ] BugSack: nothing names ForeverGPS. Then paste `/fgps report` with any report.
 
-## 17. Living with it
+## 17. 2.6 with a controller
+
+The full list is in [CONTROLLER.md](CONTROLLER.md), "Real-device checklist". The short version:
+
+1. [ ] `/fgps`, then press the D-pad: a highlight, and the introduction.
+2. [ ] Y, type a place, Y: the first result is selected. A, then start the journey.
+3. [ ] With the window open, start a fight: the controller is the game's at once. BugSack stays empty.
+4. [ ] Settings, Controller: change a button, Undo it.
+5. [ ] The game's own Key Bindings are unchanged.
+
+## 18. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.

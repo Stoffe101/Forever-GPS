@@ -487,7 +487,75 @@ local function Map(c, screen)
     Settle(c, 0.2)
 end
 
+-- A Steam Deck's screen, 1280x800 at the default scale, driven by the controller alone.
+local DECK = { "deck", 1280, 800, 800 / 768, "1280x800 (Steam Deck), handheld layout, controller" }
+
+local function PadExtras(c)
+    local out = {}
+    for _, name in ipairs({ "ForeverGPSKeyboard", "ForeverGPSPadDialog", "ForeverGPSFocusRing" }) do
+        local f = c.env[name]
+        if f and f._shown then out[#out + 1] = f end
+    end
+    return out
+end
+
+local function Controller(screen)
+    local c = NewClient(screen)
+    local FG = c.FG
+    local function Press(button, times)
+        for _ = 1, times or 1 do
+            c:PadPress(button)
+            Settle(c, 0.05)
+        end
+    end
+    local function PadShot(state) Shot(c, screen, state, PadExtras(c)) end
+    c:PadPress("PADDDOWN")
+    FG.Window.Show("search")
+    Settle(c, 0.3)
+    PadShot("pad-intro")
+    Press("PAD2")
+    Press("PADDDOWN", 2)
+    PadShot("pad-home")
+    FG.SearchView.Box():SetText("auberdin")
+    Press("PAD4")
+    for _, key in ipairs({ "PADDRIGHT", "PADDRIGHT" }) do Press(key) end
+    PadShot("pad-keyboard")
+    Press("PAD4")
+    Settle(c, 1)
+    PadShot("pad-results")
+    Press("PAD1")
+    Planned(c)
+    PadShot("pad-journey")
+    Press("PADRSTICK")
+    Settle(c, 0.5)
+    Press("PADDRIGHT")
+    Settle(c, 0.3)
+    Shot(c, screen, "pad-map", PadExtras(c))
+    Press("PAD2")
+    FG.Planner.Clear()
+    Press("PADRSHOULDER")
+    Settle(c, 0.5)
+    Press("PADDDOWN", 2)
+    PadShot("pad-quests")
+    Press("PADRSHOULDER")
+    Settle(c, 0.3)
+    PadShot("pad-professions")
+    FG.Window.Show("settings")
+    FG.SettingsView.SelectByLabel("SETG_CONTROLLER")
+    Settle(c, 0.3)
+    FG.Focus.First()
+    PadShot("pad-settings")
+    FG.PadSettings.Change("search")
+    PadShot("pad-press")
+    c:PadPress("PAD3")
+    Settle(c, 0.1)
+    PadShot("pad-clash")
+    Press("PAD2")
+    print(screen[1], "controller", #c.errors == 0 and "ok" or (#c.errors .. " errors"), c.errors[1] and c.errors[1]:sub(1, 300) or "")
+end
+
 local only = arg and arg[1]
+if not only or only == "deck" then Controller(DECK) end
 for i, screen in ipairs(SCREENS) do
     if not only or only == screen[1] then
         local c = NewClient(screen)

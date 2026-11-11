@@ -85,6 +85,7 @@ local GROUPS = {
         end)
         ui.note("SET_PRICES_NOTE")
     end },
+    { label = "SETG_CONTROLLER", build = function(ui) FG.PadSettings.Build(ui) end },
     { label = "SETG_MAP", build = function(ui)
         ui.check("SET_MAP_PREVIEW", function() return FG.db.map.preview end, function(on)
             FG.db.map.preview = on
@@ -228,12 +229,14 @@ local function BuildGroup(group)
     function ui.note(key)
         local fs = Kit.Text(content, "small", "textDim", 0)
         fs:SetText(L[key])
-        Add(fs, 34)
+        Add(fs, 34, "text")
     end
     function ui.status(read)
         local fs = Kit.Text(content, "small", "textDim")
         Add(fs, 20, nil, { read = read })
     end
+    -- A widget of a group's own: make(content) builds it; Sync, and Layout for "flow".
+    function ui.custom(make, height, sizing) Add(make(content), height, sizing) end
     group.build(ui)
     group.items = items
 end
@@ -283,6 +286,10 @@ local function PlaceItems()
         elseif item.sizing == "fill" then
             w:SetWidth(width)
             if item.widget.Sync then item.widget:Sync() end
+        elseif item.sizing == "text" then
+            -- As tall as its wrapped lines at this width, never less than asked.
+            w:SetWidth(width)
+            h = math.max(item.height, math.ceil(w:GetStringHeight() or 0) + 10)
         end
         item.top, item.h = y, h
         y = y + h
@@ -326,6 +333,28 @@ end
 
 function View.Groups() return GROUPS end
 
+-- For the controller: the groups in turn, a group by its name, and a control brought on
+-- screen when the focus lands on it.
+function View.Cycle(dir)
+    View.Select((current - 1 + dir) % #GROUPS + 1)
+end
+
+function View.SelectByLabel(label)
+    for i, g in ipairs(GROUPS) do
+        if g.label == label then return View.Select(i) end
+    end
+end
+
+function View.RevealFrame(frame)
+    for _, item in ipairs(GROUPS[current].items or {}) do
+        local p = frame
+        while p do
+            if p == item.widget then return View.Reveal(item) end
+            p = p:GetParent()
+        end
+    end
+end
+
 local function Build(parent)
     f = CreateFrame("Frame", nil, parent)
     f.back = Kit.Shape(f, 8, "BACKGROUND", 1)
@@ -339,6 +368,7 @@ local function Build(parent)
     end
     f.content = CreateFrame("Frame", nil, f)
     f.content:SetClipsChildren(true)
+    f.content.padReveal = function(frame) View.RevealFrame(frame) end
     f.content:EnableMouseWheel(true)
     f.content:SetScript("OnMouseWheel", function(_, delta)
         f.scroll = f.scroll - delta * WHEEL

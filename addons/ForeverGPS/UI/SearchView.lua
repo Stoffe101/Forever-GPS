@@ -403,6 +403,14 @@ local function Build(parent)
     f.box:SetScript("OnArrowPressed", function(_, key)
         if key == "DOWN" then Move(1) elseif key == "UP" then Move(-1) end
     end)
+    -- Done on the controller's keyboard: the search now, not after the pause, and the
+    -- selection on its first result.
+    f.box.padAccept = function()
+        runToken = runToken + 1
+        Run()
+        local first = View.FirstFocus()
+        if first and first ~= f.box then FG.Focus.To(first) end
+    end
 
     f.chips = {}
     local function AddChip(key, label)
@@ -448,9 +456,28 @@ function View.Show()
     View.Layout()
     Bridge.WarmSearch()
     Run()
-    f.box:SetFocus()
+    -- With the controller, the box waits to be chosen: focused, it would take the keys.
+    if not (FG.Pad and FG.Pad.InUse()) then f.box:SetFocus() end
 end
 
 function View.Get(parent) return f or Build(parent) end
+
+-- For the controller (UI/Focus.lua): the box, where to start, the filters in turn.
+function View.Box() return f and f.box end
+
+function View.FirstFocus()
+    if not f then return nil end
+    for _, row in ipairs(list.shown or {}) do
+        if row.item and row.item.result then return row end
+    end
+    return f.box
+end
+
+function View.Cycle(dir)
+    local i = 1
+    for k, chip in ipairs(f.chips) do if chip.key == filter then i = k end end
+    local chip = f.chips[(i - 1 + dir) % #f.chips + 1]
+    chip:Click()
+end
 
 function View._Results() return results end    -- tests
