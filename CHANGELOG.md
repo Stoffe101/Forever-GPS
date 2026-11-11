@@ -27,6 +27,9 @@ Forever-GPS with a controller, on a PC or a Steam Deck. [docs/CONTROLLER.md](doc
 
 ### Fixed
 
+- **The open-from-anywhere button worked in combat**, opening or closing Forever-GPS instead of doing what the game uses it for. It is now the game's for the whole fight, like every other button, and comes back after.
+- **A game button chosen for it was taken before you agreed**, if you had agreed for an earlier button. Now nothing is saved or bound until you answer, and agreement belongs to one button: changing it, switching profile or Undo never carries it to another.
+- **Closing the window while it waited for a press** left it listening, and after ten seconds took the window's buttons back with the window closed, so the D-pad went to Forever-GPS while playing. The wait, and any open question, now end with the window, with a disconnected controller, and with combat; a reload leaves nothing unanswered saved.
 - Counts of one read as one: "About 1 craft", "1 item priced", "1 misses a reagent price", "1 trainer known to teach it" and the like, instead of "1 crafts".
 
 ## 2.5.0 (installed in the game on 2026-11-11 and confirmed working)

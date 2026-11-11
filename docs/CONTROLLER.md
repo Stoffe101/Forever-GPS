@@ -46,7 +46,7 @@ Settings, Controller.
 | Controller highlight and hints | When the controller is in use, always, or never |
 | Profile | One chip per profile; New (from the Steam Deck or Xbox layout), Duplicate, Rename (with the on-screen keyboard), Delete. The last profile cannot be deleted |
 | Use this profile for this character only | A per-character profile over the account's |
-| Open Forever-GPS from anywhere | The one button that works outside the window, only with your consent. The game's own use of it is named |
+| Open Forever-GPS from anywhere | The one button that works outside the window, only with your consent, and never in combat. The game's own use of it is named. Consent is for that one button: choosing another button, switching profile or Undo never carries it over |
 | Customize controls | Every action: its button, Change and Reset |
 | Undo the last change | One step back, whatever it was |
 | Start again from a layout | Steam Deck, Xbox, PlayStation or Minimal, with Undo |
@@ -61,9 +61,11 @@ Profiles are account-wide. The account keeps one profile in use for the handheld
 3. If the button is taken:
    - another Forever-GPS action has it: **Swap**, **Replace** (the other is left without a button) or **Cancel**;
    - Move up, Move down, Select and Back always keep a button: a change that would leave one without is refused, and says why.
-4. For **Open or close Forever-GPS** only, if the game itself uses the button (`GetBindingAction`): **Use it** (it opens Forever-GPS while playing; your saved key bindings are untouched), **Only to close it**, **Choose another** or **Cancel**.
+4. For **Open or close Forever-GPS** only, if the game itself uses the button (`GetBindingAction`), you are asked **before anything is saved or bound**: **Use it** (it opens Forever-GPS while playing, out of combat; your saved key bindings are untouched), **Only to close it**, **Choose another** or **Cancel**. Until you answer, the button stays the game's and the old one keeps working.
 
 Not in combat: the game does not let addons listen to the controller then. A change asked for in combat says so; a fight starting while waiting for a press ends the wait.
+
+A wait for a press, or a question about it, also ends cleanly when the window closes (as Cancel), when the controller is disconnected, or with a reload: nothing keeps listening to the keyboard or controller afterwards, and no unanswered choice is saved. Taking up the mouse does not end it: a keyboard key can still be the answer, and the mouse can click Cancel.
 
 When a conflict cannot be known, nothing claims there is none. The game reports its own bindings; another addon's override bindings are not visible to Forever-GPS.
 
@@ -120,7 +122,7 @@ The game sees what Steam Input sends. For Forever-GPS:
 
 **Taking the buttons.** While the window is open, each bound button is a priority override binding (`SetOverrideBindingClick`) to a hidden button named `ForeverGPSPad_<action>`. The hidden button hears both down and up, so a held direction repeats and stops on release. Closing the window clears them. A button already held when the window opens is bound only once released, so its release stays the game's. The player's saved key bindings are never written (`SetBinding` and `SaveBindings` are never called).
 
-**Combat.** Two guards. `PLAYER_REGEN_DISABLED` comes just before the combat lockdown, while protected changes are still allowed: the bindings are cleared then. And the owner of the bindings is a secure state handler (`SecureHandlerStateTemplate` with `RegisterStateDriver(owner, "fgpscombat", "[combat] 1; 0")`) whose restricted snippet calls `self:ClearBindings()` when combat starts. Nothing protected is called during combat. If the window is still open afterwards, the buttons come back.
+**Combat.** Two guards, for both binding owners: the window's buttons and the open-from-anywhere button. `PLAYER_REGEN_DISABLED` comes just before the combat lockdown, while protected changes are still allowed: both are cleared then. And each owner is a secure state handler (`SecureHandlerStateTemplate` with `RegisterStateDriver(owner, "fgpscombat", "[combat] 1; 0")`) whose restricted snippet calls `self:ClearBindings()` when combat starts. Nothing protected is called during combat; every button is the game's for the whole fight. Afterwards the open-from-anywhere button comes back, and the window's buttons too if it is still open.
 
 **Focus.** Anything in the front window that can be clicked can be selected: buttons, chips, checks, list rows, edit boxes, sliders. A direction picks the nearest one that way, weighing distance along the direction against twice the distance across. Virtual lists are moved through item by item, scrolling as needed, so each of hundreds of items can be reached with only a screenful of rows. A selected item that changes or disappears (new prices, a narrower search) is found again by its key, or its nearest neighbour is taken. Surfaces stack above the window: the route map, the keyboard, a dialog. The top one gets the buttons.
 
@@ -161,7 +163,7 @@ Forever-GPS needs none of them. With Easy Controller or ConsolePort installed, e
 
 ## Testing
 
-`tests/test_controller.lua` (34 tests) drives the real addon through `tests/support/gamepad.lua`, a simulation of how the client delivers controller input:
+`tests/test_controller.lua` (43 tests) drives the real addon through `tests/support/gamepad.lua`, a simulation of how the client delivers controller input:
 
 - a frame hearing the controller gets the press first, then override bindings (priority first, then the latest), then the game's own binding;
 - each owner keeps its own override bindings;
@@ -200,6 +202,6 @@ On a Steam Deck (or a PC with a controller). Tick each:
 - Not tested on a real controller or Steam Deck yet.
 - The left stick is off by default until checklist item 13 is answered.
 - The Deck's back buttons depend on the Steam Input template.
-- The window's buttons are Forever-GPS's only while it is open; a button pressed to open it from the world needs consent, and replaces the game's use of that button while Forever-GPS is loaded.
+- The window's buttons are Forever-GPS's only while it is open; a button pressed to open it from the world needs consent, and replaces the game's use of that button while Forever-GPS is loaded, out of combat only.
 - The route map has no controller zoom; up shows all of the route and left/right step through it.
 - Another addon's override bindings on the same buttons are not visible: while the window is open, Forever-GPS's priority bindings win.

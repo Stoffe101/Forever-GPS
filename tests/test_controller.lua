@@ -78,8 +78,7 @@ function tests.theWorldButton_needsConsent()
     FG.Pad.Apply()
     T.eq(FG.Pad.Binding("toggle"), "PADPADDLE1", "the Deck's paddle opens it")
     T.eq(c:PadPress("PADPADDLE1"), "game", "without consent the paddle stays the game's")
-    FG.Pad.Settings().worldConsent = true
-    FG.Pad.ApplyWorld()
+    FG.Pad.SetWorldConsent(true)
     T.eq(c:PadPress("PADPADDLE1"), "addon", "with consent it opens Forever-GPS")
     c:Advance(0.2)
     T.ok(FG.Window.IsShown(), "open")
@@ -720,10 +719,297 @@ function tests.aController_neverTouchesTheGamesSavedBindings()
     c.env.SaveBindings = function() saved = saved + 1 end
     Open(c)
     FG.Pad.Set("save", "PADPADDLE2")
-    FG.Pad.Settings().worldConsent = true
     FG.Pad.Set("toggle", "PADPADDLE1")
+    FG.Pad.SetWorldConsent(true)
     Press(c, "PADDDOWN", 3)
     T.eq(saved, 0, "only override bindings, never the player's own")
+end
+
+-- ==== hardening: combat, consent, interrupted captures ======================
+
+local function Closed(c, FG)
+    if FG.Window.IsShown() then FG.Window.Hide() end
+    c:Advance(0.2)
+end
+
+-- The open-from-anywhere button, allowed, is the game's in combat, the window open or
+-- closed, and Forever-GPS's again after.
+function tests.theWorldShortcut_isTheGamesInCombat()
+    local c, FG = Start()
+    c.gameBindings["PADPADDLE1"] = "JUMP"
+    FG.Pad.Set("toggle", "PADPADDLE1")
+    FG.Pad.SetWorldConsent(true)
+    T.eq(c:PadPress("PADPADDLE1"), "addon", "out of combat it opens Forever-GPS")
+    Closed(c, FG)
+    -- Closed, then combat.
+    c:SetCombat(true)
+    T.eq(c:PadPress("PADPADDLE1"), "game", "in combat, closed: the game's")
+    T.eq(c.gameActions[#c.gameActions], "JUMP", "the game's own action got it")
+    T.ok(not FG.Window.IsShown(), "and Forever-GPS did not open")
+    c:SetCombat(false)
+    T.eq(c:PadPress("PADPADDLE1"), "addon", "after combat it opens Forever-GPS again")
+    c:Advance(0.2)
+    T.ok(FG.Window.IsShown(), "open")
+    -- Open, then combat.
+    c:SetCombat(true)
+    T.eq(c:PadPress("PADPADDLE1"), "game", "in combat, open: the game's")
+    T.eq(c.gameActions[#c.gameActions], "JUMP", "the game's own action got it")
+    T.ok(FG.Window.IsShown(), "the window was not closed by it")
+    T.eq(c:PadPress("PADDDOWN"), "game", "the window's buttons are the game's too")
+    c:SetCombat(false)
+    T.eq(c:PadPress("PADDDOWN"), "addon", "after combat the window's buttons come back")
+    Closed(c, FG)
+    T.eq(c:PadPress("PADPADDLE1"), "addon", "and the world button")
+    T.eq(#c.blocked, 0, "nothing protected was tried in combat: " .. tostring(c.blocked[1]))
+end
+
+-- Even if the combat-start event were missed, the secure handler drops the world button.
+function tests.theWorldShortcut_isDroppedByTheSecureHandlerToo()
+    local c, FG = Start()
+    FG.Pad.Set("toggle", "PADPADDLE1")
+    FG.Pad.SetWorldConsent(true)
+    -- Lockdown without the event: only the state handlers run.
+    c.player.combat = true
+    for _, d in ipairs(c.drivers) do
+        if d.frame:GetAttribute("_onstate-" .. d.state):find("ClearBindings", 1, true) then c.bindingSets[d.frame] = nil end
+    end
+    T.eq(c:PadPress("PADPADDLE1"), "game", "the game's")
+    T.eq(#c.blocked, 0, tostring(c.blocked[1]))
+    c.player.combat = false
+end
+
+local function ToControllerSettings(c, FG)
+    Open(c, "settings")
+    FG.SettingsView.SelectByLabel("SETG_CONTROLLER")
+    c:Advance(0.2)
+end
+
+-- Whether the open-from-anywhere owner binds this button (whatever the open window does).
+local function WorldOwns(c, chord)
+    local set = c.bindingSets[c.env.ForeverGPSPadWorld]
+    return set ~= nil and set[chord] ~= nil
+end
+
+local function Choose(c, FG, label)
+    for _, b in ipairs(FG.PadSettings.DialogButtons()) do
+        if b:IsShown() and b.label:GetText() == label then
+            b:Click()
+            c:Advance(0.2)
+            return true
+        end
+    end
+    return false
+end
+
+-- A game button for the open-from-anywhere action: asked first, and nothing taken or
+-- saved until the answer; consent belongs to that button alone.
+function tests.aGameButton_isNotTakenBeforeConsent()
+    local c, FG = Start()
+    local P = FG.Pad
+    c.gameBindings["PADFORWARD"] = "TOGGLEGAMEMENU"
+    c.gameBindings["PADSOCIAL"] = "TOGGLESOCIAL"
+    c.env.BINDING_NAME_TOGGLEGAMEMENU = "Game Menu"
+    -- Consent already given, for a free paddle.
+    P.Set("toggle", "PADPADDLE1")
+    P.SetWorldConsent(true)
+    ToControllerSettings(c, FG)
+
+    -- Asked: nothing changes before the answer.
+    FG.PadSettings.Change("toggle")
+    c:PadPress("PADFORWARD")
+    c:Advance(0.2)
+    T.ok(FG.PadSettings.DialogShown(), "asked")
+    T.eq(P.Binding("toggle"), "PADPADDLE1", "not saved before the answer")
+    T.ok(not WorldOwns(c, "PADFORWARD"), "the game's button is not taken before the answer")
+    T.ok(WorldOwns(c, "PADPADDLE1"), "the old button still works meanwhile")
+
+    -- Cancel: as before.
+    T.ok(Choose(c, FG, "Cancel"), "cancel")
+    T.eq(P.Binding("toggle"), "PADPADDLE1", "cancelled: unchanged")
+    T.ok(not WorldOwns(c, "PADFORWARD") and WorldOwns(c, "PADPADDLE1"), "cancelled: the old button still")
+
+    -- Only to close it: saved, never taken while playing.
+    FG.PadSettings.Change("toggle")
+    c:PadPress("PADFORWARD")
+    T.ok(Choose(c, FG, "Only to close it"), "declined")
+    T.eq(P.Binding("toggle"), "PADFORWARD", "saved")
+    T.ok(not P.WorldConsented(), "no consent")
+    T.ok(not WorldOwns(c, "PADFORWARD"), "declined: not taken while playing")
+    Closed(c, FG)
+    T.eq(c:PadPress("PADFORWARD"), "game", "declined: the game's menu while playing")
+
+    -- Use it: taken, with consent for this button.
+    ToControllerSettings(c, FG)
+    FG.PadSettings.Change("toggle")
+    c:PadPress("PADSOCIAL")
+    T.ok(not WorldOwns(c, "PADSOCIAL"), "not before the answer")
+    T.ok(Choose(c, FG, "Use it"), "accepted")
+    T.ok(P.WorldConsented(), "consent for it")
+    T.ok(WorldOwns(c, "PADSOCIAL"), "accepted: taken while playing")
+
+    -- Undo: back to PADFORWARD, and the consent does not follow it there.
+    T.ok(P.Undo(), "undo")
+    T.eq(P.Binding("toggle"), "PADFORWARD", "undone")
+    T.ok(not P.WorldConsented(), "the consent was for the other button")
+    T.ok(not WorldOwns(c, "PADFORWARD") and not WorldOwns(c, "PADSOCIAL"), "undone: neither taken")
+
+    -- Choose another, then a free one: free buttons work as before.
+    FG.PadSettings.Change("toggle")
+    c:PadPress("PADSOCIAL")
+    T.ok(Choose(c, FG, "Choose another"), "choose another")
+    T.ok(FG.Pad.Learning(), "waiting for another press")
+    T.ok(not WorldOwns(c, "PADSOCIAL"), "the first choice not taken")
+    c:PadPress("PADPADDLE3")
+    c:Advance(0.2)
+    T.eq(P.Binding("toggle"), "PADPADDLE3", "the free one")
+    T.ok(WorldOwns(c, "PADPADDLE3"), "a free button works while playing")
+
+    -- Profiles: consent does not travel to another profile's button.
+    P.NewProfile("deck", "Couch")
+    T.eq(P.Binding("toggle"), "PADPADDLE1", "the Deck profile's own")
+    T.ok(not P.WorldConsented(), "no consent for this profile's button")
+    T.eq(#c.blocked, 0, tostring(c.blocked[1]))
+end
+
+-- Over and over: no consent leaks, no stray binding.
+function tests.changingTheShortcutRepeatedly_staysConsistent()
+    local c, FG = Start()
+    local P = FG.Pad
+    for _, key in ipairs({ "PADFORWARD", "PADSOCIAL", "PADSYSTEM" }) do c.gameBindings[key] = "GAME_" .. key end
+    ToControllerSettings(c, FG)
+    local plan = {
+        { "PADFORWARD", "Use it", true }, { "PADSOCIAL", "Cancel", nil }, { "PADSOCIAL", "Only to close it", false },
+        { "PADSYSTEM", "Use it", true }, { "PADFORWARD", "Only to close it", false }, { "PADSYSTEM", "Use it", true },
+    }
+    for i, step in ipairs(plan) do
+        local before = P.Binding("toggle")
+        FG.PadSettings.Change("toggle")
+        c:PadPress(step[1])
+        c:Advance(0.2)
+        T.ok(Choose(c, FG, step[2]), i .. ": " .. step[2])
+        local now = P.Binding("toggle")
+        if step[3] == nil then T.eq(now, before, i .. ": unchanged") else T.eq(now, step[1], i .. ": saved") end
+        -- Only the consented button, if any, is the world's.
+        for _, key in ipairs({ "PADFORWARD", "PADSOCIAL", "PADSYSTEM" }) do
+            local should = P.WorldConsented() and key == now
+            T.eq(WorldOwns(c, key), should, ("%d: %s taken: %s"):format(i, key, tostring(should)))
+        end
+    end
+    -- Undo twice in a row ends on a state that is still consistent.
+    P.Undo()
+    for _, key in ipairs({ "PADFORWARD", "PADSOCIAL", "PADSYSTEM" }) do
+        T.eq(WorldOwns(c, key), P.WorldConsented() and key == P.Binding("toggle"), "after undo: " .. key)
+    end
+end
+
+-- Anything listening for a press: nothing of it may outlive an interruption.
+local function NothingListens(c, FG, what)
+    T.ok(not FG.Pad.Learning(), what .. ": not learning")
+    local learner = c.env.ForeverGPSPadLearner
+    T.ok(not (learner and learner:IsShown()), what .. ": the capture frame is hidden")
+    T.ok(not FG.PadSettings.DialogShown(), what .. ": no dialog left")
+    for _, f in ipairs(c.frames) do
+        if f:IsVisible() and (f._keyboard or f._padButtons) then
+            T.ok(false, what .. ": a shown frame still takes input: " .. tostring(f:GetName()))
+        end
+    end
+end
+
+function tests.closingTheWindow_endsACapture()
+    local c, FG = Start()
+    ToControllerSettings(c, FG)
+    FG.PadSettings.Change("search")
+    T.ok(FG.Pad.Learning(), "capturing")
+    FG.Window.Hide()
+    c:Advance(0.1)
+    NothingListens(c, FG, "window closed")
+    local learner = c.env.ForeverGPSPadLearner
+    T.ok(not learner._keyboard and not learner._padButtons, "the capture frame let go of keyboard and controller")
+    c:Advance(11)
+    T.eq(#c:OverridesOf(c.env.ForeverGPSPadOwner), 0, "the window's buttons are not taken back after the timeout")
+    T.eq(c:PadPress("PADDDOWN"), "game", "the D-pad is the game's with the window closed")
+    T.eq(c:PadPress("PAD4"), "game", "and Y")
+    T.ok(not FG.Window.IsShown(), "the window stays closed")
+end
+
+function tests.closingTheWindow_dismissesAQuestion()
+    local c, FG = Start()
+    c.gameBindings["PADFORWARD"] = "TOGGLEGAMEMENU"
+    ToControllerSettings(c, FG)
+    local before = FG.Pad.Binding("toggle")
+    FG.PadSettings.Change("toggle")
+    c:PadPress("PADFORWARD")
+    c:Advance(0.2)
+    T.ok(FG.PadSettings.DialogShown(), "asked")
+    FG.Window.Hide()
+    c:Advance(0.1)
+    NothingListens(c, FG, "window closed on the question")
+    T.eq(FG.Pad.Binding("toggle"), before, "taken as Cancel: unchanged")
+    T.ok(not WorldOwns(c, "PADFORWARD"), "the game's button not taken")
+    -- Opened again: no leftover question, the window works.
+    Open(c, "search")
+    T.ok(not FG.PadSettings.DialogShown(), "no question waiting")
+    T.eq(c:PadPress("PADDDOWN"), "addon", "the window's buttons work")
+end
+
+function tests.combat_endsACaptureCleanly()
+    local c, FG = Start()
+    ToControllerSettings(c, FG)
+    FG.PadSettings.Change("search")
+    c:SetCombat(true)
+    T.ok(not FG.Pad.Learning(), "ended")
+    local learner = c.env.ForeverGPSPadLearner
+    T.ok(not learner:IsShown() and not learner._keyboard and not learner._padButtons, "its listeners let go before the lockdown")
+    T.ok(FG.PadSettings.DialogShown(), "it says why")
+    T.eq(c:PadPress("PAD1"), "game", "A is the game's in combat")
+    c:SetCombat(false)
+    Press(c, "PAD1")      -- OK on the message
+    NothingListens(c, FG, "after combat")
+    T.eq(c:PadPress("PADDDOWN"), "addon", "the window's buttons are back")
+    T.eq(#c.blocked, 0, tostring(c.blocked[1]))
+end
+
+function tests.switchingInput_duringACapture()
+    local c, FG = Start()
+    ToControllerSettings(c, FG)
+    -- The mouse taken up: the capture still takes a key, or the mouse clicks Cancel.
+    FG.PadSettings.Change("save")
+    c:MouseUsed()
+    T.ok(FG.Pad.Learning(), "still waiting: a key can answer")
+    local learner = c.env.ForeverGPSPadLearner
+    learner._scripts.OnKeyDown(learner, "F")
+    T.eq(FG.Pad.Binding("save"), "F", "a keyboard key")
+    FG.PadSettings.Change("save")
+    c:MouseUsed()
+    T.ok(Choose(c, FG, "Cancel"), "the mouse on Cancel")
+    NothingListens(c, FG, "cancelled with the mouse")
+    -- The controller unplugged: the capture ends.
+    FG.PadSettings.Change("save")
+    c:Fire("GAME_PAD_DISCONNECTED")
+    c:Advance(0.1)
+    NothingListens(c, FG, "controller gone")
+    T.eq(FG.Pad.Binding("save"), "F", "unchanged")
+end
+
+function tests.aReload_duringACapture_leavesNothingBehind()
+    local c, FG = Start()
+    c.gameBindings["PADFORWARD"] = "TOGGLEGAMEMENU"
+    FG.Pad.Set("toggle", "PADPADDLE1")
+    FG.Pad.SetWorldConsent(true)
+    ToControllerSettings(c, FG)
+    FG.PadSettings.Change("toggle")
+    c:PadPress("PADFORWARD")       -- the question on screen when the reload comes
+    c:Advance(0.2)
+    local saved = Stack.Saved(c)
+    local d = Stack.new({ mapID = 1453, x = 0.6, y = 0.6, saved = saved, questie = QUESTIE, quests = LOG })
+    d.gameBindings["PADFORWARD"] = "TOGGLEGAMEMENU"
+    d:Advance(0.5)
+    local G = d.FG
+    T.eq(G.Pad.Binding("toggle"), "PADPADDLE1", "the unanswered button was never saved")
+    T.ok(G.Pad.WorldConsented(), "the consent for the old button kept")
+    T.ok(WorldOwns(d, "PADPADDLE1") and not WorldOwns(d, "PADFORWARD"), "only the old button is taken")
+    NothingListens(d, G, "after the reload")
+    T.eq(d:PadPress("PADFORWARD"), "game", "the game's menu button is the game's")
 end
 
 return tests

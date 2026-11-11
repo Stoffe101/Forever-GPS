@@ -185,6 +185,8 @@ end)
 FG.OnEvent("GAME_PAD_CONNECTED", function() FG.Emit("pad:input", inUse) end)
 FG.OnEvent("GAME_PAD_DISCONNECTED", function()
     inUse = false
+    -- A capture waiting for a controller button ends with the controller.
+    Pad.StopLearning()
     FG.Emit("pad:input", false)
 end)
 
@@ -430,14 +432,23 @@ local capturing = false
 local pending = false    -- the window wants the pad, after combat
 local repeating          -- an action repeated while its button is held
 
-local function Owner()
-    if owner then return owner end
-    owner = CreateFrame("Frame", "ForeverGPSPadOwner", UIParent, "SecureHandlerStateTemplate")
-    owner:SetAttribute("_onstate-fgpscombat", [[
+-- A binding owner that lets go of its bindings itself the moment combat starts: a
+-- secure state handler, whose restricted snippet may still do that in combat.
+local function CombatSafeOwner(name)
+    local f = CreateFrame("Frame", name, UIParent, "SecureHandlerStateTemplate")
+    f:SetAttribute("_onstate-fgpscombat", [[
         if newstate == "1" then self:ClearBindings() end
     ]])
-    if RegisterStateDriver then RegisterStateDriver(owner, "fgpscombat", "[combat] 1; 0") end
-    world = CreateFrame("Frame", "ForeverGPSPadWorld", UIParent)
+    if RegisterStateDriver then RegisterStateDriver(f, "fgpscombat", "[combat] 1; 0") end
+    return f
+end
+
+-- Two owners: the window's buttons (while it is open) and the one that opens it from
+-- anywhere. Neither keeps a button in combat: there, every button is the game's.
+local function Owner()
+    if owner then return owner end
+    owner = CombatSafeOwner("ForeverGPSPadOwner")
+    world = CombatSafeOwner("ForeverGPSPadWorld")
     return owner
 end
 
@@ -451,8 +462,25 @@ local function ButtonFor(id)
     return b
 end
 
+-- Whether the player let the open-from-anywhere button work while playing. The consent is
+-- for one button: changing the button, switching profile or undoing never carries it to
+-- another, so no button the game uses is taken without being asked about.
+function Pad.WorldConsented()
+    local s, chord = Pad.Settings(), Pad.Binding("toggle")
+    return chord ~= nil and s.worldConsent == true and s.worldChord == chord
+end
+
+function Pad.SetWorldConsent(on)
+    local s = Pad.Settings()
+    s.worldConsent = on and true or false
+    s.worldChord = on and Pad.Binding("toggle") or nil
+    Pad.ApplyWorld()
+    FG.Emit("pad:bindings")
+end
+
 -- The world binding: opening Forever-GPS from anywhere. Only with the player's consent,
 -- because whatever the game does with that button is replaced while Forever-GPS is loaded.
+-- Never in combat: it is dropped as combat starts and put back after.
 function Pad.ApplyWorld()
     if InCombatLockdown() then
         pending = true
@@ -460,9 +488,8 @@ function Pad.ApplyWorld()
     end
     Owner()
     ClearOverrideBindings(world)
-    local chord = Pad.Binding("toggle")
-    if chord and Pad.Settings().worldConsent then
-        SetOverrideBindingClick(world, false, chord, ButtonFor("toggle"):GetName())
+    if Pad.WorldConsented() then
+        SetOverrideBindingClick(world, false, Pad.Binding("toggle"), ButtonFor("toggle"):GetName())
     end
     return true
 end
@@ -566,7 +593,10 @@ FG.OnEvent("PLAYER_REGEN_DISABLED", function()
     -- Remember to take them back. The stick's frame, hidden, hears nothing.
     if capturing then pending = true end
     capturing = false
-    if owner and not InCombatLockdown() then ClearOverrideBindings(owner) end
+    if owner and not InCombatLockdown() then
+        ClearOverrideBindings(owner)
+        ClearOverrideBindings(world)
+    end
     held = {}
     if stick then
         stick:Hide()
@@ -576,11 +606,11 @@ FG.OnEvent("PLAYER_REGEN_DISABLED", function()
     FG.Emit("pad:capture", false)
 end)
 FG.OnEvent("PLAYER_REGEN_ENABLED", function()
-    if pending then
-        pending = false
-        if FG.Window and FG.Window.IsShown() then Pad.Capture(true) end
-        Pad.ApplyWorld()
-    end
+    local wanted = pending
+    pending = false
+    if wanted and FG.Window and FG.Window.IsShown() then Pad.Capture(true) end
+    -- The world button was dropped as combat started, whatever else happened: back now.
+    Pad.ApplyWorld()
 end)
 FG.On("login", function()
     DB()
@@ -630,7 +660,11 @@ end
 FG.On("window:shown", function()
     if Pad.Enabled() then Pad.Capture(true) end
 end)
-FG.On("window:hidden", function() Pad.Capture(false) end)
+FG.On("window:hidden", function()
+    -- A capture waiting for a press ends with the window: nothing keeps listening.
+    Pad.StopLearning()
+    Pad.Capture(false)
+end)
 
 -- ==== learning a binding ====================================================
 
@@ -654,7 +688,7 @@ function Pad.Learn(id, done, timeout)
                 learner:EnableKeyboard(false)
                 if learner.EnableGamePadButton then learner:EnableGamePadButton(false) end
             end
-            if capturing or learner.wasCapturing then Pad.Capture(true) end
+            if (capturing or learner.wasCapturing) and FG.Window and FG.Window.IsShown() then Pad.Capture(true) end
             local cb = learner.done
             learner.done = nil
             if cb then cb(chord) end

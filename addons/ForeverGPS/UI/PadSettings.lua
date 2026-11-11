@@ -86,11 +86,12 @@ local function Ask(title, body, choices)
     end
     d:ClearAllPoints()
     d:SetPoint("CENTER", FG.Window.Frame() or UIParent, "CENTER", 0, 0)
+    d.choices = choices
     d:Show()
     d:Raise()
     if not surface then
         surface = { root = d, onBack = function()
-            local last = choices[#choices]
+            local last = d.choices[#d.choices]
             CloseDialog()
             if last and last[2] then last[2]() end
         end }
@@ -104,49 +105,55 @@ local function Ask(title, body, choices)
 end
 PadSettings._Ask = Ask
 function PadSettings.DialogShown() return dialog ~= nil and dialog:IsShown() end
+
+-- The question on screen answered with its last choice (Cancel), as Back does.
+function PadSettings.Dismiss()
+    if not (dialog and dialog:IsShown()) then return false end
+    local last = dialog.choices and dialog.choices[#dialog.choices]
+    CloseDialog()
+    if last and last[2] then last[2]() end
+    return true
+end
 function PadSettings.DialogButtons() return dialog and dialog.buttons or {} end
 
 local function ActionName(id) return L[Pad().BY_ID[id].key] end
 
--- After a press: a clash with another action, the game's own use (for the button that
--- works everywhere), or simply saved.
-local function Settle(id, chord)
+-- After a press: the game's own use (for the button that works everywhere), a clash with
+-- another action, or simply saved.
+--
+-- The open-from-anywhere button, when the game uses it, is asked about first: nothing is
+-- saved or bound until the player chooses. "world" is consent to take it while playing,
+-- "window" is only to close the window, "free" a button the game does nothing with.
+local function Settle(id, chord, use)
     local P = Pad()
-    local ok, why, other = P.Set(id, chord)
-    if ok then
-        if id == "toggle" then
-            local _, gameName = P.GameAction(chord)
-            if gameName then
-                return Ask(L["PAD_NATIVE_TITLE_FMT"]:format(P.Label(chord)), L["PAD_NATIVE_BODY_FMT"]:format(gameName), {
-                    { L["PAD_NATIVE_USE"], function()
-                        P.Settings().worldConsent = true
-                        P.ApplyWorld()
-                        FG.Emit("pad:bindings")
-                    end },
-                    { L["PAD_NATIVE_WINDOW_ONLY"], function()
-                        P.Settings().worldConsent = false
-                        P.ApplyWorld()
-                        FG.Emit("pad:bindings")
-                    end },
-                    { L["PAD_CHOOSE_ANOTHER"], function() PadSettings.Change(id) end },
-                    { L["PAD_CANCEL"], function() P.Undo() end },
-                })
-            end
-            P.Settings().worldConsent = true
-            P.ApplyWorld()
+    if id == "toggle" and not use then
+        local _, gameName = P.GameAction(chord)
+        if gameName then
+            return Ask(L["PAD_NATIVE_TITLE_FMT"]:format(P.Label(chord)), L["PAD_NATIVE_BODY_FMT"]:format(gameName), {
+                { L["PAD_NATIVE_USE"], function() Settle(id, chord, "world") end },
+                { L["PAD_NATIVE_WINDOW_ONLY"], function() Settle(id, chord, "window") end },
+                { L["PAD_CHOOSE_ANOTHER"], function() PadSettings.Change(id) end },
+                { L["PAD_CANCEL"] },
+            })
         end
-        return
+        use = "free"
     end
+    -- Once the button is saved: the consent, for this button only.
+    local function Saved()
+        if id ~= "toggle" then return end
+        P.SetWorldConsent(use ~= "window")
+    end
+    local ok, why, other = P.Set(id, chord)
+    if ok then return Saved() end
     if why == "clash" then
+        local function Resolve(how)
+            local done, err = P.Set(id, chord, how)
+            if done then return Saved() end
+            if err == "essential" then Ask(L["PAD_ESSENTIAL_TITLE"], L["PAD_ESSENTIAL_BODY"], { { L["PAD_OK"] } }) end
+        end
         return Ask(L["PAD_CLASH_TITLE_FMT"]:format(P.Label(chord)), L["PAD_CLASH_BODY_FMT"]:format(ActionName(other), ActionName(id)), {
-            { L["PAD_SWAP"], function()
-                local done, err = P.Set(id, chord, "swap")
-                if not done and err == "essential" then Ask(L["PAD_ESSENTIAL_TITLE"], L["PAD_ESSENTIAL_BODY"], { { L["PAD_OK"] } }) end
-            end },
-            { L["PAD_REPLACE"], function()
-                local done, err = P.Set(id, chord, "replace")
-                if not done and err == "essential" then Ask(L["PAD_ESSENTIAL_TITLE"], L["PAD_ESSENTIAL_BODY"], { { L["PAD_OK"] } }) end
-            end },
+            { L["PAD_SWAP"], function() Resolve("swap") end },
+            { L["PAD_REPLACE"], function() Resolve("replace") end },
             { L["PAD_CANCEL"] },
         })
     end
@@ -341,10 +348,7 @@ function PadSettings.Build(ui)
     end)
     ui.heading("PAD_H_OPEN")
     ui.custom(function(parent) return BindingRow(parent, "toggle") end, 30, "fill")
-    ui.check("PAD_WORLD_CONSENT", function() return P.Settings().worldConsent end, function(on)
-        P.Settings().worldConsent = on
-        P.ApplyWorld()
-    end)
+    ui.check("PAD_WORLD_CONSENT", function() return P.WorldConsented() end, function(on) P.SetWorldConsent(on) end)
     ui.status(function()
         local chord = P.Binding("toggle")
         if not chord then return L["PAD_WORLD_NONE"] end
@@ -419,6 +423,14 @@ FG.On("pad:input", function(active)
 end)
 FG.On("window:shown", function()
     if Pad().InUse() and not Pad().DB().introDone then FG.After(0, function() PadSettings.Intro(false) end) end
+end)
+
+FG.On("window:hidden", function()
+    PadSettings.Dismiss()
+    if nameBox and nameBox:IsShown() then
+        nameBox:ClearFocus()
+        nameBox:Hide()
+    end
 end)
 
 FG.On("pad:bindings", function()
