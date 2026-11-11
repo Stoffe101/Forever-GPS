@@ -547,6 +547,17 @@ function tests.theGamesOwnUse_isSaidAndChosen()
     -- Only to close it: no world binding; the button closes the open window.
     FG.PadSettings.DialogButtons()[2]:Click()
     T.ok(not FG.Pad.Settings().worldConsent, "no consent given")
+    -- The settings line under it names what the game does with that button.
+    local said
+    for _, group in ipairs(FG.SettingsView.Groups()) do
+        if group.label == "SETG_CONTROLLER" then
+            for _, item in ipairs(group.items) do
+                local text = item.read and item.read()
+                if text and text:find("Game Menu", 1, true) then said = text end
+            end
+        end
+    end
+    T.ok(said ~= nil, "the settings say the game uses it for the Game Menu")
     c:Advance(0.2)
     T.eq(c:PadPress("PADFORWARD"), "addon", "closes the window")
     c:Advance(0.1)

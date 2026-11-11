@@ -244,7 +244,7 @@ local function ProfileWidget(parent)
         for i, name in ipairs(names) do
             local chip = w.chips[i]
             if not chip then
-                chip = Kit.Chip(w, "", function(self) Pad().Use(self.profile) end)
+                chip = Kit.Chip(w, "", function(picked) Pad().Use(picked.profile) end)
                 w.chips[i] = chip
             end
             chip.profile = name
@@ -347,8 +347,9 @@ function PadSettings.Build(ui)
     end)
     ui.status(function()
         local chord = P.Binding("toggle")
-        local _, game = chord and P.GameAction(chord)
         if not chord then return L["PAD_WORLD_NONE"] end
+        -- Both values: "chord and f()" would keep only the first.
+        local _, game = P.GameAction(chord)
         if game then return L["PAD_WORLD_GAME_FMT"]:format(game) end
         return L["PAD_WORLD_FREE"]
     end)

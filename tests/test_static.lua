@@ -321,6 +321,18 @@ function tests.noMultiReturnLostToAndOr()
     -- `x and f() or nil` keeps one value of f's: a bug this code has had.
     local src = Read("addons/ForeverGPS/Core/Bridge.lua")
     T.no(src:find("Arrow%._Aim%(%)%s+or"), "ArrowAim must hand back every value")
+    -- Anywhere: `local a, b = x and f()` leaves b nil whatever f returns.
+    for _, file in ipairs(Sources()) do
+        for line in CodeOnly(file.src):gmatch("[^\n]+") do
+            local rhs = line:match("^%s*local%s+[%w_]+%s*,[%w_%s,]*=%s*(.+)$")
+            if rhs then
+                -- Only what is outside brackets and strings counts.
+                local top = rhs:gsub('"[^"]*"', '""'):gsub("%b()", "()"):gsub("%b{}", "{}"):gsub("%b[]", "[]")
+                local logic = top:find("%f[%w]and%f[%W]") or top:find("%f[%w]or%f[%W]")
+                T.ok(top:find(",", 1, true) or not logic, file.path .. ": several values from one and/or: " .. line:gsub("^%s+", ""))
+            end
+        end
+    end
 end
 
 function tests.diagnostics_knowsEveryDirectCall()
