@@ -79,7 +79,8 @@ local function fontString(fs, parentRect, out, scale)
     local eff = fs:GetEffectiveScale()
     local c = fs._color or { 1, 1, 1, 1 }
     local just = ({ LEFT = "left", CENTER = "center", RIGHT = "right" })[fs._justifyH or "LEFT"]
-    local wrap = fs._wrap == false and "white-space:nowrap;text-overflow:ellipsis;" or ""
+    -- The game breaks a line where the text does: so does the render.
+    local wrap = fs._wrap == false and "white-space:nowrap;text-overflow:ellipsis;" or "white-space:pre-line;"
     -- A string sized to its own text is drawn at its true width, not the estimate's.
     if fs._wrap == false and not fs._w and #fs._points < 2 then wrap = "white-space:nowrap;overflow:visible;" end
     local clamp = fs._maxLines and fs._maxLines > 0 and ("display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:%d;"):format(fs._maxLines) or ""

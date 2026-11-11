@@ -83,7 +83,11 @@ WoW hands an addon only what is saved under its own name, so what EasyFind GPS s
 | `Core/QuestBrowse.lua` | Finding quests: lists, filters, near the player, one quest's details |
 | `Core/Continuity.lua` | Keeps a destination when the player travels another way |
 | `Core/Fares.lua`, `Core/Hearth.lua` | Fares, money ways and the hearth's status |
-| `Core/Professions.lua`, `Core/Market.lua`, `Core/Crafting.lua`, `Core/Trainers.lua` | Professions, prices, crafting maths and lists, trainers by what they teach |
+| `Core/Professions.lua`, `Data/Recipes.lua` | Professions, recipes, and the game's skill ranges for every recipe |
+| `Core/Market.lua`, `Core/MarketSearch.lua`, `Core/Quote.lua` | The auction house scan and searches (after CraftProfit), and pricing a quantity (after ForeverNet) |
+| `Core/Crafting.lua` | Crafting maths, the cheapest way up, profit and lists |
+| `Core/Trainers.lua` | Trainers, by profession and rank, as their windows said |
+| `Core/Alts.lua`, `Core/PriceHistory.lua` | Other characters as last seen, price history and alerts |
 | `Core/Suggest.lua` | What might be useful now, for the home view |
 | `Core/TomTom.lua` | Optional mirror to TomTom |
 | `Core/Diagnostics.lua` | `/fgps diag` and the copyable report |

@@ -28,7 +28,9 @@ DEVELOPMENT = re.compile(r"(^|/)(tests?|\.github|__pycache__)/|\.py$|(^|/)\.[^/]
 REQUIRED = ("ForeverGPS.toc", "Bindings.xml", "Core/Preflight.lua", "Core/Namespace.lua", "Core/Bridge.lua", "Core/Imported.lua", "UI/HUD.lua",
             "Vendor/EasyFind/Core/Main.lua", "Vendor/EasyFind_GPS/GPS.lua", "Vendor/EasyFind_GPS/Data_Forever.lua",
             "Vendor/EasyFind_GPS/Walk_Kalimdor.lua", "Vendor/EasyFind_GPS/Walk_EasternKingdoms.lua",
-            "Vendor/EasyFind_Questie/Quests.lua", "Vendor/EasyFind/LICENSE", "Vendor/EasyFind_GPS/LICENSE", "Vendor/EasyFind_Questie/LICENSE")
+            "Vendor/EasyFind_Questie/Quests.lua", "Vendor/EasyFind/LICENSE", "Vendor/EasyFind_GPS/LICENSE", "Vendor/EasyFind_Questie/LICENSE",
+            # The MIT licenses of what is reused (THIRD_PARTY.md), and the recipe data.
+            "Licenses/CraftProfit-LICENSE.txt", "Licenses/ForeverNet-LICENSE.txt", "Licenses/profit-LICENSE.txt", "Data/Recipes.lua")
 # Left out on purpose. Their presence would mean the assembly went wrong.
 OTHER_CLIENTS = ("Data_Era", "Data_TBC", "Data_Mists", "Walk_Outland", "Walk_Northrend", "Npcs_Retail", "Walk_Kalimdor_Era")
 

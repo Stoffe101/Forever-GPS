@@ -230,7 +230,28 @@ Everything here is new and untested in the game. Report anything that disagrees 
 12. [ ] **A list.** Add recipes from Profit to a list. Lists shows what is left to buy, with bags and bank apart. Mark one bought, then reload: the mark stays.
 13. [ ] Repeat the taint check from section 13 with these in use. Nothing in BugSack names ForeverGPS.
 
-## 15. Living with it
+## 15. New in 2.4
+
+Everything here is new and untested in the game. Report anything that disagrees with what you see, with `/fgps report`.
+
+1. [ ] **The report.** `/fgps report` has lines for Navigation, Prices and Trainer window. Paste it with any report below.
+2. [ ] **A jump.** Start a journey, then hearth or teleport away. The HUD says "Recalculating from where you are now" and a new route appears within a second or two.
+3. [ ] **A wrong flight.** Land somewhere else: "Recalculating from where you landed".
+4. [ ] **From elsewhere.** Search `from Ironforge to Goldshire`. The search says "From Ironforge". Pick Goldshire: the route starts in Ironforge and says so. Start it: it waits until you are in Ironforge.
+5. [ ] **Why this way.** A route's note says what it was chosen for: quickest of N ways, or what Best value saves.
+6. [ ] **A trainer.** Open a profession trainer's window. `/fgps report` says "Trainer window: current shape" or "classic shape". Search `expert alchemy trainer` (your profession and next rank): that trainer is first and says "Teaches Expert Alchemy", or last with "Does not teach this rank".
+7. [ ] **Another profession's trainer.** Open a trainer of a profession you do not have. Your own profession's search does not count it as teaching your rank.
+8. [ ] **The scan.** Open the auction house, Professions, Prices: Scan. It says "Waiting for its answer", then "Receiving listings", then "Reading". It ends with a count. Close the window mid-scan once: it says what was kept.
+9. [ ] **Refresh a list.** With a list and the auction house open, press "Refresh these prices". Each reagent is asked in turn and the prices update.
+10. [ ] **Skill up.** Professions, Skill up: segments say "ranges from the game's data". Choose "Include recipes to learn": recipes to learn appear with "Learn ..." lines.
+11. [ ] **Quantities.** A list of 20 of something whose reagent has few listed says "N more than are listed".
+12. [ ] **Make or buy.** On a list with something you can make, choose the other way. It stays after `/reload`.
+13. [ ] **Copy.** On a list, press Copy. The text has one line per item.
+14. [ ] **Another character.** Log in to a second character with a profession, then back. Overview shows it under "Other characters (as last seen)" with its age.
+15. [ ] **An alert.** `/fgps alert <a reagent> <a price above today's>`. Scan: chat says it is under your price, once.
+16. [ ] Repeat the taint check from section 13. Nothing in BugSack names ForeverGPS.
+
+## 16. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.

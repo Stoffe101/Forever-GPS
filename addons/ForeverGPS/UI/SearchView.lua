@@ -257,6 +257,11 @@ local function ResultItems()
     if info.unknown then
         items[#items + 1] = { kind = "hint", body = L["SEARCH_FLIGHT_UNKNOWN"] }
     end
+    if info.from then
+        items[#items + 1] = { kind = "hint", body = L["SEARCH_FROM_FMT"]:format(info.from.name or "?") }
+    elseif info.fromMissing then
+        items[#items + 1] = { kind = "hint", body = L["SEARCH_FROM_UNKNOWN_FMT"]:format(info.fromMissing) }
+    end
     for i = 1, #results do
         items[#items + 1] = { kind = "card", result = results[i] }
     end

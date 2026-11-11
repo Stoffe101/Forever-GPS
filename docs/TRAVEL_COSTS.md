@@ -8,7 +8,7 @@ Every journey shows what it costs beside how long it takes. Two ways of planning
 - **Several flights:** a route with more than one adds them up.
 - **A flight never priced:** estimated from this character's own fares per yard, and shown with `~`.
 - **No fares seen at all:** a rough figure stands in, also shown with `~`, so Best value can still weigh a flight. The route says to open a flight master's map once to learn the real fares.
-- **Free means free:** a route with no flight is shown as free. A missing fare is never read as free.
+- **Free means free:** a route with no flight is shown as free. A missing fare is never read as free: a flight with no figure at all reads "fare unknown", or a price "+ ?", and the route says to open a flight master's map.
 - **Not counted:** boats, trams and zeppelins are free here. Teleport reagents are not priced yet.
 
 Money is kept in copper throughout.
@@ -52,6 +52,15 @@ The route panel says when a plan uses your hearth: where it is bound, whether it
 - **Rebinding:** an old landing is dropped as soon as you bind elsewhere.
 
 Nothing is ever cast for you.
+
+## Why this way
+
+Each route says what it was chosen for, against the quickest:
+
+- **Fastest:** the quickest of the ways found.
+- **Best value:** how much slower and cheaper it is, at your rate.
+- **Cheapest:** the least money within your extra-time limit.
+- **Safer, Roads, Overland:** what each keeps to.
 
 ## After a reroute
 

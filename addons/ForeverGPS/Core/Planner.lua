@@ -158,7 +158,7 @@ local function Keep(id, index, steps, total, extra)
     option.steps, option.total, option.advice = steps, total, extra.advice
     option.risk, option.walks = extra.risk, extra.walks
     option.builtAt = GetTime()
-    option.from = extra.from or Bridge.PlayerStart()
+    option.from = extra.from or (current and current.from) or Bridge.PlayerStart()
     if not steps then
         option.failed = true
     elseif NoWay(steps) then
@@ -200,7 +200,8 @@ local function BuildOption(dest, option, stops)
     else
         steps, total, advice = Bridge.BuildRoute(dest, option.avoid, "all")
     end
-    local from = Bridge.PlayerStart()
+    -- Where the plan starts: a named start for a preview, else the player.
+    local from = current and current.from or Bridge.PlayerStart()
     local extra = { advice = advice, from = from }
     if steps and not NoWay(steps) and not Fallback(steps) then
         local plan = { steps = steps, from = from }
@@ -324,8 +325,11 @@ function Planner.Inspect(target)
     if not target.stops and not Bridge.CanNavigate(target.data) then
         return Failed(target.reason or L["ROUTE_CANNOT_NAVIGATE"])
     end
-    local start = Bridge.PlayerStart()
-    if not start then return Failed(L["ROUTE_UNKNOWN_POSITION"]) end
+    -- From the player, or from a place named for a preview ("from Ironforge to Booty Bay").
+    Bridge.SetStart(target.from)
+    local start = target.from and Bridge.StartAt(target.from) or Bridge.PlayerStart()
+    if not start then return Failed(L[target.from and "ROUTE_UNKNOWN_START" or "ROUTE_UNKNOWN_POSITION"]) end
+    current.from = target.from and start or nil
     current.dest = target.stops and target.stops[#target.stops] or Bridge.DestinationOf(target.data)
     current.key = Key(current.dest, target.stops, start)
     local again = Recall(current.key)
@@ -359,6 +363,7 @@ end
 
 function Planner.Clear()
     runID = runID + 1
+    if current and current.from then Bridge.SetStart(nil) end
     current = nil
     Changed()
 end
@@ -398,13 +403,15 @@ end
 local function Fresh(option)
     if not (option.steps and option.builtAt and option.from) then return false end
     if GetTime() - option.builtAt > STALE_SECONDS then return false end
-    local here = Bridge.PlayerStart()
+    local here = current.from or Bridge.PlayerStart()
     if not here or here.ci ~= option.from.ci then return false end
     return (here.wx - option.from.wx) ^ 2 + (here.wy - option.from.wy) ^ 2 <= STALE_YARDS * STALE_YARDS
 end
 
 local function Started(option)
     local target = current.target
+    -- The route took its start with it; the engine's next plans start from the player.
+    if current.from then Bridge.SetStart(nil) end
     -- What is left of the comparison is no use now, and the engine has its own work to do.
     runID = runID + 1
     Bridge.CancelOurPlan()
@@ -489,6 +496,35 @@ function Planner.Compare(option, base)
     local b = base.risk and RISK_RANK[base.risk.level]
     if a and b and a ~= b then parts[#parts + 1] = L[a < b and "CMP_FEWER_HAZARDS" or "CMP_MORE_HAZARDS"] end
     return table.concat(parts, " \194\183 ")
+end
+
+-- Why this way, in a sentence: what it was chosen for, against the quickest.
+function Planner.Explain(plan, option)
+    if not (plan and option and option.steps) then return nil end
+    local base = Planner.Base(plan)
+    local ways = 0
+    for _, o in ipairs(plan.options) do
+        if o.steps and not o.noWay and not o.same then ways = ways + 1 end
+    end
+    local key = option.mode and option.mode.key
+    if option == base or key == "fastest" then
+        return ways > 1 and L["WHY_FASTEST_FMT"]:format(ways) or L["WHY_ONLY"]
+    end
+    if key == "value" then
+        local slower = base and option.total and base.total and option.total - base.total or 0
+        local saved = (base and base.cost and base.cost.copper or 0) - (option.cost and option.cost.copper or 0)
+        if slower < 30 or saved <= 0 then return L["WHY_VALUE_SAME"] end
+        -- The comparison line already says how much slower and how much it saves.
+        return L["WHY_VALUE_FMT"]:format(FG.Fares.Money(FG.Fares.Rate()))
+    end
+    if key == "cheap" then
+        local t = FG.db.travel or {}
+        return L["WHY_CHEAP_FMT"]:format(FG.Format.Duration((t.maxExtraMinutes or 10) * 60) or "?")
+    end
+    if key == "safer" then return L["WHY_SAFER"] end
+    if key == "roads" then return L["WHY_ROADS"] end
+    if key == "overland" then return L["WHY_OVERLAND"] end
+    return nil
 end
 
 -- Says which other ways came out the same as this one; nil if none did.

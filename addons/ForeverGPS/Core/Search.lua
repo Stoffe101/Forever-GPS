@@ -509,9 +509,36 @@ local MY_TRAINERS = { ["my profession trainers"] = true, ["my profession trainer
 
 -- results, info. info.kind: the query asks for a kind of thing, not one thing.
 -- info.corrected: what it was read as, when the spelling needed help.
+-- "from Ironforge to Booty Bay": the place to start from, by the best match for its name,
+-- and the rest of the query. nil when the text does not ask that.
+function Search.FromTo(text)
+    local a, b = (text or ""):match("^[Ff][Rr][Oo][Mm]%s+(.-)%s+[Tt][Oo]%s+(.+)$")
+    if not a or a == "" or b == "" then return nil end
+    local found = Search.Run(a, "all")
+    for _, r in ipairs(found) do
+        local d = r.data
+        if d and d.mapID and not r.instances then
+            return { name = r.name, mapID = d.coordMapID or d.mapID, x = d.x or 0.5, y = d.y or 0.5 }, b, a
+        end
+    end
+    return false, b, a
+end
+
 function Search.Run(text, filter)
     filter = filter or "all"
     text = strtrim(text or ""):sub(1, MAX_QUERY)
+    local from, rest, asked = Search.FromTo(text)
+    if from ~= nil then
+        local results, info = Search.Run(rest, filter)
+        info.text = text
+        if from then
+            info.from = from
+            for _, r in ipairs(results) do r.from = from end
+        else
+            info.fromMissing = asked
+        end
+        return results, info
+    end
     local info = { text = text, kind = false }
     if text == "" and not Search.BROWSE[filter] then return {}, info end
     FG.Metrics.Begin("search")
@@ -688,7 +715,7 @@ end
 -- The planner's target for a result.
 function Search.Target(result)
     local target = { data = result.data, name = result.name, subtitle = result.subtitle, icon = result.icon,
-                     iconArt = result.iconArt, predicted = result.world }
+                     iconArt = result.iconArt, predicted = result.world, from = result.from }
     if result.areas then
         target.areas, target.area = result.areas, result.area
         return target

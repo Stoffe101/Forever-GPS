@@ -126,6 +126,19 @@ local function Bind(row, item)
     end
 end
 
+-- A chip's width as Kit.Chip will make it: its label measured in the chip's own style.
+local measure
+local function ChipWidth(label)
+    if not measure then
+        measure = UIParent:CreateFontString(nil, "OVERLAY")
+        measure:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+        measure:SetAlpha(0)
+    end
+    Kit.SetStyle(measure, "caption")
+    measure:SetText(label or "")
+    return measure:GetStringWidth() + 22
+end
+
 local function Height(item, width)
     if item.kind == "card" then
         return 34 + FG.RoutePanel.TextHeight(item.body or "", width - 24, "small") + 8
@@ -135,7 +148,7 @@ local function Height(item, width)
     if item.kind == "chips" then
         local w, rows, x = width - 12, 1, 0
         for _, entry in ipairs(item.chips) do
-            local need = #entry.label * 7 + 26
+            local need = ChipWidth(entry.label)
             if x > 0 and x + need > w then rows, x = rows + 1, 0 end
             x = x + need + 6
         end
@@ -525,6 +538,15 @@ function View.Show(which)
 end
 
 function View.Current() return view end
+
+-- For renders and tests: the page's choices, set directly.
+function View._Set(state)
+    coverage = state.coverage or coverage
+    mode = state.mode or mode
+    sort = state.sort or sort
+    if state.only then only = state.only end
+    View.Refresh()
+end
 function View.ItemsNow() return list and list.items or {} end
 
 function View.AddToList(recipeID)

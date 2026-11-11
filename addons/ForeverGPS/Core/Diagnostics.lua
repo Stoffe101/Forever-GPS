@@ -14,7 +14,8 @@ local Bridge = FG.Bridge
 Diagnostics.API = {
     "C_AddOns.GetAddOnMetadata", "C_Map.GetBestMapForUnit", "C_Map.GetMapArtLayers", "C_Map.GetMapArtLayerTextures",
     "C_Map.GetMapInfo", "C_Map.GetUserWaypoint",
-    "C_AuctionHouse.ReplicateItems", "C_TradeSkillUI.GetRecipeSchematic", "GetProfessions", "TaxiNodeCost",
+    "C_AuctionHouse.ReplicateItems", "C_AuctionHouse.SendSearchQuery", "C_AuctionHouse.IsThrottledMessageSystemReady",
+    "C_TradeSkillUI.GetRecipeSchematic", "GetProfessions", "TaxiNodeCost",
     "C_QuestLog.GetInfo", "C_QuestLog.GetNumQuestLogEntries", "C_QuestLog.GetQuestObjectives", "C_QuestLog.IsComplete",
     "C_QuestLog.IsFailed", "C_Timer.After", "CreateFrame", "GetCursorPosition", "GetPlayerFacing", "UnitClass",
     "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "debugprofilestop",
@@ -161,12 +162,29 @@ function Diagnostics.Lines()
         start and ("continent %d at %.0f, %.0f"):format(start.ci, start.wx, start.wy) or "unknown here")
     local route = Bridge.Route()
     if route then
-        out[#out + 1] = ("Route to %s: step %d of %d%s"):format(route.dest and route.dest.name or "?", route.active or 1, #route.steps,
-            route.arrived and ", arrived" or "")
+        local step = route.steps[route.active or 1]
+        out[#out + 1] = ("Route to %s: step %d of %d (%s)%s"):format(route.dest and route.dest.name or "?", route.active or 1, #route.steps,
+            tostring(step and step.kind), route.arrived and ", arrived" or "")
+        -- Navigation: the state continuity sees, why, retries, and whether it waits for a start.
+        local c = FG.Continuity.Report(route)
+        out[#out + 1] = ("Navigation: %s%s, failed plans %d, reroutes in the last minute %d%s"):format(c.state,
+            c.why and (" (" .. c.why .. ")") or "", c.failures, c.recent,
+            c.waits and (", next try in " .. math.floor(c.waits) .. " s") or "")
+        if route.origin then
+            out[#out + 1] = ("Planned from elsewhere: %s"):format(route.joined and "start reached" or "waiting for the player at its start")
+        end
+        local view = FG.Journey.View()
+        if view then out[#out + 1] = ("HUD: %s, \"%s\""):format(tostring(view.state), tostring(view.title)) end
     else
         out[#out + 1] = "No route"
     end
-    out[#out + 1] = ("Arrow: %s. Planning: %s"):format(FG.Journey.ArrowMode(), tostring(Bridge.IsPlanning()))
+    local custom = Bridge.CustomStart()
+    if custom then out[#out + 1] = ("Custom start: %s (map %s)"):format(tostring(custom.name), tostring(custom.mapID)) end
+    out[#out + 1] = ("Arrow: %s. Planning: %s, plans started %d"):format(FG.Journey.ArrowMode(), tostring(Bridge.IsPlanning()), Bridge.PlanSerial())
+    out[#out + 1] = ("Trainer window: %s"):format(FG.db.trainerShape and (FG.db.trainerShape .. " shape, as last opened") or "not opened yet")
+    local scan, search = FG.Market.Scanning(), FG.MarketSearch.Status()
+    out[#out + 1] = ("Prices: scan %s%s, searches asked %d answered %d missed %d"):format(scan.state,
+        scan.why and (" (" .. scan.why .. ")") or "", search.asked, search.answered, search.missed)
     out[#out + 1] = CacheLine()
     for _, line in ipairs(Diagnostics.GameLines()) do out[#out + 1] = line end
     for _, line in ipairs(Diagnostics.Timing()) do out[#out + 1] = line end

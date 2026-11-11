@@ -518,10 +518,12 @@ local function Compared(plan, option)
     return Planner.SameNote(plan, option)
 end
 
-local function PlanNote(target, option)
+local function PlanNote(target, option, plan)
     if option.estimate then return L["ROUTE_ESTIMATE_NOTE"] end
     if target.predicted then return L["ROUTE_PREDICTED"] end
     local notes = {}
+    if target.from then notes[#notes + 1] = L["ROUTE_FROM_FMT"]:format(target.from.name or "?") end
+    notes[#notes + 1] = Planner.Explain(plan, option)
     notes[#notes + 1] = FG.Hearth.Note(option.steps)
     notes[#notes + 1] = FG.Fares.Note(option.cost)
     return #notes > 0 and table.concat(notes, " ") or nil
@@ -554,7 +556,7 @@ local function RenderPlan(plan)
         f.place:SetLabel(("%s  (%s)"):format(at and at.zone or "?", L["LOCATIONS_FMT"]:format(#areas)))
     end
     local stop = not target.trip and Trip.FromTarget(target) or nil
-    Stack(option.steps, option, { modes = true, avoid = true, compare = Compared(plan, option), note = PlanNote(target, option),
+    Stack(option.steps, option, { modes = true, avoid = true, compare = Compared(plan, option), note = PlanNote(target, option, plan),
                                   trip = stop ~= nil })
     if stop then
         f.tripButton.glyph:SetIcon(Trip.Has(stop) and "check" or "plus")

@@ -268,7 +268,8 @@ local TRADE = {
 local function Trade(screen)
     local opts = { screen = { screen[2], screen[3], screen[4] }, mapID = 1453, x = 0.70, y = 0.72, level = 22,
                    questie = QUESTIE, quests = QUEST_LOG }
-    for k, v in pairs(TRADE) do opts[k] = v end
+    -- A copy each screen: the long-list shot adds reagents, which must not leak into the next.
+    for k, v in pairs(TRADE) do opts[k] = require("support.client").Clone(v) end
     local c = Stack.new(opts)
     local FG = c.FG
     Settle(c, 4)
@@ -281,9 +282,20 @@ local function Trade(screen)
     FG.Window.Show("professions")
     for _, which in ipairs({ "overview", "leveling", "profit", "market" }) do
         FG.ProfessionsView.Show(which)
-        Settle(c, 0.3)
+        Settle(c, 0.6)
         Shot(c, screen, "prof-" .. which)
     end
+    -- Recipes still to learn, from the client's data, and the profit list filtered.
+    FG.ProfessionsView.Show("leveling")
+    FG.ProfessionsView._Set({ coverage = "obtainable" })
+    Settle(c, 1.5)
+    Shot(c, screen, "prof-leveling-obtainable")
+    FG.ProfessionsView._Set({ coverage = "known" })
+    FG.ProfessionsView.Show("profit")
+    FG.ProfessionsView._Set({ only = { complete = true }, sort = "recovery" })
+    Settle(c, 0.3)
+    Shot(c, screen, "prof-profit-filtered")
+    FG.ProfessionsView._Set({ only = {}, sort = "profit" })
     local project = FG.Crafting.NewProject("Potions to sell")
     FG.Crafting.AddToProject(project, 1001, 10)
     FG.Crafting.AddToProject(project, 1002, 6)
@@ -291,6 +303,26 @@ local function Trade(screen)
     FG.ProfessionsView.Show("lists")
     Settle(c, 0.3)
     Shot(c, screen, "prof-lists")
+    -- A long list with long names: it scrolls, and nothing runs off the edge.
+    local big = FG.Crafting.NewProject("A list with a name long enough to test how the chips wrap at small sizes")
+    for id = 1001, 1004 do FG.Crafting.AddToProject(big, id, 40) end
+    for i = 1, 30 do
+        c.items[5000 + i] = { name = "An extraordinarily long reagent name, number " .. i .. ", that keeps going" }
+        c.recipes[1001].reagents[#c.recipes[1001].reagents + 1] = { id = 5000 + i, n = 1 }
+    end
+    FG.ProfessionsView.Show("lists")
+    Settle(c, 0.3)
+    Shot(c, screen, "prof-lists-long")
+    -- A scan arriving: the page says how far it has got.
+    c.FG.db.market.houses[FG.Market.Key()].askedAt = c.env.time() - 3600
+    c.replicateSpread = 6
+    FG.Market.Scan()
+    Settle(c, 1.2)
+    FG.ProfessionsView.Show("market")
+    Settle(c, 0.2)
+    Shot(c, screen, "prof-market-scanning")
+    Settle(c, 10)
+    c.replicateSpread = nil
     c:Fire("AUCTION_HOUSE_CLOSED")
     c.FG.db.market.houses[FG.Market.Key()].scannedAt = c.env.time() - 5 * 86400
     FG.ProfessionsView.Show("profit")
@@ -314,8 +346,10 @@ local function Trade(screen)
     Settle(c, 0.3)
     Shot(c, screen, "route-value-chosen")
 
-    -- Gone another way: flying while the route waits for something else.
+    -- Gone another way: flying while the route waits for something else. The window is
+    -- closed, as while travelling, so the HUD is what shows.
     FG.Planner.Start()
+    FG.Window.Hide()
     Settle(c, 1.5)
     c.player.taxi = true
     Settle(c, 2)
@@ -324,6 +358,34 @@ local function Trade(screen)
     c.player.taxi = false
     Settle(c, 1)
     Shot(c, screen, "nav-rerouting")
+    -- No way found from the landing: said, and tried again later.
+    local ns = FG.Bridge.NS()
+    Stack.Until(c, function() return not FG.Bridge.IsPlanning() end, 60)
+    local build = ns.GPS.BuildStops
+    ns.GPS.BuildStops = function() return nil end
+    c.player.taxi = true
+    Settle(c, 2)
+    c:SetPlayer(1437, 0.06, 0.62)
+    c.player.taxi = false
+    Settle(c, 1.5)
+    Shot(c, screen, "nav-unavailable")
+    ns.GPS.BuildStops = build
+    Settle(c, 15)
+    -- The report a player pastes.
+    FG.Window.Show("search")
+    FG.CopyBox.Show(FG.Diagnostics.Report())
+    Settle(c, 0.3)
+    Shot(c, screen, "nav-report")
+    if c.env.ForeverGPSCopyBox then c.env.ForeverGPSCopyBox:Hide() end
+    -- A journey looked at from somewhere else.
+    FG.Bridge.Stop()
+    Settle(c, 0.5)
+    FG.Planner.Inspect({ data = { name = "Lakeshire", mapID = 1433, x = 0.26, y = 0.55 }, name = "Lakeshire", subtitle = "Redridge Mountains",
+                         from = { name = "Ironforge", mapID = 1455, x = 0.55, y = 0.48 } })
+    Planned(c)
+    FG.Window.ShowRoute()
+    Settle(c, 0.5)
+    Shot(c, screen, "route-from-elsewhere")
     return c
 end
 

@@ -30,7 +30,7 @@ The vendored addons stay here as their authors wrote them, because this is where
 - `EDITS` lists every exact change one folder needs. Each must match as many times as it says, so an upstream change that moves one of them fails the build rather than slipping past.
 - `TAINT_EDITS` puts every change to the game's waypoint and tracking through one door, and stops writing to native pins. [TAINT.md](TAINT.md) says why. A test fails if any vendored file changes them outside that door.
 - `PLANNING_EDITS` measures what a planning frame holds and starts unpacking in a fresh slice. The engine's answers do not change, and the golden tests hold it to that. It also narrows a creature search as a word is typed.
-- `CONTINUITY_EDITS` asks Forever-GPS's `Core/Continuity.lua`, each second, whether the step under way has been left by another way of travelling.
+- `CONTINUITY_EDITS` asks Forever-GPS's `Core/Continuity.lua`, each second, whether the step under way has been left by another way of travelling. It also names the engine's reroute as `GPS.Reroute`, so a reroute can start the moment the planner is free.
 - `LAUNCHER_EDITS` turns off EasyFind's minimap button, broker launcher and compartment entries. Forever-GPS has the one launcher.
 - `ECONOMY_EDITS` adds a flight's fare, at the player's rate, to its weight for the money ways, and a hearth's minimum saving to its weight. With neither set, routes are unchanged.
 - `LEFT_OUT` lists the two TOC entries with no place here: the GPS's guard, which asks the game about an addon called EasyFind, and EasyFind's update notices.

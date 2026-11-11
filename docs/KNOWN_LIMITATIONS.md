@@ -9,6 +9,17 @@
 - The Quest Explorer against live Questie. Its data has been read offline, and everything else ran against a stand-in that follows Questie's rules.
 - Fonts, texture quality, real frame times and memory, and how it sits beside EllesmereUI.
 
+## 2.4
+
+- **Nothing new has run in the game.** That covers the scan timing, searches, quantities, plans, trainers, alts, history, alerts, plans from elsewhere and the new navigation states. All were tested only in the stand-in client.
+- **The trainer window's shape on Forever is not confirmed.** Both shapes are read. `/fgps report` says which one the client showed.
+- **Recipe IDs:** the profession window's recipe IDs are taken to be the spell IDs in the client's data, as on other clients. If they differ, plans fall back to the ranges you have seen.
+- **The game's ranges** come from the client's files via profit's export of build 1.60.1.70790. A later client may change some. What you see in your own window is believed over them.
+- **A trainer's recipe price** is unknown until its window is read, so plans with recipes to learn leave it out and say so.
+- **The long-climb search** is very close to the cheapest plan in tests, but not proven to be it. Short climbs are exact.
+- **Commodities** are priced as bought unit by unit, as the auction house sells them. A non-stackable item's listings are whole auctions.
+- **Alerts** speak in chat only, when new prices arrive. They never buy.
+
 ## 2.3
 
 - **Nothing new has run in the game.** That covers continuous navigation, travel costs, professions, prices and trainers, all tested only in the stand-in client.

@@ -9,9 +9,10 @@ Forever-GPS is the product layer on top of [EasyFind](https://github.com/falleng
 ## What it does
 
 - **Search** places, NPCs, trainers, services, dungeons, raids, boats and coordinates, the way people type them: `nearest mailbox`, `bank stormwind`, `Westfall 56 47`. Misspellings are corrected out loud. Results show zone, type, a travel time, and a warning for NPCs hostile to you, and searches for a kind of thing are ordered by travel time. With Questie installed, its creatures and objects are searched too.
-- **Keeps navigating however you travel:** take another flight, boat or teleport and it plans on from where you arrive, without losing the destination.
+- **Keeps navigating however you travel:** take another flight, boat or teleport and it plans on from where you arrive, without losing the destination, and says why it is recalculating.
+- **Plan from anywhere:** search `from Ironforge to Booty Bay` to see a journey from another place.
 - **Travel costs:** fares beside every route, with **Best value** and **Cheapest** ways that weigh money against time. See [docs/TRAVEL_COSTS.md](docs/TRAVEL_COSTS.md).
-- **Professions:** your skills and next rank, the cheapest way up, what is worth making, shopping lists and your own auction house prices, with trainers ranked by what they actually teach. See [docs/PROFESSIONS.md](docs/PROFESSIONS.md).
+- **Professions:** your skills and next rank, the cheapest way up on the game's own skill ranges, what is worth making, shopping lists priced for the whole quantity, your own auction house prices, history and alerts, with trainers ranked by what they actually teach. See [docs/PROFESSIONS.md](docs/PROFESSIONS.md). Parts are reused from MIT-licensed addons: [THIRD_PARTY.md](THIRD_PARTY.md).
 - **Find quests** explores every quest Questie knows, in your log or not: search, browse by zone, what you can take now and near you, prerequisites, chains and directions to starters. See [docs/QUEST_EXPLORER.md](docs/QUEST_EXPLORER.md).
 - **From Your Quests** turns the quest log into destinations. Every unfinished objective can be chosen, not just the first. Spawns are grouped into areas and the closest *by travel time* leads. With Questie installed it knows objective locations; without it, it falls back to the game's quest marker. When no reliable location is known it says so and offers no route.
 - **Quest Circuit** puts several objectives on one trip, in a sensible order from real travel times.

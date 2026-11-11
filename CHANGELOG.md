@@ -1,5 +1,39 @@
 # Changelog
 
+## 2.4.0 (unreleased, not yet tested in the game)
+
+Built on open-source work where it was stronger than this project's own: CraftProfit's measured auction house scanner, ForeverNet's quantity pricing, and profit's recipe data from the game client, all MIT. [docs/REUSE.md](docs/REUSE.md), [THIRD_PARTY.md](THIRD_PARTY.md)
+
+### Fixed
+
+- **A reroute could wait up to a second for nothing.** After a jump, the reroute waited for any plan still running, then for the engine's next once-a-second check. It now starts the moment the planner is free. This was the cause of an intermittent CI failure, and tests now cover it at three machine speeds.
+- **Trainers mixed professions.** A trainer known to teach Expert Alchemy was taken to teach Expert Tailoring too, since both rank up to 225. Ranks are now kept per profession and rank, and come from numbers rather than words.
+- **The trainer window's current shape was misread.** Its rank service and level are now read whichever shape the client has.
+- **The auction scan could read a half-arrived scan.** The client sends hundreds of updates for one scan. The scan now waits for them to stop, has time limits, and never leaves a scan running.
+- **Bag reagents counted as free for every craft.** They are now used once across a plan or list.
+- **A fare never seen read as nothing.** It now reads "fare unknown".
+
+### Added
+
+- **Navigation states and reasons:** "Recalculating from where you landed" and similar. A plan that fails is retried after 6 seconds, then twice as long each time. Frequent reroutes pause for a moment instead of looping.
+- **Plan from somewhere else:** search `from Ironforge to Booty Bay`. The route waits at its start until you get there.
+- **Why this way:** each route says what it was chosen for, against the quickest.
+- **A fuller `/fgps report`:** the navigation state, retries, the price scan and the trainer window shape.
+- **Prices for a quantity:** buying forty walks up the price tiers, and a merchant's stock is used where cheaper. Too few listed is said, never priced lower.
+- **Fresher prices for a list:** each reagent searched on its own, while the auction house is open.
+- **Skill-up:**
+  - The game's own skill ranges for 2,486 recipes.
+  - Recipes still to learn, with what learning them costs.
+  - Expected and safer craft counts, and what to buy.
+  - Short climbs are solved exactly, long ones within a fraction of a percent in tests.
+- **Profit:** cost, money needed now, sale if it sells, what a merchant pays, and margin, all kept apart. Filters, and a sort by what a merchant gives back.
+- **Lists:**
+  - Make or buy each reagent.
+  - What a batch leaves over.
+  - Copy as text.
+  - Which of your other characters can make a reagent.
+- **Price history and alerts:** a point a day for two weeks, for items you use. `/fgps alert <item> <price>` tells you when new prices fall to it. Nothing is ever bought.
+
 ## 2.3.0 (unreleased, not yet tested in the game)
 
 ### Fixed

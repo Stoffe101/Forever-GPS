@@ -128,16 +128,18 @@ end
 -- paid legs }. A route with no paid leg is confirmed free.
 local SURENESS = { fresh = 1, seen = 2, stale = 3, estimate = 4, guess = 5, unknown = 6 }
 function Fares.RouteCost(steps)
-    local copper, worst, paid = 0, "fresh", 0
+    local copper, worst, paid, unknown = 0, "fresh", 0, 0
     for _, step in ipairs(steps or {}) do
-        if step.kind == "taxi" and step.nodeID and step.toID then
-            local c, sure = Fares.Of(step.nodeID, step.toID)
+        if step.kind == "taxi" then
+            local c, sure = nil, "unknown"
+            if step.nodeID and step.toID then c, sure = Fares.Of(step.nodeID, step.toID) end
             paid = paid + 1
-            copper = copper + (c or 0)
+            -- A fare with no figure at all is unknown: never counted as nothing.
+            if c then copper = copper + c else unknown = unknown + 1 end
             if SURENESS[sure] > SURENESS[worst] then worst = sure end
         end
     end
-    return { copper = copper, sure = paid > 0 and worst or "free", paid = paid }
+    return { copper = copper, sure = paid > 0 and worst or "free", paid = paid, unknown = unknown }
 end
 
 -- ==== the engine's weighing =================================================
@@ -178,6 +180,9 @@ end
 -- A route's cost as it reads beside its time: "free", "8s", "~8s".
 function Fares.Label(cost)
     if not cost or cost.sure == "free" then return L["COST_FREE"] end
+    if (cost.unknown or 0) > 0 then
+        return cost.copper > 0 and (Fares.Money(cost.copper) .. " + ?") or L["COST_UNKNOWN"]
+    end
     local money = Fares.Money(cost.copper)
     if cost.sure == "guess" or cost.sure == "estimate" or cost.sure == "unknown" then return "~" .. money end
     return money
@@ -185,6 +190,7 @@ end
 
 function Fares.Note(cost)
     if not cost then return nil end
+    if (cost.unknown or 0) > 0 then return L["COST_UNKNOWN_NOTE"] end
     if cost.sure == "guess" then return L["COST_GUESS"] end
     if cost.sure == "estimate" then return L["COST_ESTIMATE"] end
     if cost.sure == "stale" then return L["COST_STALE"] end

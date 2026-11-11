@@ -216,7 +216,7 @@ local OWN_METHODS = {}
 for name in ("Paint Place SetLabel SetVariant SetSelected SetColor SetColorKey SetIcon SetActiveColor Sync Layout SetValue "
     .. "Width Measure Render Clamp SetItems Refresh Reveal "
     -- EasyFind and EasyFind GPS objects, reached through the Bridge.
-    .. "IsPlanning Plan BuildRoute Clear Build Guiding HasGlobalInstanceCache "
+    .. "IsPlanning Plan BuildRoute Clear Build Guiding HasGlobalInstanceCache SetStart "
     .. "Line Begin Finish GetMapID GetXY "
     -- Questie's loader, reached only from Core/QuestDB.lua.
     .. "ImportModule GetUiMapIdByAreaId "

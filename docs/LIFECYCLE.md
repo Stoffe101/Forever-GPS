@@ -37,10 +37,36 @@ The engine only noticed two things: a walk gone astray, and a crossing taken to 
 | A jump within a step (hearth, portal, teleport) that lands away from the step's end | Plans once from there |
 | Walking more than 400 yards from both ends of a boat or tram you were waiting for | Plans once from there |
 | Walking with a hearth ahead | Nothing. A hearth can be used from anywhere |
-| A plan that fails | Keeps the destination and tries again 6 seconds later |
+| A plan that fails | Keeps the destination and tries again 6 seconds later, then twice as long each time, at most a minute |
 | Position unknown, or a reload mid-flight | Holds, then carries on as above |
 
 The destination, a trip's stops ahead and the way you chose all carry through. A portal that completes its own step is not counted as a jump.
+
+## States and timing (2.4)
+
+What the HUD says while a route is off its plan:
+
+| State | HUD | When |
+| --- | --- | --- |
+| Flying another way | "Flying another way. The route picks up where you land" | On a flight the plan did not ask for. Nothing is planned in the air |
+| Recalculating | "Recalculating from where you landed", "from where you are now", or "you left the crossing" | Planning from here, with the reason |
+| Route unavailable | "No way found from here yet. Trying again in 12 sec" | A plan from here failed. Each wait is twice the last, at most a minute |
+| Paused | "Rerouted often in the last minute. Trying again in 30 sec" | Four reroutes in a minute. Stops a loop |
+| On plan | The step, or the engine's own waiting, riding and arrived states | |
+
+A reroute starts the moment the planner is free. Before 2.4 it waited for any plan still running (often the old route's other ways), then for the engine's next once-a-second check. In that gap nothing was planning and nothing had started.
+
+That gap was the cause of an intermittent CI failure (run 42916430228). The test waited until "nothing is planning", which passed inside the gap. On a slow runner the reroute then needed longer than the test's last 1.5 seconds. The stand-in client can now fix the speed of a machine, so each test runs the same way every time. The tests run the case at three speeds, and fail without the fix.
+
+Times kept with a route are from this session's clock, so they are never saved with it. A reload never inherits a long wait.
+
+## Planned from somewhere else (2.4)
+
+Search `from Ironforge to Booty Bay`, or anything with "from ... to ...", to look at a journey from another place.
+
+- The plan starts there, and so do its walks and its price.
+- Started, the route waits at that start. It does not reroute while you are elsewhere, and guides you on once you arrive.
+- The start is forgotten as the route takes it, or when the preview is closed, so later plans start from you again.
 
 ## Who owns what
 

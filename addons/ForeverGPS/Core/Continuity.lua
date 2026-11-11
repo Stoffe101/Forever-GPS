@@ -189,12 +189,18 @@ end
 
 local REASON = { flight = "HUD_RECALC_LANDED", jump = "HUD_RECALC_JUMP", left = "HUD_RECALC_LEFT" }
 
+-- A short wait in seconds, a longer one as the rest of the addon writes durations.
+local function Wait(left)
+    if left < 60 then return L["SECONDS_FMT"]:format(math.max(1, math.ceil(left))) end
+    return FG.Format.Duration(left) or "?"
+end
+
 -- What the HUD says while a route waits on this: nil when nothing is off.
 function Continuity.Note(route)
     local state, why, left = Continuity.State(route)
     if state == "flying" then return L["HUD_OFF_PLAN_FLYING"] end
-    if state == "unavailable" then return L["HUD_UNAVAILABLE_FMT"]:format(FG.Format.Duration(left) or "?") end
-    if state == "held" then return L["HUD_HELD_FMT"]:format(FG.Format.Duration(left) or "?") end
+    if state == "unavailable" then return L["HUD_UNAVAILABLE_FMT"]:format(Wait(left)) end
+    if state == "held" then return L["HUD_HELD_FMT"]:format(Wait(left)) end
     if state == "recalculating" then return L[REASON[why] or "HUD_OFF_PLAN_LOST"] end
     return nil
 end

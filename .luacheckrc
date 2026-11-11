@@ -3,7 +3,7 @@
 std = "lua51"
 max_line_length = false
 codes = true
-exclude_files = { "addons/EasyFind/**", "addons/EasyFind_GPS/**", "addons/EasyFind_Questie/**", "tests/**", "tools/**", "build/**", "dist/**" }
+exclude_files = { "addons/EasyFind/**", "addons/EasyFind_GPS/**", "addons/EasyFind_Questie/**", "tests/**", "tools/**", "build/**", "dist/**", "third_party/**" }
 
 ignore = {
     "212/self",     -- methods need not use self

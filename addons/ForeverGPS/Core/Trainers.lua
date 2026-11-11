@@ -186,6 +186,8 @@ function Trainers.Learn()
         end
     end
     DB()[id] = entry
+    -- Which shape this client's window has, for the report: it decides how ranks are read.
+    FG.db.trainerShape = shape or FG.db.trainerShape
     FG.Emit("trainers:changed", id)
     return entry
 end

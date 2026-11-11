@@ -8,6 +8,24 @@ From 2.0 in the game: search 2.4 ms, worst 25.9 ms. Map drawing 0.8 ms. Planning
 
 **The planning figures were time across many frames, not freezes.** `plan` runs from asking to the last way being finished. The engine works in slices of 6 ms a frame, and four ways are planned in turn, so a long journey at a low frame rate takes many seconds while the game stays responsive. 2.1 reports `planFrame` beside it, the busiest single frame, which is the figure that decides whether anything stutters.
 
+## Professions and prices in 2.4
+
+Measured with `lua tools/bench_professions.lua`, in the stand-in client, on desktop Lua 5.4. The figures are CPU time, so the game's Lua 5.1 will be slower. In the game the work is spread over frames.
+
+| Measure | 2.3 | 2.4 |
+| --- | --- | --- |
+| Full scan, 20,000 listings | 49 ms | 61 ms, read 4 ms a frame |
+| Full scan, 80,000 listings (CraftProfit saw 79,078 in the game) | not measured | 143 ms, read 4 ms a frame |
+| Saved per house, 6,000 items | about 120 KB (three figures an item) | 252 KB to 536 KB with ten price tiers an item |
+| Recipe data in memory | none | 307 KB |
+| Recipes to learn, leatherworking (568), first read | none | 20 ms |
+| Plan 1 to 300 | 8 ms, learned recipes only | 214 ms over all 568 recipes, 6 ms a frame |
+| Plan of six points over hundreds of recipes | | 6 ms |
+| Pricing 40 units along 10 tiers | one unit price only | 2 microseconds |
+| 40 units from 30 whole auctions | none | 0.07 ms |
+
+The 2.4 scan is slower because it reads after the client stops sending and keeps the price depth, and rereads once if rows arrive. A long plan runs as a coroutine a few milliseconds a frame, like the route planner, and its search is capped at 30,000 whole-plan totals.
+
 ## 2.0 against 2.1
 
 Package figures are exact. Planning figures are simulated, the time from asking to the last way being settled.

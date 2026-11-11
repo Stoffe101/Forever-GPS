@@ -185,6 +185,29 @@ function Bridge.PlayerStart()
     return g and g.PlayerStart and g.PlayerStart() or nil
 end
 
+-- Plans from a place other than where the player stands: { name, mapID, x, y }, or nil for
+-- the player again. The engine keeps a route planned from elsewhere waiting at its start
+-- until the player gets there. Quiet: nothing is planned by this alone.
+function Bridge.SetStart(place)
+    local g = GPS()
+    if not (g and g.SetStart) then return end
+    local now = g.Start and g.Start()
+    if not place and not now then return end
+    g:SetStart(place, true)
+end
+
+function Bridge.CustomStart()
+    local g = GPS()
+    return g and g.Start and g.Start() or nil
+end
+
+-- A place's world spot, as the planner keys its plans.
+function Bridge.StartAt(place)
+    local ci, wx, wy = Bridge.WorldPos(place.mapID, place.x or 0.5, place.y or 0.5)
+    if not ci then return nil end
+    return { ci = ci, wx = wx, wy = wy, m = place.mapID, x = place.x, y = place.y }
+end
+
 function Bridge.MapName(mapID)
     local info = mapID and C_Map.GetMapInfo(mapID)
     return info and info.name or nil
