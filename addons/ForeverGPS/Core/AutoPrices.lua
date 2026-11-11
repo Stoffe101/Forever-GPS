@@ -135,5 +135,6 @@ function Auto.Line()
                    ["another scan"] = "AUTO_OTHER", off = "AUTO_OFF", waits = "AUTO_WAITS",
                    ["searches stopped"] = "AUTO_STOPPED" })[st.last]
     if not key then return nil end
+    if key == "AUTO_SEARCHES_FMT" and st.searched == 1 then key = "AUTO_SEARCHES_ONE" end
     return L[key]:format(st.searched or 0)
 end

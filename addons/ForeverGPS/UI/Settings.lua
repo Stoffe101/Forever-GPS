@@ -112,6 +112,11 @@ local GROUPS = {
                 FG.db.hud.mode = value
                 HudChanged()
             end)
+        -- On a handheld the controller's own setting decides; said here, not left to guess.
+        ui.status(function()
+            local handheld = FG.Window.Handheld() and FG.db.hud.handheldCompact ~= false
+            return handheld and L["SET_HUD_HANDHELD_NOTE"] or ""
+        end)
         ui.check("SET_HUD_NEXT", function() return FG.db.hud.showNext end, function(on)
             FG.db.hud.showNext = on
             HudChanged()
@@ -337,6 +342,13 @@ function View.Groups() return GROUPS end
 -- screen when the focus lands on it.
 function View.Cycle(dir)
     View.Select((current - 1 + dir) % #GROUPS + 1)
+end
+
+-- Where the controller starts: the group open now, in the rail when it is shown.
+function View.FirstFocus()
+    local chip = f and f.rail[current]
+    if chip and chip:IsShown() then return chip end
+    return nil
 end
 
 function View.SelectByLabel(label)

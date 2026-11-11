@@ -25,6 +25,10 @@ Forever-GPS with a controller, on a PC or a Steam Deck. [docs/CONTROLLER.md](doc
 
 - The search box no longer takes the keyboard when the window opens with a controller in use.
 
+### Fixed
+
+- Counts of one read as one: "About 1 craft", "1 item priced", "1 misses a reagent price", "1 trainer known to teach it" and the like, instead of "1 crafts".
+
 ## 2.5.0 (installed in the game on 2026-11-11 and confirmed working)
 
 Fixes for what 2.4 did in the real game, found from the player's BugSack and saved data. [docs/REALCLIENT.md](docs/REALCLIENT.md)

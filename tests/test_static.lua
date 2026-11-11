@@ -296,6 +296,14 @@ function tests.everyTextKey_isDefinedAndUsed()
     T.eq(#unused, 0, "text no code uses: " .. table.concat(unused, ", "))
 end
 
+-- No control characters hidden in the source: a mistyped escape shows on screen as junk.
+function tests.noControlCharactersInTheSource()
+    for _, file in ipairs(Sources()) do
+        local at = file.src:find("[%z\1-\8\11\12\14-\31]")
+        T.ok(not at, file.path .. ": a control character at byte " .. tostring(at))
+    end
+end
+
 function tests.noSyntaxThatLua51Lacks()
     for _, file in ipairs(Sources()) do
         local code = CodeOnly(file.src)

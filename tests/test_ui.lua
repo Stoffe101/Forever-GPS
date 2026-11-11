@@ -17,6 +17,8 @@ local SCREENS = {
     { "3440x1440 at 1 px per unit", 3440, 1440, 1 },
     { "3440x1440 default", 3440, 1440, 1.875 }, { "1920x1080 default", 1920, 1080, 1.406 },
     { "1920x1080 largest", 1920, 1080, 1.617 }, { "1920x1080 smallest", 1920, 1080, 0.9 },
+    -- A Steam Deck, held: the handheld layout with the controller in use (docs/CONTROLLER.md).
+    { "1280x800 handheld", 1280, 800, 800 / 768, pad = true }, { "1280x800 handheld, largest UI", 1280, 800, 1.15 * 800 / 768, pad = true },
 }
 
 local QUESTIE = {
@@ -42,6 +44,10 @@ local function Start(screen, opts)
     opts.questie, opts.quests = QUESTIE, LOG
     local c = Stack.new(opts)
     c.UI.conflicts = {}
+    if screen.pad then
+        c.FG.Pad.DB().introDone = true
+        c:PadPress("PADDDOWN")      -- the controller becomes the input in use
+    end
     return c
 end
 
@@ -54,8 +60,9 @@ end
 
 -- Everything shown under frame, outside a clipping frame's own scroll.
 local function Visible(frame, visit, clipped)
+    -- A clipping frame clips its own text and textures too, not only its children.
     for _, region in ipairs(frame._regions) do
-        if region._shown then visit(region, clipped) end
+        if region._shown then visit(region, clipped or frame._clips) end
     end
     for _, child in ipairs(frame._children) do
         if child._shown then
@@ -232,6 +239,65 @@ function tests.theProfessions_fitEveryScreen()
             Check(c, screen[1] .. " professions " .. which)
         end
         T.eq(#c.errors, 0, screen[1] .. ": " .. tostring(c.errors[1]))
+    end
+end
+
+-- The controller's own frames on a Deck: the keyboard, the dialogs, the Controller
+-- settings row by row, and the HUD in each place it can be put.
+function tests.theControllerFrames_fitTheDeck()
+    for _, screen in ipairs(SCREENS) do
+        if screen.pad then
+            local c = Start(screen)
+            local FG = c.FG
+            FG.Window.Show("search")
+            c:Advance(0.3)
+            T.ok(FG.Window.Handheld(), screen[1] .. ": handheld")
+            T.ok(FG.Window.Frame().hints:IsShown(), screen[1] .. ": the button line")
+            Check(c, screen[1] .. " search")
+            -- The keyboard: inside the screen, its keys apart.
+            FG.PadKeyboard.Open(FG.SearchView.Box())
+            local kb = c.env.ForeverGPSKeyboard
+            Check(c, screen[1] .. " keyboard", kb)
+            FG.PadKeyboard.Close(false)
+            -- Every dialog the settings can show, at its widest.
+            FG.Window.Show("settings")
+            FG.SettingsView.SelectByLabel("SETG_CONTROLLER")
+            c:Advance(0.2)
+            for _, ask in ipairs({
+                { "Use it", "Only to close it", "Choose another", "Cancel" },
+                { "Swap", "Replace", "Cancel" }, { "Controller settings", "Got it" }, { "OK" } }) do
+                local choices = {}
+                for i, label in ipairs(ask) do choices[i] = { label } end
+                FG.PadSettings._Ask("A title long enough to need some room, as a translation might", ("A body that goes on. "):rep(8), choices)
+                Check(c, screen[1] .. " dialog " .. #ask, c.env.ForeverGPSPadDialog)
+                FG.PadSettings.DialogButtons()[#ask]:Click()
+            end
+            -- The Controller group, every row in view in turn.
+            local page = FG.Window.Frame().settingsPage
+            for _, group in ipairs(FG.SettingsView.Groups()) do
+                if group.label == "SETG_CONTROLLER" then
+                    for i, item in ipairs(group.items) do
+                        FG.SettingsView.Reveal(item)
+                        T.ok(Inside(Rect(item.widget), Rect(page)), screen[1] .. ": controller row " .. i .. " on the page")
+                    end
+                    Check(c, screen[1] .. " controller settings")
+                end
+            end
+            -- The HUD in each spot.
+            FG.Planner.Inspect({ data = { name = "Auberdine", mapID = 1439, x = 0.37, y = 0.44 }, name = "Auberdine" })
+            Ready(c)
+            FG.Planner.Start()
+            FG.Window.Hide()
+            c:Advance(0.5)
+            local hud = c.env.ForeverGPSHUD
+            for spot in pairs(FG.HUD.SPOTS) do
+                FG.HUD.MoveTo(spot)
+                c:Advance(0.1)
+                T.ok(hud:IsVisible(), screen[1] .. " hud " .. spot .. ": shown")
+                Check(c, screen[1] .. " hud " .. spot, hud)
+            end
+            T.eq(#c.errors, 0, screen[1] .. ": " .. tostring(c.errors[1]))
+        end
     end
 end
 

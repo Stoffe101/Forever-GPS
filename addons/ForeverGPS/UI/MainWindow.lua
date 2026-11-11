@@ -355,7 +355,11 @@ end
 function Window.FirstFocus()
     if not f then return nil end
     if view == "search" and FG.SearchView.FirstFocus and not (compact and showRoute) then return FG.SearchView.FirstFocus() end
-    if view == "settings" then return nil, f.settingsPage end
+    if view == "settings" then
+        local chip = FG.SettingsView.FirstFocus and FG.SettingsView.FirstFocus()
+        if chip then return chip end
+        return nil, f.settingsPage
+    end
     if showRoute and f.right:IsShown() and (compact or not f.left:IsShown()) then return nil, f.right end
     return nil, f.left
 end
@@ -433,7 +437,9 @@ function Window.UpdateHints()
         local chord = Pad.Binding(hint[1])
         if chord then parts[#parts + 1] = Pad.Label(chord) .. " " .. L[hint[2]] end
     end
-    f.hints:SetText(table.concat(parts, "   "))
+    -- Read at arm's length on a handheld: a size up there.
+    Kit.SetStyle(f.hints, Window.Handheld() and "body" or "small", 0, "")
+    f.hints:SetText(table.concat(parts, "   \194\183   "))
 end
 FG.On("pad:capture", Window.UpdateHints)
 FG.On("pad:input", function()

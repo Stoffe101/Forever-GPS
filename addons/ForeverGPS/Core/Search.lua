@@ -656,7 +656,7 @@ local function PriceInstances(result, alive, done)
             result.areas, result.area = areas, best
             result.eta = best.sec and { sec = best.sec, transports = best.transports } or nil
             result.priced = true
-            result.subtitle = (best.zone or "?") .. " · " .. L["LOCATIONS_FMT"]:format(#result.instances)
+            result.subtitle = (best.zone or "?") .. " · " .. (#result.instances == 1 and L["LOCATIONS_ONE"] or L["LOCATIONS_FMT"]):format(#result.instances)
         end
         done()
     end, alive)

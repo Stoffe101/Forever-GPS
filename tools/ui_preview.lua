@@ -134,6 +134,10 @@ local function NewClient(screen, opts)
     opts.mapID, opts.x, opts.y = opts.mapID or 1453, opts.x or 0.6, opts.y or 0.6
     opts.questie, opts.quests, opts.level = QUESTIE, QUEST_LOG, 8
     local c = Stack.new(opts)
+    if screen.pad then
+        c.FG.Pad.DB().introDone = true
+        c:PadPress("PADDDOWN")      -- the controller in use: the handheld layout
+    end
     c.FG.Bridge.WarmSearch()
     Settle(c)
     return c
@@ -272,6 +276,10 @@ local function Trade(screen)
     for k, v in pairs(TRADE) do opts[k] = require("support.client").Clone(v) end
     local c = Stack.new(opts)
     local FG = c.FG
+    if screen.pad then
+        FG.Pad.DB().introDone = true
+        c:PadPress("PADDDOWN")
+    end
     Settle(c, 4)
     c:Fire("MERCHANT_SHOW")
     -- Before any auction house: recipes read, nothing priced. Every recipe is still shown.
@@ -488,7 +496,7 @@ local function Map(c, screen)
 end
 
 -- A Steam Deck's screen, 1280x800 at the default scale, driven by the controller alone.
-local DECK = { "deck", 1280, 800, 800 / 768, "1280x800 (Steam Deck), handheld layout, controller" }
+local DECK = { "deck", 1280, 800, 800 / 768, "1280x800 (Steam Deck), handheld layout, controller", pad = true }
 
 local function PadExtras(c)
     local out = {}
@@ -502,6 +510,7 @@ end
 local function Controller(screen)
     local c = NewClient(screen)
     local FG = c.FG
+    FG.Pad.DB().introDone = nil      -- this walk starts at the first-time introduction
     local function Press(button, times)
         for _ = 1, times or 1 do
             c:PadPress(button)
@@ -555,7 +564,21 @@ local function Controller(screen)
 end
 
 local only = arg and arg[1]
-if not only or only == "deck" then Controller(DECK) end
+if not only or only == "deck" then
+    Controller(DECK)
+    -- And every page the desktop screens get, at handheld size with the controller in use.
+    local c = NewClient(DECK)
+    Pages(c, DECK)
+    Overlays(c, DECK)
+    Journey(c, DECK)
+    Map(c, DECK)
+    print("deck", "pages", #c.errors == 0 and "ok" or (#c.errors .. " errors"), c.errors[1] and c.errors[1]:sub(1, 300) or "")
+    local t = Trade(DECK)
+    print("deck", "trade", #t.errors == 0 and "ok" or (#t.errors .. " errors"), t.errors[1] and t.errors[1]:sub(1, 300) or "")
+    local q = NewClient(DECK)
+    Quests(q, DECK)
+    print("deck", "quests", #q.errors == 0 and "ok" or (#q.errors .. " errors"), q.errors[1] and q.errors[1]:sub(1, 300) or "")
+end
 for i, screen in ipairs(SCREENS) do
     if not only or only == screen[1] then
         local c = NewClient(screen)

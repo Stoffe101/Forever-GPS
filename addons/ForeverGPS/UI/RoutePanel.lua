@@ -553,7 +553,7 @@ local function RenderPlan(plan)
     f.place:SetShown(areas ~= nil and #areas > 1)
     if areas and #areas > 1 then
         local at = target.area
-        f.place:SetLabel(("%s  (%s)"):format(at and at.zone or "?", L["LOCATIONS_FMT"]:format(#areas)))
+        f.place:SetLabel(("%s  (%s)"):format(at and at.zone or "?", (#areas == 1 and L["LOCATIONS_ONE"] or L["LOCATIONS_FMT"]):format(#areas)))
     end
     local stop = not target.trip and Trip.FromTarget(target) or nil
     Stack(option.steps, option, { modes = true, avoid = true, compare = Compared(plan, option), note = PlanNote(target, option, plan),

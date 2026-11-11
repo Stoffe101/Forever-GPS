@@ -24,6 +24,8 @@ local LAYOUT = {
     compact = { width = 250, arrow = 24, pad = 7, lines = 1, text = 44 },
     standard = { width = 330, arrow = 34, pad = 10, lines = 2, text = 56, next = true, bar = true },
     detailed = { width = 390, arrow = 38, pad = 11, lines = 3, text = 62, next = true, bar = true, detail = true },
+    -- A handheld screen: compact, but wide enough and two lines, so what to do is not cut off.
+    handheld = { width = 380, arrow = 30, pad = 9, lines = 2, text = 52, bar = true },
 }
 local FONT_DELTA = { small = -1, normal = 0, large = 2 }
 
@@ -34,7 +36,7 @@ local aim                    -- the arrow's rotation now
 local function Enabled() return FG.db and FG.db.hud.enabled end
 local function Handheld() return FG.Window and FG.Window.Handheld and FG.Window.Handheld() end
 local function Look()
-    if Handheld() and FG.db.hud.handheldCompact ~= false then return LAYOUT.compact end
+    if Handheld() and FG.db.hud.handheldCompact ~= false then return LAYOUT.handheld end
     return LAYOUT[FG.db.hud.mode] or LAYOUT.standard
 end
 

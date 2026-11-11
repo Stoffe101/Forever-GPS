@@ -298,7 +298,7 @@ local function Overview(items)
     end
     local summary = Market.Summary()
     items[#items + 1] = { kind = "section", text = L["PV_PRICES"] }
-    items[#items + 1] = { kind = "line", icon = "auction", name = summary.at and L["PV_PRICES_FMT"]:format(summary.count) or L["PV_PRICES_NONE"],
+    items[#items + 1] = { kind = "line", icon = "auction", name = summary.at and (summary.count == 1 and L["PV_PRICES_ONE"] or L["PV_PRICES_FMT"]):format(summary.count) or L["PV_PRICES_NONE"],
                           sub = summary.at and L["PV_SCANNED_FMT"]:format(Format.Duration(time() - summary.at) or "?") or L["PV_PRICES_HOW"],
                           run = function() View.Show("market") end }
     -- The account's other characters, as each last showed itself: a copy, with its age.
@@ -434,7 +434,7 @@ local function Leveling(items)
     for _, seg in ipairs(plan.segments) do
         local t = trains[seg.from]
         if t then
-            local sub = t.known and L["PV_TRAIN_KNOWN_FMT"]:format(t.known) or L["PV_TRAIN_SUB"]
+            local sub = t.known and (t.known == 1 and L["PV_TRAIN_KNOWN_ONE"] or L["PV_TRAIN_KNOWN_FMT"]):format(t.known) or L["PV_TRAIN_SUB"]
             if t.level then sub = sub .. " \194\183 " .. L["PV_TRAIN_LEVEL_FMT"]:format(t.level) end
             items[#items + 1] = { kind = "line", icon = "trainer", color = "accent", name = L["PV_TRAIN_FMT"]:format(t.name or "?", t.at),
                                   sub = sub, right = t.cost and Money(t.cost) or nil, run = function() TrainerSearch(p) end }
@@ -446,7 +446,7 @@ local function Leveling(items)
                                   right = l.cost and Money(l.cost) or "?" }
         end
         local r = seg.recipe
-        local sub = L["PV_CRAFTS_SAFE_FMT"]:format(seg.crafts, seg.safe) .. " \194\183 " .. L[SOURCE_KEY[seg.source] or "PV_SRC_ESTIMATE"]
+        local sub = (seg.crafts == 1 and L["PV_CRAFT_SAFE_FMT"] or L["PV_CRAFTS_SAFE_FMT"]):format(seg.crafts, seg.safe) .. " \194\183 " .. L[SOURCE_KEY[seg.source] or "PV_SRC_ESTIMATE"]
         items[#items + 1] = { kind = "line", icon = "check", color = seg.sure and "good" or "warn",
                               name = L["PV_SEGMENT_FMT"]:format(seg.from, seg.to, r.name or "?"), sub = sub, right = Money(seg.cost) }
     end
@@ -549,8 +549,10 @@ local function ProfitView(items)
         if not e.sale and e.recipe.out and not seen[e.recipe.out] then seen[e.recipe.out], ask[#ask + 1] = true, e.recipe.out end
     end
     -- What the figures rest on, in one card: how many could be priced, and what is missing.
-    local lines = { L["PV_PROFIT_COUNT_FMT"]:format(#all, View.state.complete) }
-    if noReagent > 0 then lines[#lines + 1] = L["PV_PROFIT_NO_REAGENT_FMT"]:format(noReagent) end
+    local lines = { (#all == 1 and L["PV_PROFIT_COUNT_ONE"] or L["PV_PROFIT_COUNT_FMT"]):format(#all, View.state.complete) }
+    if noReagent > 0 then
+        lines[#lines + 1] = (noReagent == 1 and L["PV_PROFIT_NO_REAGENT_ONE"] or L["PV_PROFIT_NO_REAGENT_FMT"]):format(noReagent)
+    end
     if noSale > 0 then lines[#lines + 1] = L["PV_PROFIT_NO_SALE_FMT"]:format(noSale) end
     local action, run
     if #ask > 0 then
@@ -689,8 +691,8 @@ local function Lists(items)
     end
     local searching = FG.MarketSearch.Status()
     local total = { L["PV_TOTAL_HOW"] }
-    if shop.unknown > 0 then table.insert(total, 1, L["PV_TOTAL_UNKNOWN_FMT"]:format(shop.unknown)) end
-    if shop.short > 0 then table.insert(total, 1, L["PV_TOTAL_SHORT_FMT"]:format(shop.short)) end
+    if shop.unknown > 0 then table.insert(total, 1, (shop.unknown == 1 and L["PV_TOTAL_UNKNOWN_ONE"] or L["PV_TOTAL_UNKNOWN_FMT"]):format(shop.unknown)) end
+    if shop.short > 0 then table.insert(total, 1, (shop.short == 1 and L["PV_TOTAL_SHORT_ONE"] or L["PV_TOTAL_SHORT_FMT"]):format(shop.short)) end
     local action, run = L["PV_GO_AUCTION"], function()
         FG.Window.Show("search")
         FG.SearchView.Query("auction house")
@@ -736,12 +738,12 @@ local function MarketView(items)
     local lines = { L["PV_HOUSE_FMT"]:format(s.key), age or L["PV_PRICES_HOW"] }
     if s.partial then lines[#lines + 1] = L["PV_PARTIAL"] end
     if s.searched > 0 and s.searchedAt then
-        lines[#lines + 1] = L["PV_SEARCHED_FMT"]:format(s.searched, Format.Duration(time() - s.searchedAt) or "?")
+        lines[#lines + 1] = (s.searched == 1 and L["PV_SEARCHED_ONE"] or L["PV_SEARCHED_FMT"]):format(s.searched, Format.Duration(time() - s.searchedAt) or "?")
     end
     lines[#lines + 1] = state or why or L["PV_SCAN_READY"]
     local auto = FG.AutoPrices.Line()
     if auto then lines[#lines + 1] = auto end
-    items[#items + 1] = { kind = "card", title = s.at and L["PV_PRICES_FMT"]:format(s.count) or L["PV_PRICES_NONE"],
+    items[#items + 1] = { kind = "card", title = s.at and (s.count == 1 and L["PV_PRICES_ONE"] or L["PV_PRICES_FMT"]):format(s.count) or L["PV_PRICES_NONE"],
                           body = table.concat(lines, "\n"),
                           action = ok and L["PV_SCAN"] or nil, run = function()
                               Market.Scan()

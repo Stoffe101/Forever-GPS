@@ -80,9 +80,9 @@ At 1280 by 800, as on a Steam Deck, with the Handheld layout:
 
 - the window fills most of the screen, centred, one column, scaled up 12% for reading at arm's length;
 - a line at the foot names the buttons that matter;
-- the navigation display (HUD) is compact unless you turn that off, and can be put at the top, top left, right or bottom from the settings, with the controller.
+- the navigation display (HUD) is compact but wide enough for two lines, so what to do next is not cut off, unless you turn that off; the HUD settings say so while it applies. It can be put at the top, top left, right or bottom from the settings, with the controller.
 
-Renders at 1280×800, drawn from the addon's real layout code in the stand-in client (not screenshots of the game): `docs/screenshots/2.6/` (introduction, home, keyboard, results, journey, route map, quests, professions, settings, waiting for a press, a clash).
+Renders at 1280×800, drawn from the addon's real layout code in the stand-in client (not screenshots of the game): `docs/screenshots/2.6/` (introduction, home, keyboard, results, journey, route map, quests, professions, settings, waiting for a press, a clash, the HUD with news, Professions Skill up).
 
 ## Steam Deck
 
@@ -168,6 +168,8 @@ Forever-GPS needs none of them. With Easy Controller or ConsolePort installed, e
 - the emulated modifiers turn LT + X into `SHIFT-PAD3`;
 - protected calls in combat lockdown are refused and recorded, and `PLAYER_REGEN_DISABLED` comes just before the lockdown;
 - the secure state handler drops its owner's bindings when combat starts.
+
+The layout tests (`tests/test_ui.lua`) also run every page at 1280×800 in the handheld layout, at the default and the largest UI scale: nothing outside the window, no controls overlapping, no text painted over, the keyboard, every dialog, every Controller setting and the HUD in each place.
 
 The tests press buttons; they do not call actions where a press can do it. They cover searching and starting a journey with buttons alone, typing on the keyboard, every page, a list of 400 items, items changing under the selection, the route map, remapping with swap, replace, cancel, timeout and Escape, the game's own use of a button, profiles, combat at every step, the handheld screen, and that the player's saved key bindings are never touched.
 
