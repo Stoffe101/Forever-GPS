@@ -175,7 +175,9 @@ function Prof.Data(id)
     local f = {}
     for field in (packed .. "|"):gmatch("([^|]*)|") do f[#f + 1] = field end
     local make = Pairs(f[2])[1]
-    local d = { id = id, line = tonumber(f[1]), out = make and make.id, count = make and make.n or 1,
+    local lines = {}
+    for line in (f[1] or ""):gmatch("%d+") do lines[tonumber(line)] = true end
+    local d = { id = id, line = tonumber(f[1]:match("%d+")), lines = lines, out = make and make.id, count = make and make.n or 1,
                 reagents = Pairs(f[3]), learn = tonumber(f[4]), trainer = tonumber(f[5]),
                 yellow = tonumber(f[6]), grey = tonumber(f[7]), sources = {}, items = Pairs(f[9]),
                 unsure = (f[10] or "") ~= "" }
@@ -224,7 +226,7 @@ function Prof.Obtainable(line)
     local name = C_Spell and C_Spell.GetSpellName
     for id in pairs(FG.RecipeData.recipes) do
         local d = Prof.Data(id)
-        if d.line == line and d.out and not (known[id] and known[id].learned) and #d.sources > 0
+        if d.lines[line] and d.out and not (known[id] and known[id].learned) and #d.sources > 0
             and d.sources[1] ~= "unknown" and not d.unsure then
             out[#out + 1] = { id = id, line = line, out = d.out, qmin = d.count, qmax = d.count, reagents = d.reagents,
                               learned = false, data = d, learnAt = d.learn or (d.items[1] and d.items[1].n),

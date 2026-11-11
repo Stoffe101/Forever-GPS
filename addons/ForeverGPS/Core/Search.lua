@@ -560,8 +560,8 @@ function Search.Run(text, filter)
     local results
     -- "alchemy trainer", "expert alchemy trainer", "artisan blacksmithing": trainers of
     -- that profession, by what each is known to teach of that rank (or the next one).
-    local asked = FG.Trainers.Query(text)
-    local wanted = asked and (asked.profession or asked)
+    local trainerQuery = FG.Trainers.Query(text)
+    local wanted = trainerQuery and (trainerQuery.profession or trainerQuery)
     if MY_TRAINERS[text:lower()] then
         results = {}
         for _, p in ipairs(FG.Professions.List()) do
@@ -571,8 +571,8 @@ function Search.Run(text, filter)
             end
         end
         info.kind = true
-    elseif asked then
-        results = Gather(Normalize(asked.name .. " trainer"), filter, info)
+    elseif trainerQuery then
+        results = Gather(Normalize(trainerQuery.name .. " trainer"), filter, info)
         if #results == 0 then results = Gather(query, filter, info) end
     else
         results = Gather(query, filter, info)
@@ -580,7 +580,7 @@ function Search.Run(text, filter)
     -- Trainers of the profession asked for: what each is known to teach of the rank.
     for _, r in ipairs(results) do
         local p = r.forProfession or wanted
-        local cap = not r.forProfession and asked and asked.cap
+        local cap = not r.forProfession and trainerQuery and trainerQuery.cap
         if not cap and p and p.max then
             local nextRank = FG.Professions.NextRank(p)
             cap = nextRank and nextRank.cap

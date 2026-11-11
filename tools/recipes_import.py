@@ -13,7 +13,8 @@ Each recipe becomes one string, so 2,486 recipes cost about as much memory as th
 
     "line|item:count|reagent:n,reagent:n|learn|trainer|yellow|grey|sources|recipeItem:skill,...|issues"
 
-line is the client's skill line ID (171 is Alchemy), so nothing depends on the language.
+line is the client's skill line ID (171 is Alchemy), so nothing depends on the language;
+a recipe of two professions lists both, "165,197".
 Sources are letters: t trainer (seen at one in game, or learned with the profession), i a
 recipe item, f no recipe item exists so probably a trainer, u the client data is incomplete.
 An empty field is unknown, never zero. Names are left out: the game gives them.
@@ -74,7 +75,21 @@ def recipes() -> list[tuple[int, str]]:
         out.append((spell, packed))
     if len(out) < 2000:
         raise SystemExit(f"recipes_import: only {len(out)} recipes read; has the source format changed?")
-    return sorted(out)
+    # A spell listed twice: the same recipe twice (kept once), or one recipe of two
+    # professions (its lines joined, "165,197"). Anything else differing is an error.
+    merged: dict[int, list[str]] = {}
+    for spell, packed in out:
+        fields = packed.split("|")
+        if spell not in merged:
+            merged[spell] = fields
+            continue
+        have = merged[spell]
+        if have[1:] != fields[1:]:
+            raise SystemExit(f"recipes_import: spell {spell} is listed twice with different data")
+        lines = have[0].split(",")
+        if fields[0] not in lines:
+            have[0] = ",".join(sorted(lines + [fields[0]], key=int))
+    return sorted((spell, "|".join(fields)) for spell, fields in merged.items())
 
 
 def vendor() -> list[tuple[int, int]]:

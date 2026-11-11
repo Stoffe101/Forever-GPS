@@ -101,10 +101,10 @@ end
 -- Every row the answer holds, as unit price and count pairs. full: every unit on offer.
 local function Commodity(itemID)
     local api = C_AuctionHouse
-    local list, full = {}, false
+    local list = {}
     local n = api.GetNumCommoditySearchResults(itemID)
     if Secret(n) or type(n) ~= "number" then return list, false end
-    full = n < MAX_RESULTS
+    local full = n < MAX_RESULTS
     for i = 1, math.min(n, MAX_RESULTS) do
         local info = api.GetCommoditySearchResultInfo(itemID, i)
         if info and not Secret(info.unitPrice) and not Secret(info.quantity)
@@ -120,10 +120,10 @@ end
 
 local function Item(itemKey)
     local api = C_AuctionHouse
-    local list, full = {}, false
+    local list = {}
     local n = api.GetNumItemSearchResults(itemKey)
     if Secret(n) or type(n) ~= "number" then return list, false end
-    full = n < MAX_RESULTS
+    local full = n < MAX_RESULTS
     for i = 1, math.min(n, MAX_RESULTS) do
         local info = api.GetItemSearchResultInfo(itemKey, i)
         if info and not Secret(info.buyoutAmount) and not Secret(info.quantity) then

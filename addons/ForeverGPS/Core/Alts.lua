@@ -32,7 +32,7 @@ function Alts.Save()
         end
     end
     table.sort(makes)
-    local _, class = UnitClass and UnitClass("player")
+    local class = UnitClass and select(2, UnitClass("player")) or nil
     DB()[me] = { name = UnitName("player"), realm = GetRealmName and GetRealmName() or "?", class = class, at = time(),
                  professions = professions, makes = table.concat(makes, ","), recipes = n }
 end

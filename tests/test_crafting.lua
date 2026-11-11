@@ -116,6 +116,20 @@ function tests.whatTheCharacterSaw_winsOverDataThatDisagrees()
     T.ok(r.conflict, "the disagreement is noted")
 end
 
+-- One recipe of two professions (Synthetic Gordok Ogre Suit is leatherworking and
+-- tailoring) is offered to both, not to whichever came last in the data.
+function tests.aRecipeOfTwoProfessions_belongsToBoth()
+    local c = Start()
+    local d = c.FG.Professions.Data(461692)
+    T.ok(d.lines[165] and d.lines[197], "both lines")
+    local function Has(line)
+        for _, r in ipairs(c.FG.Professions.Obtainable(line)) do if r.id == 461692 then return true end end
+        return false
+    end
+    T.ok(Has(165), "a leatherworker can learn it")
+    T.ok(Has(197), "and a tailor")
+end
+
 function tests.everyDataRecipe_parses()
     local c = Start()
     local n, lines = 0, {}
