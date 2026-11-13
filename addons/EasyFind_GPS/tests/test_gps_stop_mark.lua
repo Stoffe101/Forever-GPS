@@ -51,17 +51,19 @@ end
 -- above) whichever way it was picked: a pick in the pop-out or a trip's
 -- field never reached the map tab's pin, so only map tab picks had it
 -- (2026-10-27). Placed as the route or the map shown changes, and again
--- as the map opens; a pin cleared by hand stays cleared meanwhile.
+-- as the map opens; a pin cleared by hand stays cleared meanwhile. Not on
+-- a pin the map placed itself (test_gps_game_pin_end.lua).
 function tests.theEndWearsTheMapsPinFromAnyPick()
     local src = Read("Preview.lua")
-    H.assertTrue(src:find("if drawn%.route ~= route or drawn%.map ~= mapID then PinEnd%(route, mapID%) end") ~= nil,
+    H.assertTrue(src:find("local changed = drawn%.route ~= route or drawn%.map ~= mapID") ~= nil
+        and src:find("if changed and not gamePin then PinEnd%(route, mapID%) end") ~= nil,
         "placed as the route or the map changes")
     H.assertTrue(src:find("drawn%.map = nil%s+since = 0%.1") ~= nil, "and again as the map opens")
     H.assertTrue(src:find("and %(dest%.icon or dest%.displayID or dest%.category%)%) then return end") ~= nil,
         "a place with a face, an icon or a kind gets the pin; a map click (none of those) keeps the emblem alone")
     H.assertTrue(src:find("local x, y = EndOnMap%(route, mapID%)%s+if not x or PinAtEnd%(route, mapID%) then return end%s+MapSearch:PinRouteEnd%(dest, x, y%)") ~= nil,
         "on the spot where the end falls on the map shown, its own map or another")
-    H.assertTrue(src:find("if hovered and hovered%.b and hovered%.final and PinAtEnd%(route, mapID%) then") ~= nil,
+    H.assertTrue(src:find("if hovered and hovered%.b and hovered%.final and %(gamePin or PinAtEnd%(route, mapID%)%) then") ~= nil,
         "with the pin on the end, nothing of ours is drawn over it")
     local nav = Read("MapSearch/Navigation.lua")
     H.assertTrue(nav:find("function MapSearch:PinRouteEnd%(dest, x, y%)%s+if self%._previewing") ~= nil)

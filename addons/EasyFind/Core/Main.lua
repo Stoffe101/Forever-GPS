@@ -14,7 +14,7 @@ ns.EasyFind = EasyFind
 EasyFind._ns = ns
 -- This release, bumped with the tocs: a load-on-demand companion read in
 -- from newer files than the session began with meets another and stops.
-ns.BUILD = "5.2.0"
+ns.BUILD = "5.3.0"
 
 local eventFrame = CreateFrame("Frame")
 ns.eventFrame = eventFrame
@@ -22,7 +22,7 @@ ns.eventFrame = eventFrame
 EasyFind.db = {}
 
 -- Increment when DB schema changes; migrations [N] run when savedVersion < N.
-local DB_VERSION = 27
+local DB_VERSION = 28
 local REVAMPED_TUTORIAL_VERSION = "2.0.0"
 ns.REVAMPED_TUTORIAL_VERSION = REVAMPED_TUTORIAL_VERSION
 
@@ -151,7 +151,7 @@ local DB_DEFAULTS = {
         appearance = true,
         otherservices = true,
         rares = true,
-        npcs = false,
+        npcs = true,
     },
     -- The search bar's map buckets, independent of the map tab's so the
     -- bar can stay lean while the tab shows everything.
@@ -176,7 +176,7 @@ local DB_DEFAULTS = {
         appearance = true,
         otherservices = true,
         rares = true,
-        npcs = false,
+        npcs = true,
     },
     mapTabRecentSearches = {},
     mapTabShowRecent = true,
@@ -203,7 +203,7 @@ local DB_DEFAULTS = {
     uiSearchFilters = {
         achievements   = true,
         characterInfo  = true,
-        statistics     = false,
+        statistics     = true,
         charPlayed     = true,
         charSeen       = true,
         charGold       = true,
@@ -224,12 +224,12 @@ local DB_DEFAULTS = {
         appearanceItems = true,
         appearanceSets = true,
         items          = true,
-        catalog        = false,
+        catalog        = true,
         bags           = true,
-        bank           = false,
+        bank           = true,
         macros         = true,
         options        = true,
-        professions    = false,
+        professions    = true,
         abilities      = true,
         bosses         = true,
         gearSets       = true,
@@ -601,6 +601,13 @@ local DB_MIGRATIONS = {
         if db.mapCategoryScope == "local" then db.mapZoneOnly = { all = true } end
         db.mapCategoryScope = nil
     end,
+    [28] = function(db)
+        -- Creatures are EasyFind's own (5.3.0): the NPCs filter, off while
+        -- they were the GPS extension's, turns on once in every store.
+        for _, key in ipairs({ "mapFilters", "uiMapFilters" }) do
+            if type(db[key]) == "table" then db[key].npcs = true end
+        end
+    end,
 }
 
 local RUNTIME_FIELDS = {
@@ -656,7 +663,7 @@ local SUGGESTED_KEYBINDS = {
 -- with the game, so SetItemRef returns and the post-hook below sees the click.
 -- The release the What's New popup describes: bumped, and the body
 -- rewritten, with every release.
-local WHATSNEW_CONTENT_VERSION = "5.2.0"
+local WHATSNEW_CONTENT_VERSION = "5.3.0"
 
 local WHATSNEW_LINK_PREFIX = "easyfind:whatsnew:"
 local TUTORIAL_LINK_PREFIX = "easyfind:tutorial"

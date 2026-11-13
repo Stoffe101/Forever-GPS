@@ -115,18 +115,29 @@ local quests = {
     [7509] = { name = "The Forging of Quel'Serrar", preQuestSingle = { 7508 } },
     [100] = { name = "Twin Errand" },
     [101] = { name = "Twin Errand" },
+    -- A dungeon's quest (a sort, no zone of its own), given by a man in the ruins and ended by another in town.
+    [200] = { name = "The Wrath of Rath'mael", zoneOrSort = -2999, startedBy = { { 5000 } }, finishedBy = { { 5001 } } },
 }
+-- The giver stands in a subzone (no map of its own) of a zone with one.
+local npcs = {
+    [5000] = { name = "Deathguard Kristof", zoneID = 1497, spawns = { [85] = { { 61, 65 } } } },
+    [5001] = { name = "Magistrate Sevren", zoneID = 159 },
+}
+local areaNames = { [1497] = "Ruins of Lordaeron", [159] = "Brill" }
 local questDB = {
     QuestPointers = {},
     QueryQuestSingle = function(id, field) return quests[id] and quests[id][field] end,
-    QueryNPCSingle = function() return nil end,
+    QueryNPCSingle = function(id, field) return npcs[id] and npcs[id][field] end,
     QueryObjectSingle = function() return nil end,
     QueryItemSingle = function() return nil end,
     GetQuest = function() return nil end,
     IsDoable = function() return false end,
 }
 for id in pairs(quests) do questDB.QuestPointers[id] = true end
-local zoneDB = { GetUiMapIdByAreaId = function(_, area) return area == 12 and 1429 or nil end }
+-- Forever-GPS's tests read Elwynn (area 12); upstream's read Tirisfal (area 85).
+local zoneDB = { GetUiMapIdByAreaId = function(_, areaId)
+    return areaId == 12 and 1429 or areaId == 85 and 1420 or nil
+end }
 -- Questie's tracker frame and module, its own show counted.
 local trackerShows = 0
 local trackerModule = { Show = function() trackerShows = trackerShows + 1 end }
@@ -203,8 +214,8 @@ if mode == "questie" then
     Check(ok and printed[#printed] ~= nil and printed[#printed]:find("not available", 1, true) ~= nil,
         "no quest data: says quest search is off")
     local menu = trackerMenu.GetMenuForQuest(trackerMenu, { Id = 7 })
-    Check(#menu == 3 and menu[2].text == "Directions" and menu[3].text == "Cancel",
-        "Directions in Questie's tracker menu, before Cancel")
+    Check(#menu == 3 and menu[2].text == "EasyFind Directions" and menu[3].text == "Cancel",
+        "EasyFind Directions in Questie's tracker menu, before Cancel")
     Check(menu[2].func ~= nil and pcall(menu[2].func), "its entry runs")
 end
 -- A row's line names a level once: "Needs level 60", never "Needs level 60: Level 60".
@@ -219,10 +230,27 @@ if mode == "data" then
     Check(tracker ~= nil and tracker.frame == _G.Questie_BaseFrame, "Questie's tracker goes with Toggle Objective Tracker")
     Check(tracker ~= nil and tracker.show ~= nil and pcall(tracker.show) and trackerShows == 1,
         "and comes back through Questie's own show")
+    rawset(env.C_Map, "GetAreaInfo", function(id) return areaNames[id] end)
     local rows
     ok, rows = pcall(provider.rows)
-    local byId = {}
-    for _, r in ipairs(ok and rows or {}) do byId[r.questId] = r.name end
+    local byId, rowOf = {}, {}
+    for _, r in ipairs(ok and rows or {}) do byId[r.questId], rowOf[r.questId] = r.name, r end
+    local dungeonQuest = rowOf[200] or {}
+    Check(dungeonQuest.keywords ~= nil and dungeonQuest.keywords[1] == "Ruins of Lordaeron",
+        "a dungeon's quest answers to the dungeon's name: " .. tostring(dungeonQuest.keywords and dungeonQuest.keywords[1]))
+    Check(dungeonQuest.mapID == 1420, "and stands on its giver's map: " .. tostring(dungeonQuest.mapID))
+    Check(dungeonQuest.searchCommandDesc ~= nil and dungeonQuest.searchCommandDesc:find("Ruins of Lordaeron, Deathguard Kristof", 1, true) ~= nil,
+        "its line names the zone and the giver: " .. tostring(dungeonQuest.searchCommandDesc))
+    local said = {}
+    local tip = { SetText = function() end, AddLine = function(_, text) said[#said + 1] = text end }
+    ok = pcall(provider.tooltip, dungeonQuest, tip)
+    local starts, ends = false, false
+    for _, line in ipairs(said) do
+        if line == "Starts at Deathguard Kristof in Ruins of Lordaeron" then starts = true end
+        if line == "Ends at Magistrate Sevren in Brill" then ends = true end
+    end
+    Check(ok and starts, "the tooltip says where the giver stands: " .. table.concat(said, " | "))
+    Check(ok and ends, "and where the ender stands")
     Check(byId[7508] == "The Forging of Quel'Serrar (part 1)" and byId[7509] == "The Forging of Quel'Serrar (part 2)",
         "alike names one chain links are numbered: " .. tostring(byId[7508]) .. " / " .. tostring(byId[7509]))
     Check(byId[7507] == "Foror's Compendium", "a name of its own keeps it")

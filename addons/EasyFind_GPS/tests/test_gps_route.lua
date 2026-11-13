@@ -1055,6 +1055,40 @@ function tests.walk_fromInsideACityStartsWithLeavingIt()
     H.assertEq(out[1].enter, 10, "done on entering the zone around it")
 end
 
+-- The continent names the zone around a city for the city's own points
+-- (Thunder Bluff's read as Mulgore, so a walk to the Pools of Vision began
+-- with a three-yard "Exit Thunder Bluff" and drew nothing on the city map,
+-- 2026-11-09): inside the map box of the city set out from, or walked to,
+-- a point is the city's. A walk within one city stays one step; a walk
+-- out of it exits where the box ends.
+function tests.walk_insideACitysBoxIsTheCitys()
+    local _, ns, Route = fresh()
+    withNav(ns, junction)
+    local steps, start = walk(Route)
+    local isCity = function(m) return m == 99 end
+    -- The city's box takes the whole walk; the zones around read as before.
+    local wholeBox = function(_, x, y, mapID)
+        if mapID == 99 then return (x + 100) / 2000, (y + 100) / 2000 end
+        return (x + 100) / 2000, (y + 100) / 2000
+    end
+    local out = Route.SplitWalks(steps, start, data(), { zoneAt = zoneAt, mapPos = wholeBox, isCity = isCity,
+        startCity = { map = 99, name = "City" }, goalCity = { map = 99, name = "City" } })
+    H.assertTrue(#out == 1 and out[1] == steps[1], "one city from end to end: the walk stays one step, untouched")
+    -- The box ends at y = 400: the exit step ends there, the zone around it next.
+    local lowBox = function(_, x, y, mapID)
+        if mapID == 99 then return (x + 100) / 2000, (y + 100) / 500 end
+        return (x + 100) / 2000, (y + 100) / 2000
+    end
+    out = Route.SplitWalks(steps, start, data(), { zoneAt = zoneAt, mapPos = lowBox, isCity = isCity,
+        startCity = { map = 99, name = "City" } })
+    H.assertTrue(out ~= nil and #out >= 2, "a walk out of the city splits")
+    H.assertEq(out[1].walkZone, 99, "the city first")
+    -- The 100 yd of Alpha past the box are under WALK_MIN_RUN: they fold into
+    -- the exit, which runs on to Bravo's border at 500.
+    H.assertTrue(out[1].arrive.wy > 300 and out[1].arrive.wy < 600, "the exit ends past the box's edge: " .. tostring(out[1].arrive.wy))
+    H.assertEq(out[1].enter, 11, "Bravo is what it enters, the clipped zone folded")
+end
+
 -- A city's map reaches past its walls: read mid-walk (Undercity's over the
 -- lake road), or at the start of a walk not set out from inside it, it is
 -- no step of its own; walked to, or set out from, it stays.
@@ -1474,6 +1508,23 @@ function tests.elevator_isAStepNamedByTheLevelItReaches()
     local up = build(Route, P(1, 0.95, 0.5), { name = "Above", mapID = 1, x = 0.49, y = 0.5 }, { data = liftTrip() })
     H.assertEq(up[1].kind, "elevator")
     H.assertEq(up[1].text, "Take the elevator to Ruins of Lordaeron", "ridden backwards, named by the hall")
+end
+
+-- The walk to a lift's door ends at the door, not in the usual 40 yd ring:
+-- from the hall's loop round Undercity's lifts, 20 yd off, the ride read as
+-- begun (2026-11-08).
+function tests.elevator_itsDoorIsReachedAtTheDoor()
+    local _, ns, Route = fresh(function(env)
+        env.C_Map.GetAreaInfo = function(area) return ({ [153] = "Ruins of Lordaeron", [1497] = "Undercity" })[area] end
+    end)
+    ns.L.GPS_STEP_ELEVATOR_FMT, ns.L.GPS_REACH_ELEVATOR_FMT = "Take the elevator to %s", "Go to the elevator to %s"
+    local steps = buildAll(Route, P(1, 0.3, 0.5), { name = "Below", mapID = 1, x = 0.91, y = 0.5 }, { data = liftTrip() })
+    H.assertEq(steps[1].approach, true, "the walk to the door comes first")
+    H.assertEq(steps[1].text, "Go to the elevator to Undercity")
+    H.assertEq(steps[1].arriveYards, 10, "done at the door")
+    H.assertEq(steps[2].kind, "elevator")
+    local plain = buildAll(Route, P(1, 0.1, 0.5), { name = "Nearby", mapID = 1, x = 0.2, y = 0.5 })
+    H.assertNil(plain[1].arriveYards, "a plain walk keeps the usual ring")
 end
 
 -- A city whose map's middle is no way in names its gate: a zone goal

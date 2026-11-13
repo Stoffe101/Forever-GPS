@@ -26,7 +26,7 @@ local function Load(skullAt, guardAt)
                 return walks[sx]
             end,
         },
-        GPSNpcs = {
+        Npcs = {
             DeadlyAlong = function(path, _, level)
                 if not state.catalog then return nil end
                 state.asked = (state.asked or 0) + 1

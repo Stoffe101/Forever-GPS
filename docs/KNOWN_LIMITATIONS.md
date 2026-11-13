@@ -9,6 +9,13 @@
 - The Quest Explorer against live Questie. Its data has been read offline, and everything else ran against a stand-in that follows Questie's rules.
 - Fonts, texture quality, real frame times and memory, and how it sits beside EllesmereUI.
 
+## 2.7
+
+- **Not run in the game yet**, with or without the Gamepad UI. Under the Gamepad UI the cause of the testers' errors was found in Blizzard's code and everything of ours that feeds it stands aside, but without their BugSack stack or taint log, which action set it off for them is not proved. [CONTROLLER.md](CONTROLLER.md#the-games-gamepad-ui) says what to send.
+- **Under the Gamepad UI**, a few things are not there: the journey drawn on the game's world map (it is on Forever-GPS's own map), "Directions" in the game's menus, EasyFind's map search tab and dungeon entrance pins, and opening the game's quest log from a quest page.
+- **Other addons** can still set the Gamepad UI's errors off by themselves (Questie, bag and minimap addons are reported to). They are then named, not Forever-GPS: `/fgps pad` lists each with its function.
+- **The upstream watch** runs on a schedule only once its workflow is on `main`, and opens pull requests only with "Allow GitHub Actions to create and approve pull requests" on.
+
 ## 2.6
 
 - **2.6 has not run in the game, and has not been used with a real controller or a Steam Deck.** It was tested against a simulation of how the client delivers controller input. [CONTROLLER.md](CONTROLLER.md) has the checklist.

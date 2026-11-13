@@ -1,0 +1,12 @@
+{
+ "client": {
+  "build": "70938",
+  "verified": "1.60.1.70790 (in the game, Forever-GPS 2.5)",
+  "note": "build: the newest build checked statically. verified: the newest actually played with Forever-GPS."
+ },
+ "questie": {
+  "minimum": "12.6.2",
+  "tested": "12.8.0",
+  "note": "minimum: the oldest Questie known to work, from a real install. tested: checked against QUESTIE_CONTRACT in tools/upstream_watch.py."
+ }
+}

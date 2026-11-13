@@ -177,7 +177,7 @@ end
 
 function tests.anNpcWithSeveralSpawns_offersEachArea()
     local c = C()
-    local N = c.ns.GPSNpcs
+    local N = c.ns.Npcs or c.ns.GPSNpcs
     -- A creature the catalog has in more than one place, found from the data.
     local found
     for i = 1, N.n do

@@ -450,5 +450,51 @@ function tests.settings_pageAndKitInTheirPlaces()
     H.assertEq(type(gotKit.Title), "function")
 end
 
+-- An extension's judge of @upgrades (MINOR 10): a percent, true, false,
+-- or nil for an answer it cannot give; the page is built again on a change.
+function tests.upgradeJudge_answersForItsExtension_andRefreshesThePage()
+    local _, ns, API = fresh()
+    raises(function() API.RegisterUpgradeJudge({ extension = "nobody", rate = function() end }) end, "registered first")
+    API.RegisterExtension({ id = "pawn", name = "Pawn", icon = 1 })
+    raises(function() API.RegisterUpgradeJudge({ extension = "pawn" }) end, "rate must be a function")
+    local refreshed = 0
+    ns.Upgrades = { Changed = function() refreshed = refreshed + 1 end }
+    local answers = { [1] = 12, [2] = false, [3] = true, [5] = "odd" }
+    H.assertTrue(API.RegisterUpgradeJudge({ extension = "pawn", rate = function(itemID)
+        if itemID == 4 then error("boom") end
+        return answers[itemID]
+    end }))
+    H.assertEq(refreshed, 1, "the page is built again")
+    local Judge = ns.Extensions.Judge
+    H.assertEq(Judge.Rate(1, "item:1"), 12)
+    H.assertEq(Judge.Rate(2, "item:2"), false)
+    H.assertEq(Judge.Rate(3, "item:3"), true)
+    H.assertNil(Judge.Rate(4, "item:4"), "a failed rate: not rated")
+    H.assertNil(Judge.Rate(5, "item:5"), "an odd answer: not rated")
+    H.assertNil(Judge.Rate(6, "item:6"), "unrated")
+    API.UnregisterUpgradeJudge("pawn")
+    H.assertNil(Judge.Rate(1, "item:1"), "no judge")
+    H.assertEq(refreshed, 2)
+end
+
+-- Through the real API, as an extension calls it: the first version read a
+-- name check defined further down the file and called nil (luacheck caught
+-- it at the 5.3.0 push, 2026-11-09).
+function tests.itemSources_registerThroughTheRealAPI()
+    local _, ns, API = fresh()
+    local got = {}
+    ns.ItemSources = { Register = function(id, label, fn) got[#got + 1] = { id = id, label = label, fn = fn } end }
+    raises(function() API.RegisterItemSources("", function() end) end, "id must be a string")
+    raises(function() API.RegisterItemSources("questie", "rows") end, "fn must be a function")
+    raises(function() API.RegisterItemSources("questie", function() end) end, "registered first")
+    API.RegisterExtension({ id = "questie", name = "Questie", icon = 1 })
+    local fn = function() return {} end
+    H.assertTrue(API.RegisterItemSources("questie", fn))
+    H.assertEq(#got, 1)
+    H.assertEq(got[1].id, "questie")
+    H.assertEq(got[1].label, "Questie")
+    H.assertTrue(got[1].fn == fn)
+end
+
 local pass, fail, failures = H.runSuite("ExtensionsAPI", tests)
 return { pass = pass, fail = fail, failures = failures }

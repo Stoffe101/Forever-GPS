@@ -180,7 +180,7 @@ The game sees what Steam Input sends. For Forever-GPS:
 
 ## Verified APIs
 
-From Blizzard's UI source of build 12.1.5.70783, the line WoW Forever 1.60.1.70790 is built on. That source matches the client's own line for line where checked (docs/REALCLIENT.md).
+From Blizzard's UI source of build 12.1.5.70783, the line WoW Forever 1.60.1.70790 is built on, and from the Forever client's own UI code (Gethe/wow-ui-source, branch `forever`, build 1.60.1.70938), which also holds the Gamepad UI. That source matches the client's own line for line where checked (docs/REALCLIENT.md).
 
 | API | Where it is used by Blizzard | Used for |
 | --- | --- | --- |
@@ -215,7 +215,7 @@ Forever-GPS needs none of them. With Easy Controller or ConsolePort installed, e
 
 ## Testing
 
-`tests/test_controller.lua` (43 tests) drives the real addon through `tests/support/gamepad.lua`, a simulation of how the client delivers controller input:
+`tests/test_controller.lua` (44 tests), `tests/test_gamepadui.lua` (8) and `tests/test_controller_feel.lua` drives the real addon through `tests/support/gamepad.lua`, a simulation of how the client delivers controller input:
 
 - a frame hearing the controller gets the press first, then override bindings (priority first, then the latest), then the game's own binding;
 - each owner keeps its own override bindings;

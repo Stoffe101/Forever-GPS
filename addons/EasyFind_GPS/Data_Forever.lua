@@ -273,11 +273,13 @@ ns.GPSData = {
         { kind = "tram", n = "Deeprun Tram", dest = "Stormwind City", from = { m = 1455, x = 0.7802, y = 0.5137, ci = 0, wx = -4840, wy = -1330, area = 2257 }, to = { m = 1453, x = 0.6958, y = 0.3027, ci = 0, wx = -8346, wy = 514, area = 2257 }, sec = 133, wait = 45 },
         { kind = "portal", n = "Portal to Darnassus", dest = "Darnassus", from = { m = 1438, x = 0.5587, y = 0.8934, ci = 1, wx = 8799, wy = 970 }, to = { m = 1457, x = 0.2913, y = 0.4121, ci = 1, wx = 9947, wy = 2630, area = 1657 }, sec = 6 },
         { kind = "portal", n = "Portal to Rut'theran Village", dest = "Rut'theran Village", from = { m = 1457, x = 0.2913, y = 0.4121, ci = 1, wx = 9947, wy = 2630 }, to = { m = 1438, x = 0.5587, y = 0.8934, ci = 1, wx = 8799, wy = 970, area = 702 }, sec = 6 },
-        { kind = "portal", n = "Portal to Dalaran", dest = "Dalaran", from = { m = 1453, x = 0.4892, y = 0.8799, ci = 0, wx = -9015, wy = 873 }, to = { m = 1416, x = 0.1405, y = 0.5464, ci = 0, wx = 480, wy = 390, area = 279 }, sec = 6, approx = true, faction = "Alliance", race = "Skyborne" },
-        { kind = "portal", n = "Portal to Stormwind City", dest = "Stormwind City", from = { m = 1416, x = 0.1405, y = 0.5464, ci = 0, wx = 480, wy = 390 }, to = { m = 1453, x = 0.4892, y = 0.8799, ci = 0, wx = -9015, wy = 873, area = 1519 }, sec = 6, approx = true, faction = "Alliance", race = "Skyborne" },
         { kind = "elevator", n = "Undercity elevator", dest = "Undercity", from = { m = 1458, x = 0.6593, y = 0.5072, ci = 0, wx = 1553, wy = 241, area = 153 }, to = { m = 1458, x = 0.6592, y = 0.5375, ci = 0, wx = 1534, wy = 241, area = 1497 }, sec = 12, wait = 10, bidir = true, approx = true },
         { kind = "elevator", n = "Undercity elevator", dest = "Undercity", from = { m = 1458, x = 0.7041, y = 0.4414, ci = 0, wx = 1595, wy = 198, area = 153 }, to = { m = 1458, x = 0.7239, y = 0.4417, ci = 0, wx = 1595, wy = 179, area = 1497 }, sec = 12, wait = 10, bidir = true, approx = true },
         { kind = "elevator", n = "Undercity elevator", dest = "Undercity", from = { m = 1458, x = 0.6155, y = 0.4405, ci = 0, wx = 1596, wy = 283, area = 153 }, to = { m = 1458, x = 0.595, y = 0.4402, ci = 0, wx = 1596, wy = 302, area = 1497 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "Thunder Bluff elevator", dest = "Thunder Bluff", from = { m = 1456, x = 0.3163, y = 0.6254, ci = 1, wx = -1285, wy = 186, area = 1638 }, to = { m = 1456, x = 0.3163, y = 0.6601, ci = 1, wx = -1309, wy = 186, area = 215 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "Thunder Bluff elevator", dest = "Thunder Bluff", from = { m = 1456, x = 0.543, y = 0.2739, ci = 1, wx = -1041, wy = -50, area = 1638 }, to = { m = 1456, x = 0.5238, y = 0.2567, ci = 1, wx = -1029, wy = -30, area = 215 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "The Great Lift", dest = "Thousand Needles", from = { m = 1441, x = 0.3167, y = 0.2369, ci = 1, wx = -4662, wy = -1827, area = 17 }, to = { m = 1441, x = 0.3221, y = 0.2397, ci = 1, wx = -4670, wy = -1851, area = 400 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "Freewind Post elevator", dest = "Freewind Post", from = { m = 1441, x = 0.4698, y = 0.4898, ci = 1, wx = -5404, wy = -2500, area = 484 }, to = { m = 1441, x = 0.467, y = 0.483, ci = 1, wx = -5384, wy = -2488, area = 400 }, sec = 12, wait = 10, bidir = true, approx = true },
     },
     -- Each boat's timetable: its loop in seconds, and per stop where it is, how long
     -- it waits and when it leaves, in seconds after it leaves the first stop.
@@ -358,7 +360,6 @@ ns.GPSData = {
         [269] = { m = 1437, x = 0.4797, y = 0.7413, ci = 0, wx = -4191, wy = -2373 },
         [271] = { m = 1424, x = 0.4995, y = 0.5639, ci = 0, wx = -803, wy = -532 },
         [272] = { m = 1416, x = 0.6014, y = 0.8181, ci = 0, wx = -27, wy = -901 },
-        [279] = { m = 1416, x = 0.1748, y = 0.6413, ci = 0, wx = 303, wy = 294 },
         [283] = { m = 1416, x = 0.4791, y = 0.3422, ci = 0, wx = 861, wy = -558 },
         [312] = { m = 1434, x = 0.2355, y = 0.7077, ci = 0, wx = -14180, wy = 718 },
         [318] = { m = 1417, x = 0.8224, y = 0.367, ci = 0, wx = -1014, wy = -3827 },
@@ -522,6 +523,7 @@ ns.GPSData = {
     -- A city whose map's middle is no way in: its gate, by the city's map.
     gates = {
         [1458] = { m = 1458, x = 0.6566, y = 0.4367, ci = 0, wx = 1598, wy = 243 },
+        [1456] = { { m = 1456, x = 0.3163, y = 0.6601, ci = 1, wx = -1309, wy = 186 }, { m = 1456, x = 0.5238, y = 0.2567, ci = 1, wx = -1029, wy = -30 } },
     },
     -- Subzones by zone map, flat triples: area id, x, y (C_Map.GetAreaInfo names them).
     areas = {

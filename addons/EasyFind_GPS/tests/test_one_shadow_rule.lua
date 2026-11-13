@@ -25,7 +25,7 @@ function tests.noTextFlattenedByHand()
             end
         end
     end
-    H.assertTrue(checked > 50, "expected the full file set, read " .. checked)
+    H.assertTrue(checked > 40, "expected the full file set, read " .. checked)
     H.assertEq(#bad, 0, "use ns.ShadeText:\n  " .. table.concat(bad, "\n  "))
 end
 

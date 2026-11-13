@@ -52,7 +52,7 @@ function tests.anOlderEasyFind_oneLineNamingTheOldest()
     local own, printed = RunGuard("3.4.4", true)
     H.assertTrue(own.tooOld, "the files are told to stop")
     H.assertEq(#printed, 1)
-    H.assertTrue(printed[1]:find("EasyFind [GPS]", 1, true) and printed[1]:find("4.0.0", 1, true),
+    H.assertTrue(printed[1]:find("EasyFind [GPS]", 1, true) and printed[1]:find("5.3.0", 1, true),
         "the addon and the version it needs: " .. printed[1])
 end
 
@@ -65,7 +65,7 @@ function tests.beforeLogin_theLineWaitsForIt()
 end
 
 function tests.theOldestAndNewer_runAsIs()
-    for _, v in ipairs({ "4.0.0", "4.0.1", "4.3.0", "5.0.0", "10.0.0", "@project-version@" }) do
+    for _, v in ipairs({ "5.3.0", "5.3.1", "5.4.0", "6.0.0", "10.0.0", "@project-version@" }) do
         local own, printed = RunGuard(v, true)
         H.assertNil(own.tooOld, v)
         H.assertEq(#printed, 0, v)

@@ -94,7 +94,7 @@ local function ReconstructMapData(key)
         end
     end
     -- A creature: its name, portrait and zone from the creature catalog.
-    local creature = category == "npc" and ns.GPSNpcs and ns.GPSNpcs.ByName and ns.GPSNpcs.ByName(name)
+    local creature = category == "npc" and ns.Npcs and ns.Npcs.ByName and ns.Npcs.ByName(name)
     local zoneInfo = creature and mapID and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
     return {
         name = (creature and creature.name) or properName or name,
@@ -266,13 +266,16 @@ function Aliases:RegisterKeyResolver(prefix, resolver)
     keyResolvers[prefix] = resolver
 end
 
+-- The search's own row under a key, or nil: never a copy rebuilt from it.
+function Aliases:LiveEntryByKey(key)
+    local data = key and ns.Database and ns.Database.uiSearchData
+    return data and EntryKeyIndex(data)[key] or nil
+end
+
 function Aliases:FindEntryByKey(key)
     if not key then return nil end
-    local data = ns.Database and ns.Database.uiSearchData
-    if data then
-        local hit = EntryKeyIndex(data)[key]
-        if hit then return hit end
-    end
+    local hit = self:LiveEntryByKey(key)
+    if hit then return hit end
     -- Aliases keep a snapshot (it preserves the proper-case name and icon for
     -- display); honour it first so aliased map rows render exactly as captured.
     if EasyFind and EasyFind.db and EasyFind.db.aliases then
@@ -349,7 +352,7 @@ end
 -- one) takes it from the creature catalog by name, once.
 local function FillCreature(entry)
     if not (entry and entry.category == "npc" and not entry.displayID) then return entry end
-    local npcs = ns.GPSNpcs
+    local npcs = ns.Npcs
     local hit = npcs and npcs.ByName and npcs.ByName(entry.nameLower or entry.name)
     if hit then
         entry.name = hit.name

@@ -88,7 +88,7 @@ local function fresh(deadly, west, sealed, zoom, waypoints, settings)
     }
     env.UnitLevel = function() return 15 end
     env.UnitFactionGroup = function() return "Alliance" end
-    ns.GPSNpcs = { DeadlyAlong = function() return deadly end }
+    ns.Npcs = { DeadlyAlong = function() return deadly end }
     LoadTrace(env, ns)
     H.loadModule("Follow.lua", env, ns)
     H.loadModule("Minimap.lua", env, ns)

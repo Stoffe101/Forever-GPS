@@ -76,8 +76,14 @@ local function Style()
 end
 WorldPin.Style = Style
 WorldPin.DefaultStyle = DefaultStyle
-local function Tracked()
-    return C_SuperTrack and C_SuperTrack.IsSuperTrackingUserWaypoint and C_SuperTrack.IsSuperTrackingUserWaypoint() or false
+-- The game's waypoint, or on a last step to a log quest the quest itself.
+local function Tracked(route)
+    local ST = C_SuperTrack
+    if not ST then return false end
+    if route and route.questTracked and ST.GetSuperTrackedQuestID then
+        return ST.GetSuperTrackedQuestID() == route.questTracked
+    end
+    return ST.IsSuperTrackingUserWaypoint and ST.IsSuperTrackingUserWaypoint() or false
 end
 -- The engine's own navigation region carries the screen position and the
 -- clamping; the game's drawn face (icon, range, arrow) is a separate frame
@@ -757,7 +763,7 @@ WorldPin.MarkerLeadsElsewhere = MarkerLeadsElsewhere
 local function Update(dt)
     local host = Host()
     local route = Route()
-    local on = Enabled() and route ~= nil and not route.arrived and not route.untracked and Tracked()
+    local on = Enabled() and route ~= nil and not route.arrived and not route.untracked and Tracked(route)
         and host ~= nil and host:IsShown()
     if not on then
         if frame then frame:Hide() end
@@ -845,7 +851,7 @@ function WorldPin:Status()
         end
     end
     return sformat("world pin: enabled %s route %s arrived %s tracked %s host %s shown %s clamped %s distance %s | ours %s scale %.2f | marker: %s",
-        tostring(Enabled()), tostring(route ~= nil), tostring(route and route.arrived == true), tostring(Tracked()),
+        tostring(Enabled()), tostring(route ~= nil), tostring(route and route.arrived == true), tostring(Tracked(route)),
         host and (host:GetName() or "frame") or "none", tostring(host and host:IsShown()),
         tostring(C_Navigation and C_Navigation.WasClampedToScreen and C_Navigation.WasClampedToScreen()),
         tostring(C_Navigation and C_Navigation.GetDistance and C_Navigation.GetDistance()),

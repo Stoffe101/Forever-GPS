@@ -13,6 +13,11 @@ local function GPS()
     return ns and ns.GPS
 end
 
+-- The creature catalog: EasyFind's own from 5.3.0 (ns.Npcs), the GPS's before it.
+local function Npcs(ns)
+    return ns and (ns.Npcs or ns.GPSNpcs)
+end
+
 -- EasyFind's API, when EasyFind_Questie offers this action.
 local function QuestieAction(name)
     local API = EasyFind and EasyFind.API
@@ -240,7 +245,8 @@ function Bridge.WarmSearch()
             if ready and MapSearch.ResetSearchPoisCache then MapSearch.ResetSearchPoisCache() end
         end)
     end
-    if ns and ns.GPSNpcs and ns.GPSNpcs.Load then pcall(ns.GPSNpcs.Load) end
+    local N = Npcs(ns)
+    if N and N.Load then pcall(N.Load) end
     Bridge.StartWorldIndex()
 end
 
@@ -305,7 +311,7 @@ end
 
 function Bridge.NpcKnown(npcID)
     local ns = NS()
-    local N = ns and ns.GPSNpcs
+    local N = Npcs(ns)
     if not (N and N.HasID) then return false end
     local ok, has = pcall(N.HasID, npcID)
     return ok and has == true
@@ -322,7 +328,7 @@ end
 -- Every spot a creature stands at, { mapID, x, y } each.
 function Bridge.NpcSpots(npcID)
     local ns = NS()
-    local N = ns and ns.GPSNpcs
+    local N = Npcs(ns)
     if not (N and N.SpotsOf and npcID) then return nil end
     local ok, spots = pcall(N.SpotsOf, npcID)
     if not (ok and spots) then return nil end
@@ -337,7 +343,7 @@ end
 -- 0 friendly, 1 neutral, 2 hostile to the player; nil when unknown.
 function Bridge.NpcReaction(npcID)
     local ns = NS()
-    local N = ns and ns.GPSNpcs
+    local N = Npcs(ns)
     if not (N and N.ReactionOf and npcID) then return nil end
     local ok, reaction = pcall(N.ReactionOf, npcID, UnitFactionGroup("player") == "Horde")
     return ok and reaction or nil
@@ -490,9 +496,9 @@ function Bridge.RestoreNav()
     local Nav = ns and ns.GPSNav
     if not (Nav and Nav.SetDanger) then return end
     local avoid = Bridge.RouteAvoid()
-    local Npcs, Jumps = ns.GPSNpcs, ns.GPSJumps
-    local danger = avoid and avoid.danger and Npcs and Npcs.DangerTiles
-    Nav.SetDanger(danger and Npcs.DangerTiles(UnitLevel("player"), UnitFactionGroup("player")) or nil)
+    local Catalog, Jumps = Npcs(ns), ns.GPSJumps
+    local danger = avoid and avoid.danger and Catalog and Catalog.DangerTiles
+    Nav.SetDanger(danger and Catalog.DangerTiles(UnitLevel("player"), UnitFactionGroup("player")) or nil)
     Nav.SetRoads(avoid and avoid.offroad)
     if Nav.SetDropLimit then
         local route = Bridge.ActiveRoute()
@@ -612,9 +618,9 @@ end
 
 function Bridge.DeadlyAlong(path, ci)
     local ns = NS()
-    local Npcs = ns and ns.GPSNpcs
-    if not (Npcs and Npcs.DeadlyAlong) then return nil end
-    return Npcs.DeadlyAlong(path, ci, UnitLevel("player"), UnitFactionGroup("player"))
+    local Catalog = Npcs(ns)
+    if not (Catalog and Catalog.DeadlyAlong) then return nil end
+    return Catalog.DeadlyAlong(path, ci, UnitLevel("player"), UnitFactionGroup("player"))
 end
 
 function Bridge.FlightNodes()

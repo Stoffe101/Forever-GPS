@@ -434,5 +434,20 @@ function tests.bearingFromNorthTowardWest()
     H.assertTrue(near(Bearing(1, 0, 0, -10, 0), math.pi / 2), "west a quarter turn left")
 end
 
+-- A route planned from another start: nothing followed from the player
+-- until he reaches it (a way to its first step from Brill ran through
+-- Undercity's sewers, 2026-11-07).
+function tests.plannedFromElsewhere_nothingFollowedUntilItsStart()
+    local Aim, player, finds, now, _, _, ns = fresh(true)
+    local route = ns.GPS.CurrentRoute()
+    route.origin = { ci = 1, wx = 0, wy = 0 }
+    player.x, player.y = 500, 500
+    H.assertNil(Aim(), "far from its start: no arrow")
+    H.assertEq(#finds, 0, "no way asked from the player")
+    route.joined = true
+    now.t = now.t + 1
+    H.assertNotNil(Aim(), "at its start: followed")
+end
+
 local pass, fail, failures = H.runSuite("GPSArrow", tests)
 return { pass = pass, fail = fail, failures = failures }

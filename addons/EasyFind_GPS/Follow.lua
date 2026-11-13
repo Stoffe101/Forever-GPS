@@ -298,6 +298,10 @@ local function Take(r, now)
     local step = route.steps[index]
     if not step or step.kind == "teleport" or step.noWay or (UnitOnTaxi and UnitOnTaxi("player")) then return end
     if Follow.AtBuilding(step) then return end
+    -- Planned from elsewhere: nothing followed until the player reaches its
+    -- start (the tick marks it joined); a way to it from him ran wherever
+    -- the grid reached the first step (from Brill through Undercity's sewers).
+    if route.origin and not route.joined then return end
     local ci, px, py = ns.GPS.PlayerWorldPos()
     local tci, tx, ty = World(step.go or step.arrive)
     -- On board a crossing: what is left is the ride to where it lands.

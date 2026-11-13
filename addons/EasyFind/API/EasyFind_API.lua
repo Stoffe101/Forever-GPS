@@ -183,7 +183,7 @@ EasyFind.API = {
     ---Rises only for a change that breaks an extension.
     VERSION = 1,
     ---Rises when something is added.
-    MINOR = 7,
+    MINOR = 10,
 }
 local API = EasyFind.API
 
@@ -234,9 +234,26 @@ function API.RefreshRowDecorations() end
 function API.RedrawRowTooltip() end
 ---Its rows changed: rebuilt now, and an open search shows them.
 function API.RefreshSearchProvider(key) end
+---Your verdict on @upgrades for the character played now (MINOR 10): rate(itemID, link) answers the percent the drop beats the worn piece by, true for an upgrade with no number, false for no upgrade, nil for not rated (EasyFind's own comparison stands). One judge at a time; the last registered judges.
+---@param def { extension: string, rate: fun(itemID: integer, link: string): number|boolean|nil }
+---@return boolean
+function API.RegisterUpgradeJudge(def) end
+---Takes the extension's judge back (MINOR 10).
+function API.UnregisterUpgradeJudge(extension) end
+---Where an item comes from, as your extension knows it (MINOR 11): fn(itemID, name) returns rows (quests that reward it, who sells it), listed under your extension's name on the item's sources page, which a click on an item row opens.
+---@param id string Your extension's id.
+---@param fn fun(itemID: integer, name: string): EasyFindRow[]|nil
+---@return boolean
+function API.RegisterItemSources(id, fn) end
+---Your verdicts changed (a drop rated, the gear changed): @upgrades is built again when shown (MINOR 10).
+function API.RefreshUpgrades() end
 ---A provider row's spots on the map tab: the map searched for the row, its spots pinned on the viewed map, else the nearest one's map opened (MINOR 3). key: the provider's; row: the copy select got. True when shown.
 ---@return boolean
 function API.ShowPlaces(key, row) end
+---Opens the world map on a map, or turns the open map to it, the way the game's own open does (MINOR 11). Turn the map only through this: an addon's SetMapID marks the map as the addon's for the session, and the game refuses its own actions on every later open. In a fight the game refuses the open: false, and the turn happens as the fight ends if the map is still up.
+---@param mapID number
+---@return boolean
+function API.OpenMap(mapID) end
 ---Shows the search bar focused, with text searched when given.
 ---@param text string?
 ---@return boolean

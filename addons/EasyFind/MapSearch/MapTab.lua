@@ -1969,7 +1969,12 @@ local function CreateBackTab(qmf)
     hoverGlow:SetPoint("CENTER", bg, "CENTER", 0, 0)
 
     tab:SetScript("OnMouseUp", function(_, button)
-        if button == "LeftButton" then HideOurPanel(true) RefreshSelectGlows() end
+        if button ~= "LeftButton" then return end
+        -- The player's way back to the quest log: the map's next open
+        -- keeps it, as a click on one of the game's own tabs does.
+        lastSelectedWasOurs = false
+        HideOurPanel(true)
+        RefreshSelectGlows()
     end)
     tab:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
@@ -2709,9 +2714,12 @@ function PlaceTab()
             local row = own:GetHeight() / 768 * own:GetEffectiveScale() / backTab:GetEffectiveScale()
             wmf, inset = own, -(TabArtInset(backTab) + 2 * row)
         end
+        -- The pane's top under the frame's, on the screen (CUIF's frame is
+        -- scaled apart), in the tab's own units.
         local qTop, wTop = qmf:GetTop(), wmf and wmf:GetTop()
         if qTop and wTop then
-            backTab:SetPoint("TOPLEFT", wmf, "TOPRIGHT", inset, qTop - wTop - 28)
+            local drop = (qTop * qmf:GetEffectiveScale() - wTop * wmf:GetEffectiveScale()) / backTab:GetEffectiveScale()
+            backTab:SetPoint("TOPLEFT", wmf, "TOPRIGHT", inset, drop - 28)
         else
             backTab:SetPoint("TOPLEFT", qmf, "TOPRIGHT", -9, -28)
         end

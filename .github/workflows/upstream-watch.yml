@@ -1,0 +1,73 @@
+name: Upstream watch
+
+# Twice a day: what Forever-GPS is built on, checked against its pins (tools/upstream_watch.py,
+# docs/UPSTREAM.md). When the vendored EasyFind addons have a new release, an update is
+# prepared on its own branch, tested and packaged, and offered as a draft pull request
+# against the development branch. Nothing is merged, released or installed.
+#
+# GitHub runs scheduled workflows from the default branch only: this file has to be on
+# main for the schedule to start. It checks out the development branch for the tools.
+
+on:
+  schedule:
+    - cron: "23 5,17 * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "One dependency only (EasyFind, EasyFind_GPS, EasyFind_Questie, Questie, CraftProfit, ForeverNet, profit, EasyController, WoW Forever client); empty for all"
+        required: false
+        default: ""
+      prepare:
+        description: "Prepare an update pull request if the vendored addons moved"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+env:
+  FGPS_DEV_BRANCH: ${{ vars.FGPS_DEV_BRANCH || 'feature/forever-gps-v1' }}
+
+jobs:
+  watch:
+    name: Check, and prepare an update
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FGPS_DEV_BRANCH }}
+          fetch-depth: 0
+      # What was checked and prepared last time: kept between runs, never committed.
+      - uses: actions/cache@v4
+        with:
+          path: build/upstream-state.json
+          key: upstream-state-${{ github.run_id }}
+          restore-keys: upstream-state-
+      - name: Install Lua 5.4, for the suites a prepared update runs
+        run: bash tools/ci/install_lua.sh lua5.4
+      - name: Check every dependency
+        # A broken contract or a changed license is reported in the summary, not as a
+        # failed run every twelve hours.
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ONLY: ${{ inputs.only }}
+        run: |
+          mkdir -p build
+          python3 tools/upstream_watch.py check --state build/upstream-state.json --report build/upstream.md ${ONLY:+--only "$ONLY"}
+      - name: Prepare an update pull request
+        if: ${{ github.event_name == 'schedule' || inputs.prepare }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LUA: lua5.4
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          python3 tools/upstream_watch.py prepare --push --base "$FGPS_DEV_BRANCH" --state build/upstream-state.json --report build/upstream-prepare.md

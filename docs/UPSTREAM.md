@@ -4,11 +4,11 @@
 
 | Addon | Version | Commit |
 | --- | --- | --- |
-| EasyFind | 5.2.0 | `b593508a6cc2e9ac93dc6fbae8d37a7ea323843b` |
-| EasyFind GPS | 1.4.0 | `570600ac99e2ae746efe2e0cae3059ce6365a804` |
-| EasyFind Questie | 1.2.1 | `d86ddc31846a009bd081f3fcf1079056de088b50` |
+| EasyFind | 5.3.0 | `a029fac24bf0fb8004f63406a9397dc7a60c910a` |
+| EasyFind GPS | 1.6.0 | `ec713f984d080b7b52cf30de18ffd903c730fdae` |
+| EasyFind Questie | 1.3.0 | `41f71ebe28d3ae65493b6b7234f057a84255f073` |
 
-All three were the latest commits on their default branches on 2026-11-06. They are imported byte-exact from each commit's object store, without their `.github` folders, which mean nothing in a subfolder.
+All three are their release tags of 2026-11-11, the newest on 2026-11-13. Before them, Forever-GPS 2.0–2.6 were on EasyFind 5.2.0 (`b593508`), GPS 1.4.0 (`570600a`) and the Questie extension 1.2.1 (`d86ddc3`). They are imported byte-exact from each commit's object store, without their `.github` folders, which mean nothing in a subfolder.
 
 `UPSTREAM.lock.json` holds each file's git blob hash at its pin. This command, which CI also runs, fails on any vendored file that differs and is not declared below:
 
@@ -44,9 +44,9 @@ To take a new version: update as in [Taking a new upstream version](#taking-a-ne
 
 Every change to vendored code, as declared in `tools/upstream.py`. All are additive except the two bug fixes.
 
-### `EasyFind_GPS/Npcs.lua`: two read-only accessors
+### `EasyFind/MapSearch/Npcs.lua`: two read-only accessors
 
-Adds `N.SpotsOf(npcID)` and `N.ReactionOf(npcID, horde)`, for offering a creature's several locations and marking hostile ones. The data was there, but only inside local functions.
+Adds `N.SpotsOf(npcID)` and `N.ReactionOf(npcID, horde)`, for offering a creature's several locations and marking hostile ones. The data was there, but only inside local functions. Up to GPS 1.5 the creature catalog was the GPS's own (`EasyFind_GPS/Npcs.lua`, `ns.GPSNpcs`); from EasyFind 5.3.0 it is EasyFind's (`ns.Npcs`), and the two accessors moved with it unchanged. `Core/Bridge.lua` reads whichever is there.
 
 ### `EasyFind_GPS/Jumps.lua`: bug fix
 
@@ -59,7 +59,7 @@ The fix restores the character's own limit after the trial. It is worth sending 
 
 ### `EasyFind_GPS/GPS.lua`: trips survive a reroute
 
-`GPS.Rerouted` built a new route table without `stops` or `skipLearn`, so one wrong turn on a trip turned it into a route to the last stop. It now keeps both. `GPS.StopsAhead(route)` works out which stops are still ahead, by what they are, since saved routes come back as copies, and `Reroute` goes on from those instead of back round the ones already reached. Worth sending upstream.
+`GPS.Rerouted` built a new route table without `stops` or `skipLearn`, so one wrong turn on a trip turned it into a route to the last stop. GPS 1.6.0 keeps both itself now. `GPS.StopsAhead(route)` works out which stops are still ahead, by what they are, since saved routes come back as copies, and `Reroute` goes on from those instead of back round the ones already reached. Worth sending upstream.
 
 `PlanStep` also takes its budget from `GPS.PlanBudget` when one is set, so it can follow the frame rate, and reports each slice's real cost to `GPS.OnPlanSlice`.
 
@@ -84,11 +84,36 @@ Checked by reading Questie 12.6.2 as installed on this machine: every function `
 
 ## Taking a new upstream version
 
-1. Clone the upstream repositories side by side, with `core.autocrlf=false`.
-2. Change the versions and commits in `tools/upstream.py`.
-3. Run `python tools/upstream.py vendor <folder>` then `python tools/upstream.py lock <folder>`. This overwrites the patches above.
-4. Reapply each patch, and drop any upstream has since taken.
-5. Run `python tools/upstream.py verify` and `python tools/run_tests.py`.
-6. If something fails in `Bridge.lua`, that is the seam working: internals moved, and that one file adapts. `Bridge.Missing()` and `/fgps diag` name what is gone.
+The tools do it; a person reads the result. If something then fails in `Bridge.lua`, that is the seam working: internals moved, and that one file adapts. `Bridge.Missing()` and `/fgps diag` name what is gone. A patch upstream has taken must be removed from `PATCHES` in `tools/upstream.py`: the lock expects patched files to differ from upstream.
 
-Note that the lock's patch list expects patched files to differ from upstream. A patch upstream has taken must be removed from `PATCHES` in `tools/upstream.py`.
+```bash
+python tools/upstream.py update EasyFind v5.3.0 --version 5.3.0
+python tools/assemble.py
+python tools/run_tests.py
+```
+
+`update` replaces every unpatched file with upstream's at the new tag, and merges each declared patch three ways (the old upstream, the new upstream, ours) with `git merge-file`. A patch that does not merge is left with conflict markers, reported, and the command fails: nothing of ours is dropped silently, and nothing of upstream's either. Then `assemble.py` checks every assembly edit still matches as often as it says: an upstream rewrite of a spot we change fails the build and names it. The lock is rewritten for the new revision, and `verify` holds the result to it.
+
+What the 5.3.0 / 1.6.0 / 1.3.0 update met, as an example of what to expect:
+
+- **Merged cleanly:** the result row's instances, the parachute fix, the Questie extension's actions.
+- **Conflicts, resolved by keeping both:** `GPS.lua`, where upstream added `StepPassed`, `StepReached` and `Replanned` beside our `StopsAhead`, and now keeps a trip's stops on a reroute itself; and the Questie extension's test, where both sides added a zone.
+- **Moved:** the creature catalog, from the GPS to EasyFind; our two accessors moved with it.
+- **Taken over by upstream:** our map door. EasyFind 5.3.0 has its own `MapSearch.TurnMap`, which opens the map through the client (`C_Map.OpenWorldMap`) and holds a turn asked for in a fight until it ends, so our version went. Ours lives on as counters for `/fgps diag` and the Gamepad UI guard. Upstream's waypoint door (`WaypointChange`, `GPS.GamePinChange`) now waits for the map; our edits add the wait for a fight, the check that a cleared waypoint is still the one asked about, and skip changes that change nothing.
+
+## Watching upstream
+
+`tools/upstream_watch.py` checks everything Forever-GPS is built on. `.github/workflows/upstream-watch.yml` runs it twice a day once it is on `main`, and by hand from the Actions tab:
+
+| Dependency | How it is watched | When it moves |
+| --- | --- | --- |
+| EasyFind, EasyFind GPS, EasyFind Questie | Releases newer than the pins; their LICENSE compared (they are used by written permission: any change stops it) | An update is prepared on `upstream/<names>-<versions>`, merged as above, assembled, tested and packaged, and offered as a draft pull request against the development branch, marked failing when anything failed. One branch per set of versions. |
+| Questie | Its newest release has every module and function Forever-GPS reads (`QUESTIE_CONTRACT`) | Reported. Questie is the player's own install: it is never bundled, installed or replaced. |
+| CraftProfit, ForeverNet, profit, Easy Controller | Commits since the pins in `third_party/THIRD_PARTY.lock.json` | Reported for a person to read: their code was adapted, not copied. |
+| WoW Forever client | The live build (Blizzard's version server) and the client's own UI code (Gethe/wow-ui-source, branch `forever`) | Every `C_` API Forever-GPS calls is looked up in the client's API documentation, missing and newly restricted ones flagged. A new build is never called compatible until played. |
+
+Known versions live in `upstream/WATCH.json`: Questie 12.6.2 is the oldest known to work (a real install), 12.8.0 the newest checked; client build 70938 the newest checked, 70790 the newest actually played.
+
+`python -I tools/tests/test_automation.py` tests the watch and the artifact rules against a pretend GitHub: no update, a patch, minor and major release, a malformed release, drafts, a deleted tag, a network failure, a rate limit, a license change, Questie's contract kept and broken, a branch already prepared.
+
+What the workflow needs: GitHub runs schedules from the default branch only, so the workflow files have to be on `main` (a separate pull request carries them). For it to open pull requests, the repository setting "Allow GitHub Actions to create and approve pull requests" must be on. Pull requests opened with the workflow's token do not start CI on their own branch: the watch runs the suites itself, and the report is in the pull request.

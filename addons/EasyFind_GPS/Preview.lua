@@ -45,12 +45,28 @@ local TEX_CORE = "Interface\\AddOns\\EasyFind_GPS\\textures\\route_core"
 local TEX_EDGE = "Interface\\AddOns\\EasyFind_GPS\\textures\\route_edge"
 local DEST = 30                    -- the journey's end: the addon's emblem, centered on the spot
 local DEST_EDGE = 0.44             -- of its size: the line stops at the emblem's ring
+-- A quest's start or turn-in the map shows no mark for: the game's quest
+-- button, its ring with the "!" of its quest offers or its turn-in "?".
+local QUEST_BUTTON, QUEST_EDGE = 40, 0.34
+local QUEST_RING = "UI-QuestPoi-QuestNumber"
+local QUEST_GLYPHS = { offer = "QuestNormal", turnin = "UI-QuestIcon-TurnIn-Normal" }
+local QUEST_GLYPH_SIZE = { offer = 0.625, turnin = 1 }   -- of the button: the "!" as tall as the "?"
 
 local overlay, lines, marks, syms
 local shownMap, shownIndex
 local since = 0
+local gamePin, gameR, gameCheck = nil, nil, 0   -- the map's own pin on the end, its radius
 
 local function Route() local g = ns and ns.GPS return g and g.CurrentRoute and g.CurrentRoute() end
+
+-- The glyph a destination's quest mark is drawn with, where the client has
+-- the game's quest button art (the classic clients lack the ring).
+local function QuestGlyph(dest)
+    local glyph = dest and QUEST_GLYPHS[dest.questMark]
+    local info = C_Texture and C_Texture.GetAtlasInfo
+    return glyph and info and info(QUEST_RING) and info(glyph) and glyph or nil
+end
+Preview.QuestGlyph = QuestGlyph
 
 local function Canvas()
     return WorldMapFrame and WorldMapFrame.ScrollContainer and WorldMapFrame.ScrollContainer.Child
@@ -65,6 +81,16 @@ function Preview.LineColor(kind)
 end
 Preview.LINE_KINDS = LINE_KINDS
 
+-- The route's line goes under the map's own icons (a quest's "?" stays
+-- whole), over its land and its zone highlight: one above the highlight's
+-- layer, which is one level on every client.
+local function LineLevel(canvas)
+    local map = WorldMapFrame
+    local levels = map and map.GetPinFrameLevelsManager and map:GetPinFrameLevelsManager()
+    if not (levels and levels.GetFrameLevelStart) then return canvas:GetFrameLevel() + 1 end
+    return levels:GetFrameLevelStart("PIN_FRAME_LEVEL_MAP_HIGHLIGHT") + 1
+end
+
 local function Build()
     local canvas = Canvas()
     if not canvas then return false end
@@ -73,7 +99,18 @@ local function Build()
     overlay:SetFrameStrata("HIGH")
     overlay:SetFrameLevel(300)
     overlay:EnableMouse(false)
-    lines = Preview.NewLines(overlay, "TOPLEFT")
+    -- The line on a layer of its own among the map's; our marks stay over all.
+    local under = CreateFrame("Frame", nil, canvas)
+    under:SetAllPoints(canvas)
+    under:EnableMouse(false)
+    under:Hide()
+    overlay:SetScript("OnShow", function()
+        under:SetFrameLevel(LineLevel(canvas))
+        under:Show()
+    end)
+    overlay:SetScript("OnHide", function() under:Hide() end)
+    Preview._under = under   -- dev tools
+    lines = Preview.NewLines(under, "TOPLEFT")
     marks = { start = overlay:CreateTexture(nil, "OVERLAY", nil, 2), stop = overlay:CreateTexture(nil, "OVERLAY", nil, 3) }
     marks.start:SetTexture("Interface\\AddOns\\EasyFind_GPS\\textures\\beam_flare")
     marks.start:SetBlendMode("ADD")
@@ -92,6 +129,14 @@ local function Build()
     -- Or the place's own: a creature's face, a map icon.
     marks.destIcon = overlay:CreateTexture(nil, "OVERLAY", nil, 5)
     marks.destIcon:Hide()
+    -- Or a quest's, as the game draws its quest buttons.
+    local quest = CreateFrame("Frame", nil, overlay)
+    quest.ring = quest:CreateTexture(nil, "OVERLAY", nil, 5)
+    quest.ring:SetAllPoints()
+    quest.glyph = quest:CreateTexture(nil, "OVERLAY", nil, 6)
+    quest.glyph:SetPoint("CENTER")
+    quest:Hide()
+    marks.quest = quest
     -- Over the journey's end: a right-click ends the route, as on our map pins.
     local hit = CreateFrame("Button", nil, overlay)
     hit:SetFrameLevel(overlay:GetFrameLevel() + 10)
@@ -483,7 +528,7 @@ end
 -- end: pen(red) as it starts and wherever it enters or leaves ground
 -- deadly to the player on continent ci (nil: none), to(x, y) per point.
 function Preview.Trace(path, ci, s, x, y, from, pen, to)
-    local Npcs = ns.GPSNpcs
+    local Npcs = ns.Npcs
     local db = EasyFind and EasyFind.db
     local d = ci and Npcs and Npcs.DeadlyAlong and not (db and db.gpsDangerRed == false)
         and Npcs.DeadlyAlong(path, ci, UnitLevel("player"), UnitFactionGroup("player"))
@@ -557,6 +602,32 @@ local function EndOnMap(route, mapID)
     return endSpot.x, endSpot.y
 end
 
+-- A pin the map placed itself standing on the journey's end on the map
+-- shown (a quest's "?", a flight master): that icon is the end's mark,
+-- nothing of ours over it, the line stopping at its edge. Icon-sized pins
+-- only: a layer pin (a quest's areas, the group's dots) spans the map.
+-- The game's waypoint pin is ours, set on each step's end: no place's own.
+local NOT_THE_PLACES = { WaypointLocationPinTemplate = true }
+local function GamePinAtEnd(route, mapID)
+    local map, canvas = WorldMapFrame, Canvas()
+    local x, y = EndOnMap(route, mapID)
+    if not (x and map and map.pinPools and canvas) then return nil end
+    local cw, ch = canvas:GetWidth(), canvas:GetHeight()
+    for template, pool in pairs(map.pinPools) do
+        if not NOT_THE_PLACES[template] then
+            for pin in pool:EnumerateActive() do
+                local pinX, pinY
+                if pin.GetPosition and pin:IsShown() then pinX, pinY = pin:GetPosition() end
+                local r = pinX and pin:GetWidth() * pin:GetScale() / 2
+                if r and r > 0 and r < cw / 8 and ((pinX - x) * cw) ^ 2 + ((pinY - y) * ch) ^ 2 <= r * r then
+                    return pin, r
+                end
+            end
+        end
+    end
+    return nil
+end
+
 -- Whether the map's own pin stands on the journey's end on this map.
 local function PinAtEnd(route, mapID)
     local MapSearch = ns.MapSearch
@@ -575,7 +646,7 @@ end
 -- cleared by hand stays cleared.
 local function PinEnd(route, mapID)
     local MapSearch, dest = ns.MapSearch, route.dest
-    if route.arrived or not dest or dest.zone or not (MapSearch and MapSearch.PinRouteEnd
+    if route.arrived or not dest or dest.zone or QuestGlyph(dest) or not (MapSearch and MapSearch.PinRouteEnd
         and (dest.icon or dest.displayID or dest.category)) then return end
     local x, y = EndOnMap(route, mapID)
     if not x or PinAtEnd(route, mapID) then return end
@@ -604,7 +675,16 @@ local function Draw()
         return
     end
     if not overlay and not Build() then return end
-    if drawn.route ~= route or drawn.map ~= mapID then PinEnd(route, mapID) end
+    -- The map's pins come and go with its data: looked for again each second.
+    local changed = drawn.route ~= route or drawn.map ~= mapID
+    if changed or gameCheck >= 10 then
+        gameCheck = 0
+        local pin, r = GamePinAtEnd(route, mapID)
+        if pin ~= gamePin or r ~= gameR then gamePin, gameR, dirty = pin, r, true end
+        -- The pin alone: the route's waypoint and its tracking stay.
+        if gamePin and ns.MapSearch and ns.MapSearch.HideRouteEnd then ns.MapSearch:HideRouteEnd() end
+    end
+    if changed and not gamePin then PinEnd(route, mapID) end
     shownMap, shownIndex = mapID, Shown()
     local span, round = px(Span()), px(ROUND)
     local cw, ch = canvas:GetWidth(), canvas:GetHeight()
@@ -633,8 +713,10 @@ local function Draw()
     local hovered
     local lineW = span * 0.4
     local last = #route.steps
-    -- The last leg stops at the emblem's ring on the journey's end.
-    local destTrim = px(DEST) * DEST_EDGE
+    -- The last leg stops at the emblem's ring on the journey's end, or at
+    -- the edge of the map's own icon or our quest button there.
+    local questGlyph = not gamePin and QuestGlyph(route.dest)
+    local destTrim = gamePin and gameR or questGlyph and px(QUEST_BUTTON) * QUEST_EDGE or px(DEST) * DEST_EDGE
     pen.span, pen.round, pen.cw, pen.ch, pen.n = span, round, cw, ch, 0
     lines:Begin()
     -- Index 0 is the whole route: every leg bright, one arrowhead at its end.
@@ -753,16 +835,32 @@ local function Draw()
     local symbol = hovered and hovered.symbol
     marks.dest:Hide()
     marks.destIcon:Hide()
+    marks.quest:Hide()
     marks.hit:Hide()
     marks.stopCasing:Hide()
     -- The journey's end, or a stop on the way with a face or icon of its
     -- own (its own pin is under the stop, not to be covered).
     local place = hovered and hovered.b and (hovered.final and route.dest or hovered.step.tripStop) or nil
     local own = place and not place.zone and (place.displayID or place.icon) or nil
-    if hovered and hovered.b and hovered.final and PinAtEnd(route, mapID) then
-        -- The map's own pin stands on the end: it is the mark, nothing of ours over it.
+    if hovered and hovered.b and hovered.final and (gamePin or PinAtEnd(route, mapID)) then
+        -- A pin of the map's, or ours from the map tab, stands on the end:
+        -- it is the mark, nothing of ours over it.
         marks.stop:Hide()
         marks.symbol:Hide()
+    elseif hovered and hovered.b and hovered.final and questGlyph then
+        marks.stop:Hide()
+        marks.symbol:Hide()
+        local q, size = marks.quest, px(QUEST_BUTTON)
+        local g = size * QUEST_GLYPH_SIZE[route.dest.questMark]
+        q.ring:SetAtlas(QUEST_RING)
+        q.glyph:SetAtlas(questGlyph)
+        q.glyph:SetSize(g, g)
+        q:ClearAllPoints()
+        q:SetSize(size, size)
+        q:SetPoint("CENTER", overlay, "TOPLEFT", hovered.b[1], hovered.b[2])
+        q:Show()
+        marks.hit:SetAllPoints(q)
+        marks.hit:Show()
     elseif hovered and hovered.b and (hovered.final or own) then
         -- The place's own icon when it has one, else the emblem, centered
         -- on the spot.
@@ -902,12 +1000,12 @@ function Preview:Show(index)
     local mapID = TargetMap(route, index)
     local here = WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
     if index == Following() then pinned = nil else pinned = index end
-    if mapID and here ~= mapID and WorldMapFrame.SetMapID then pcall(WorldMapFrame.SetMapID, WorldMapFrame, mapID) end
+    if mapID and here ~= mapID then ns.MapSearch.TurnMap(mapID) end
     dirty = true
     Draw()
     local db = EasyFind and EasyFind.db
     if not marks or (db and db.gpsClickPulse == false) then return end
-    for _, mark in ipairs({ marks.symbol, marks.stop, marks.stopCasing, marks.dest, marks.destIcon }) do
+    for _, mark in ipairs({ marks.symbol, marks.stop, marks.stopCasing, marks.dest, marks.destIcon, marks.quest }) do
         if mark:IsShown() then Pulse(mark) end
     end
 end
@@ -935,6 +1033,7 @@ local function Tick(_, dt)
     since = since + dt
     if since < 0.1 then return end
     since = 0
+    gameCheck = gameCheck + 1
     Draw()
 end
 if WorldMapFrame then
@@ -946,6 +1045,15 @@ if WorldMapFrame then
         driver:SetScript("OnUpdate", Tick)
     end)
     WorldMapFrame:HookScript("OnHide", function() driver:SetScript("OnUpdate", nil) end)
+end
+
+-- For the dev tools: the end on the map shown and the map's pin taken as its mark.
+function Preview.EndState()
+    local route = Route()
+    local mapID = WorldMapFrame and WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+    if not (route and mapID) then return nil end
+    local x, y = EndOnMap(route, mapID)
+    return x, y, gamePin, gameR
 end
 
 -- For the dev tools: what a step's preview would draw, and where it stops.

@@ -320,6 +320,9 @@ function Results:HideResults()
     end
     Results._cachedHierarchical = nil
     self._lastRenderSig = nil
+    -- The rows are secure buttons, protected in a fight like the frame:
+    -- their Hide waits for its end too (the chat composer opened in a
+    -- fight, 2026-11-07).
     for i = 1, #Search:GetResultButtons() do
         local row = Search:GetResultButtons()[i]
         if row then
@@ -328,13 +331,14 @@ function Results:HideResults()
             row._efShortcutBindingReady = nil
             row._efContentTop = nil
             row._efContentBottom = nil
-            row:Hide()
-            if row.shortcutGroup then row.shortcutGroup:Hide() end
+            Utils.SafeCallMethod(row, "Hide")
+            if row.shortcutGroup then Utils.SafeCallMethod(row.shortcutGroup, "Hide") end
             if row.icon then
                 Icons.ClearRowIconLeafIDs(row.icon)
             end
         end
     end
+    self.hideAfterCombat = InCombatLockdown() or nil
     self:ResetWindow()
     Search:SetSelectedIndex(0)
     Search:SetToggleFocused(false)
@@ -384,13 +388,14 @@ function Results:ShowPinnedItems()
                 e = {}
                 entries[n] = e
             end
-            e.name = pin.name
+            local data = UIPins.LiveRow(pin)
+            e.name = data.name
             e.depth = 0
             e.isPathNode = false
             e.isMatch = true
             e.isPinned = true
             e.isFlat = true
-            e.data = pin
+            e.data = data
         end
     end
     if n == 0 then
@@ -537,6 +542,8 @@ function Results:UpdateSelectionHighlight(skipRefocus, keepRepeat)
     local sel = Search:GetSelectedIndex()
     if sel > 0 then self:ScrollRowIntoView(sel) end
     local newSelRow = sel > 0 and self:RowFrame(sel) or nil
+    -- A GPS button focused by Tab goes with its row's selection.
+    if Search.GPSKeyFocusRow then Search:GPSKeyFocusRow() end
     if newSelRow and not Search:GetToggleFocused() then
         if not Handlers:GetActionHint(newSelRow.data) then Handlers:ClearActionHint() end
         Handlers:ApplyActionHint(newSelRow)
@@ -625,6 +632,11 @@ function Results:ActivateResultRow(resultRow, source)
 
     if resultRow.data.quickFilterDef then
         return self:ApplyQuickFilter(resultRow.data.quickFilterDef, "")
+    end
+    -- The search stays as typed: it runs again with the filter on.
+    if resultRow.data.turnOnFilter then
+        ns.Filters:TurnOnFilter(resultRow.data.turnOnFilter)
+        return true
     end
     if resultRow.data.searchCommand then
         -- Capture before dismissing: FinishResultSelection clears the search,

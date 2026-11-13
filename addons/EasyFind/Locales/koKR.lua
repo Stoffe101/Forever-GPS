@@ -240,7 +240,7 @@ L["TUT_FEATURE_ACTIONS_DESC"]           = "지원되는 결과를 목록에서 �
 L["TUT_FEATURE_CALCULATOR_DESC"]        = "수식을 입력해 결과를 복사하거나, 계산기 결과 항목에서 전체 계산기를 엽니다. 골드도 계산됩니다: 4g / 5는 80s가 됩니다."
 L["TUT_CALC_COPY_DESC"]                 = "수식이나 결과 위에 마우스를 올리고 Ctrl+C를 눌러 복사한 뒤 Ctrl+V로 어디에나 쉽게 붙여넣으세요."
 L["TUT_FEATURE_APPS"]                   = "확장 기능"
-L["TUT_FEATURE_APPS_DESC"]              = "검색창에 내장된 도구: 아이콘 검색, 계산기, 스니펫, 클립보드 기록. 곧 더 추가됩니다."
+L["TUT_FEATURE_APPS_DESC"]              = "길 안내, 채팅, 퀘스트 등을 위한 무료 애드온과 검색창 기본 도구."
 L["TUT_APPS_SLIDE_HEADER"] = "확장 기능: %s"
 L["TUT_SLIDE_ICONSEARCH"]               = "게임의 모든 아이콘을 둘러보고 필터링하세요. 격자에서 바로 아이콘의 ID, 이름, 경로를 복사하거나 해당 아이콘으로 매크로를 만들 수 있습니다. 확장 기능 메뉴에서 열거나 \"아이콘 검색\"을 검색하거나 @icons를 입력하세요."
 L["TUT_SLIDE_SNIPPETS"]                 = "스니펫은 재사용할 텍스트를 저장합니다. 대화창에 \\키워드를 입력하면 입력 중에 확장되고, 매크로 편집기에서는 같은 키워드가 매크로 내용이 되어 즉시 저장됩니다. 검색 결과의 스니펫 줄 위에서 Ctrl+C를 누르면 내용이 복사되어 Ctrl+V로 붙여넣을 수 있습니다. 줄의 우클릭 메뉴에서 보내기로 바로 대화창에 보낼 수도 있습니다. 중괄호 변수는 사용할 때 채워집니다."
@@ -273,6 +273,7 @@ L["TUT_MAP_TAB_DESC"]                   = "노스렌드 같은 대륙을 검색�
 L["TUT_MAP_HOVER_DESC"]                 = "대도시 지도에서 관심 지점(교관, 비행 관리인, 훈련용 인형 등)을 검색하고 마우스를 올리면 해당 아이콘이 지도에 바로 표시됩니다. 클릭하면 소형 지도에 추적 표식이 자동으로 놓입니다."
 L["TUT_MAP_RARES_DESC"]                 = "희귀 몬스터는 이름으로 찾거나 '희귀'를 검색하면 활성화된 전부가 표시됩니다. 결과에 마우스를 올리면 위치가 상자와 화살표로 표시되고, 행이나 지도 아이콘을 왼쪽 클릭하면 추적 표식이 놓입니다."
 L["TUT_MAP_AUTOTRACK_DESC"]             = "입력 없이 희귀 몬스터를 보고 싶나요? 지도 탭의 필터 톱니바퀴에서 '자동 추적'을 켜면 보고 있는 지도의 모든 희귀 몬스터가 표시됩니다. 표시된 아이콘을 클릭하면 그 자리에 추적 표식이 놓입니다."
+L["TUT_MAP_GPS_DESC"]                   = "CurseForge에서 무료로 받는 {C:FFD100}GPS 확장{/C}은 찾은 모든 곳으로 안내합니다. 행의 GPS 버튼은 도보, 비행 경로, 배, 차원문으로 가는 길을 단계별로 계획하고 지도에 그립니다. 지도 아이콘을 우클릭해도 그곳으로 가는 길을 안내합니다."
 L["TUT_BTN_BACK"]                       = "뒤로"
 L["TUT_BTN_BACK_ARROW"]                 = "< 뒤로"
 L["TUT_KB_PRESS_KEY"]                   = "키를 누르세요…"
@@ -299,11 +300,17 @@ L["SHOWME_SAY_MICRO"]                   = "마이크로 메뉴에 달라붙습�
 L["SHOWME_SAY_TOGGLE"]                  = "클릭하면 열리고 다시 클릭하면 닫힙니다"
 L["SHOWME_SAY_REMOVE"]                  = "여기로 드래그하면 제거됩니다"
 L["WHATSNEW_BODY"]                      =
-    "|cffFFD100\226\128\162|r |cffffffff@upgrades|r\n" ..
-    "    |cff999999-|r Classic Era, TBC Anniversary, WoW Forever에서: 장비 칸마다 지금 착용한 것보다 좋고 바로 착용할 수 있는 던전 및 공격대 전리품\n" ..
-    "    |cff999999-|r 전리품마다 우두머리와 던전을 표시합니다. @alts에서는 캐릭터마다 업그레이드 페이지가 있습니다\n" ..
+    "|cffFFD100\226\128\162|r |cffffffffEasyFind 자체의 생명체|r\n" ..
+    "    |cff999999-|r 모든 클라이언트에서 확장 없이 이름, 칭호, 판매 품목으로 생명체를 찾습니다. 지도 검색 > NPC에서 걸러냅니다\n" ..
+    "|cffFFD100\226\128\162|r |cffffffff아이템의 출처|r\n" ..
+    "    |cff999999-|r 아이템 행을 클릭하면 가장 가까운 판매자부터 누가 파는지, 어떤 우두머리가 떨어뜨리는지 보입니다. 확장은 자체 항목을 더합니다\n" ..
+    "|cffFFD100\226\128\162|r |cffffffff던전 행이 이어집니다|r\n" ..
+    "    |cff999999-|r 던전을 클릭하면 GPS 확장의 길 안내, Ctrl은 우두머리, Shift는 지도를 엽니다. WoW Forever 고유 던전도 우두머리와 전리품을 표시합니다\n" ..
+    "|cffFFD100\226\128\162|r |cffffffff우클릭으로 길 안내|r\n" ..
+    "    |cff999999-|r GPS 확장 사용 시: 지도 아이콘이나 퀘스트 지역, 또는 생명체나 파티원의 초상화를 우클릭하면 길을 안내합니다. 파티원은 계속 따라갑니다\n" ..
+    "    |cff999999-|r 행에서 Tab은 GPS 버튼에 먼저 멈추고, Enter로 경로를 시작합니다\n" ..
     "|cffFFD100\226\128\162|r |cffffffff수정|r\n" ..
-    "    |cff999999-|r 애드온이 많이 설치되어 있어도 설정 검색에서 더 이상 오류가 발생하지 않습니다\n"
+    "    |cff999999-|r 경로나 지도 검색 뒤에 지도를 열어도 더 이상 오류가 나지 않으며, 던전 이름을 입력하면 우두머리가 나열됩니다\n"
 
 -- Context menu
 L["CTX_ADD_ALIAS"]                      = "별칭 추가"
@@ -610,6 +617,8 @@ L["ICON_SEARCH_APP"] = "아이콘 검색"
 L["ICON_GRID_CLICK_HINT"] = "아이콘을 클릭하면 옵션이 표시됩니다. Ctrl+C로 ID를 복사합니다."
 L["ICON_MODULE_DISABLED"] = "아이콘 검색을 사용할 수 없습니다. 애드온 목록에서 \"EasyFind [Icon Search]\" 애드온을 활성화하세요."
 L["ITEMS_MODULE_DISABLED"] = "아이템 목록을 사용할 수 없습니다. 애드온 목록에서 \"EasyFind [Item Catalog]\" 애드온을 활성화하세요."
+L["CATALOG_OFF_ROW"]       = "전체 아이템 목록 켜기"
+L["CATALOG_OFF_ROW_SUB"]   = "게임의 모든 아이템을 이름으로"
 L["OPTIONS_MODULE_DISABLED"] = "옵션 창을 사용할 수 없습니다. 애드온 목록에서 \"EasyFind [Options]\" 애드온을 활성화하세요."
 L["SETTINGS_MODULE_DISABLED"] = "설정 검색을 사용할 수 없습니다. 애드온 목록에서 \"EasyFind [Settings Search]\" 애드온을 활성화하세요."
 L["GUIDE_MODULE_DISABLED"] = "안내를 사용할 수 없습니다. 애드온 목록에서 \"EasyFind [Guides]\" 애드온을 활성화하세요."
@@ -724,6 +733,19 @@ L["NOTES_APPLIES_IN_FMT"]              = "적용 위치: %s"
 L["NOTES_SHOWS_ON_FMT"]                = "표시 대상: %s"
 L["NOTES_APPLIED_TAGS"]                = "적용된 태그"
 L["NPC_FILTER_REACTION"]               = "우호 또는 적대"
+L["NPC_WORDS_VENDOR"]                  = "상인 판매상 구매 판매"
+L["NPC_WORDS_REPAIR"]                  = "수리 수선"
+L["NPC_WORDS_FOOD"]                    = "음식 음료 물 식량"
+L["NPC_WORDS_AMMO"]                    = "탄약 화살 총알 보충"
+L["NPC_WORDS_REAGENTS"]                = "시약 보충"
+L["NPC_WORDS_FLIGHT"]                  = "비행 비행 조련사"
+L["NPC_WORDS_CLASS_TRAINER"]           = "직업 훈련사"
+L["NPC_WORDS_TRAINER"]                 = "훈련사"
+L["NPC_WORDS_INN"]                     = "여관 여관주인"
+L["NPC_WORDS_BANK"]                    = "은행 은행원"
+L["NPC_WORDS_AUCTION"]                 = "경매 경매인"
+L["NPC_WORDS_STABLE"]                  = "마구간 마구간지기"
+L["NPC_SELLS"]                         = "%s 판매"
 L["NPC_ROLE_QUEST"]                    = "퀘스트 제공자"
 L["NPC_ROLE_FLIGHT"]                   = "비행 조련사"
 L["FILTER_GAME_OPTIONS"]                = "게임 설정"
@@ -830,6 +852,10 @@ L["HINT_EQUIP_GEAR_SET"]                = "장비 세트 착용"
 L["HINT_OPEN_MAP"]                      = "지도 열기"
 L["HINT_PIN_ON_MAP"]                    = "지도에 표식"
 L["HINT_CLICK_DRAG"]                    = "클릭/드래그"
+L["HINT_SOURCES"]                       = "출처"
+L["SOURCES_SOLD_BY"]                    = "판매처"
+L["SOURCES_DROPPED_BY"]                 = "드롭"
+L["SOURCES_NONE"]                       = "%s의 출처를 알 수 없습니다"
 
 -- =============================================================================
 -- POI names (Database/StaticLocations.lua)
@@ -936,6 +962,7 @@ L["POI_SILVERMOON_CITY_TBC_PORTAL"] = "Silvermoon City (TBC) Portal"
 L["POI_SKINNING_TRAINER"] = "Skinning Trainer"
 L["POI_STABLE_MASTER"] = "Stable Master"
 L["POI_WEAPON_MASTER"] = "무기 전문가"
+L["POI_TITLED_FMT"]    = "%s %s"
 L["POI_STORMWIND_HARBOR"] = "Stormwind Harbor"
 L["POI_TABARD_VENDOR"] = "Tabard Vendor"
 L["POI_TAILORING_TRAINER"] = "Tailoring Trainer"
@@ -1130,6 +1157,7 @@ L["NOTES_OPENS_ITSELF_MENU"]             = "표시되는 곳에서 저절로 열
 L["NPC_SUBTEXT_SELLS_FMT"]               = "%s: %s; %s 판매"
 L["NPC_SUBTEXT_TEACHES_FMT"]             = "%s; %s 훈련"
 L["TT_PLACE_AT_FMT"]                     = "%s %s"
+L["TT_TEACHES_FMT"]                      = "%s 훈련"
 L["TT_PLACE_AWAY_FMT"]                   = "%s 거리"
 L["TT_PLACE_SPOTS_FMT"]                  = "%d곳, 가장 가까운 곳 표시"
 L["TT_BOSS_DROPS_FMT"]                   = "%d개 아이템 드롭"
@@ -1192,6 +1220,27 @@ L["EXT_NEW_FMT"]                        = "EasyFind %s에 %s이(가) 생겼습�
 L["EXT_PAGE_COPY"]                      = "아래 주소를 복사(Ctrl+C)해서 브라우저에서 여세요."
 L["EXT_PAGE_TT"]                        = "클릭하면 페이지 주소가 나옵니다."
 L["EXT_INSTALLED"]                      = "설치됨"
+L["EXT_OUTDATED_FMT"]                   = "%s %s 버전은 현재 EasyFind 버전에 맞지 않습니다. 충돌을 피하려면 업데이트해 주세요."
+L["EXT_CARD_CHAT"]                      = "귓속말, 친구, 파티, 채널을 위한 메신저."
+L["EXT_CARD_GPS"]                       = "EasyFind가 찾은 모든 곳까지 현재 위치에서 길 안내."
+L["EXT_CARD_QUESTIE"]                   = "검색에 나오는 Questie 퀘스트와 단계별 길 안내."
+L["EXT_CARD_AUCTIONATOR"]               = "검색과 노트에서 보는 Auctionator 쇼핑 목록."
+L["EXT_CARD_ATT"]                       = "물건의 출처와 보유 여부를 해당 행에 표시."
+L["EXT_CARD_HANDYNOTES"]                = "HandyNotes 지도 핀을 이름, 전리품, 지역으로 검색."
+L["EXT_CARD_NOTES"]                     = "필요한 곳에 나타나는 노트와 체크리스트."
+L["EXT_CARD_BESTIARY"]                  = "생명체 행에 마우스를 올려 시전하는 기술 확인."
+L["EXT_CARD_SPOKEN"]                    = "퀘스트, 장소, 우두머리의 Spoken 대사를 검색에서 재생."
+L["EXT_CARD_DUNGEONJOURNAL"]            = "DungeonJournal의 던전, 우두머리, 전리품을 검색."
+L["EXT_CARD_CALCULATOR"]                = "검색창이나 전용 창에서 계산과 골드 계산."
+L["EXT_CARD_ICONSEARCH"]                = "모든 게임 아이콘을 이름으로 검색."
+L["EXT_CARD_SNIPPETS"]                  = "자주 쓰는 문구를 채팅에서 키워드로 펼치기."
+L["EXT_CARD_CLIPBOARD"]                 = "최근 복사한 내용을 다시 붙여넣기."
+L["EXT_CARD_QUICKLISTS"]                = "키 하나로 여는 나만의 결과 목록."
+L["TUT_EXT_INTRO"]                      = "확장은 CurseForge에서 받는 EasyFind용 무료 애드온입니다. 클릭하면 다운로드 링크가 나옵니다."
+L["TUT_EXT_BUILTIN_INTRO"]              = "다음은 EasyFind에 포함되어 확장 메뉴에서 바로 쓸 수 있습니다."
+L["TUT_EXT_GET"]                        = "받기"
+L["TUT_EXT_BUILTIN"]                    = "기본 포함"
+L["TUT_EXT_LINK_TT"]                    = "클릭하면 다운로드 링크가 나옵니다."
 L["OPT_PAGE_SEARCH_PLACEHOLDER"]        = "이 페이지에서 검색..."
 L["SUBTEXT_DUNGEON_BOSS"]               = "던전 우두머리: %s"
 L["SUBTEXT_RAID_BOSS"]                  = "공격대 우두머리: %s"

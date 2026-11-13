@@ -123,7 +123,7 @@ function tests.noPartOfTheFolder_asksAfterAnAddonThatIsGone()
     c:Advance(2)
     T.eq(#c.errors, 0, tostring(c.errors[1]))
     local report = c.FG.Diagnostics.Report()
-    T.has(report, "Built on: EasyFind 5.2.0", "the parts, from the build")
+    T.has(report, "Built on: EasyFind 5.3.0", "the parts, from the build")
     T.has(report, "Memory:", "and the one addon's memory")
 end
 

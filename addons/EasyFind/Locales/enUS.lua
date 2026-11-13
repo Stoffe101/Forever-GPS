@@ -269,7 +269,7 @@ L["TUT_FEATURE_ACTIONS_DESC"]           = "Cast, use, equip, summon, swap, or op
 L["TUT_FEATURE_CALCULATOR_DESC"]        = "Type expressions, copy the result, or open the full calculator from the Calculator result. Gold works too: 4g / 5 gives 80s."
 L["TUT_CALC_COPY_DESC"]                 = "Hover over either the expression or the result and hit Ctrl+C to copy it for easy pasting anywhere with Ctrl+V."
 L["TUT_FEATURE_APPS"]                   = "Extensions"
-L["TUT_FEATURE_APPS_DESC"]              = "Tools built into the search bar: icon search, calculator, snippets, and clipboard history. More coming soon."
+L["TUT_FEATURE_APPS_DESC"]              = "Free add-ons for directions, chat, quests and more, plus the tools built into the bar."
 L["TUT_APPS_SLIDE_HEADER"] = "Extensions: %s"
 L["TUT_SLIDE_ICONSEARCH"]               = "Browse and filter every game icon. Copy an icon's ID, name, or path, or create a macro with it, right from the grid. Open it from the extensions menu, search \"Icon Search\", or type @icons."
 L["TUT_SLIDE_SNIPPETS"]                 = "Snippets store reusable text. Type \\keyword in chat and it expands as you type; in the macro editor the same keyword becomes the macro's text, saved instantly. Ctrl+C over a snippet row in the results copies its text, ready to paste with Ctrl+V. A row's right-click menu can also Send it straight to chat. Curly-brace variables fill in when used."
@@ -302,6 +302,7 @@ L["TUT_MAP_TAB_DESC"]                   = "Search a continent like Northrend and
 L["TUT_MAP_HOVER_DESC"]                 = "On a major city map, search and hover a point of interest (trainer, flight master, training dummies...) and an icon lights up right on the map. Clicking it places a tracked pin on your minimap automatically."
 L["TUT_MAP_RARES_DESC"]                 = "Rares are searchable by name, or search 'rares' for all currently active ones. Hovering a result lights up its map spot with a box and arrow; left click the row or the map icon to place a tracking pin."
 L["TUT_MAP_AUTOTRACK_DESC"]             = "Don't want to type for rares? Open the map tab's filter cog and turn on 'Auto-track' to mark every rare on the map you're viewing. Click a marked icon to place a tracked pin at its spot."
+L["TUT_MAP_GPS_DESC"]                   = "The {C:FFD100}GPS extension{/C}, free on CurseForge, leads you to anything you find: a row's GPS button plans the way on foot, by flight path, boat or portal, step by step, and draws it on the map. Right-click a map pin for directions to it."
 L["TUT_BTN_BACK"]                       = "Back"
 L["TUT_BTN_BACK_ARROW"]                 = "< Back"
 L["TUT_KB_PRESS_KEY"]                   = "Press a key..."
@@ -330,11 +331,17 @@ L["SHOWME_SAY_MICRO"]                   = "Snaps to the micro menu"
 L["SHOWME_SAY_TOGGLE"]                  = "Click to open, click again to close"
 L["SHOWME_SAY_REMOVE"]                  = "Drag here to remove"
 L["WHATSNEW_BODY"]                      =
-    "|cffFFD100\226\128\162|r |cffffffff@upgrades|r\n" ..
-    "    |cff999999-|r On Classic Era, TBC Anniversary and WoW Forever: for each gear slot, the dungeon and raid drops that beat what you wear and that you can equip now\n" ..
-    "    |cff999999-|r Each drop names its boss and dungeon; on @alts, every character has its own Upgrades page\n" ..
+    "|cffFFD100\226\128\162|r |cffffffffCreatures in EasyFind itself|r\n" ..
+    "    |cff999999-|r Every creature by name, title or what it sells, on every client, no extension needed; Map Search > NPCs filters them\n" ..
+    "|cffFFD100\226\128\162|r |cffffffffAn item's sources|r\n" ..
+    "    |cff999999-|r Click an item row: who sells it, nearest first, and which bosses drop it; extensions add sections of their own\n" ..
+    "|cffFFD100\226\128\162|r |cffffffffDungeon rows lead on|r\n" ..
+    "    |cff999999-|r Click a dungeon for directions with the GPS extension, Ctrl for its bosses, Shift for the map; WoW Forever's own dungeons list their bosses and drops\n" ..
+    "|cffFFD100\226\128\162|r |cffffffffDirections from a right-click|r\n" ..
+    "    |cff999999-|r With the GPS extension: on a map pin or quest area, or on the portrait of a creature or a group member, who is then followed\n" ..
+    "    |cff999999-|r Tab on a row stops on its GPS button, and Enter starts the route\n" ..
     "|cffFFD100\226\128\162|r |cffffffffFixed|r\n" ..
-    "    |cff999999-|r Searching settings no longer raises an error when many addons are installed\n"
+    "    |cff999999-|r Opening the map after a route or a map search no longer raises errors, and typing a dungeon's name lists its bosses\n"
 
 -- =============================================================================
 -- Shared/Utils.lua  --  context menu labels
@@ -686,6 +693,8 @@ L["ICON_SEARCH_APP"] = "Icon Search"
 L["ICON_GRID_CLICK_HINT"] = "Click an icon for options. Ctrl+C copies its ID."
 L["ICON_MODULE_DISABLED"] = "Icon Search is unavailable: enable the \"EasyFind [Icon Search]\" addon in your AddOns list."
 L["ITEMS_MODULE_DISABLED"] = "The item catalog is unavailable: enable the \"EasyFind [Item Catalog]\" addon in your AddOns list."
+L["CATALOG_OFF_ROW"]       = "Turn on the full item catalog"
+L["CATALOG_OFF_ROW_SUB"]   = "Every item in the game, by name"
 L["OPTIONS_MODULE_DISABLED"] = "The options panel is unavailable: enable the \"EasyFind [Options]\" addon in your AddOns list."
 L["SETTINGS_MODULE_DISABLED"] = "Settings search is unavailable: enable the \"EasyFind [Settings Search]\" addon in your AddOns list."
 L["GUIDE_MODULE_DISABLED"] = "Guides are unavailable: enable the \"EasyFind [Guides]\" addon in your AddOns list."
@@ -835,6 +844,19 @@ L["NOTES_APPLIES_IN_FMT"]              = "Shows in: %s"
 L["NOTES_SHOWS_ON_FMT"]                = "On the tooltip of: %s"
 L["NOTES_APPLIED_TAGS"]                = "Applied tags"
 L["NPC_FILTER_REACTION"]               = "Friendly or hostile"
+L["NPC_WORDS_VENDOR"]                  = "vendor vendors merchant seller sell sells buy shop"
+L["NPC_WORDS_REPAIR"]                  = "repair"
+L["NPC_WORDS_FOOD"]                    = "food drink water"
+L["NPC_WORDS_AMMO"]                    = "ammo arrows bullets restock"
+L["NPC_WORDS_REAGENTS"]                = "reagents restock"
+L["NPC_WORDS_FLIGHT"]                  = "flight"
+L["NPC_WORDS_CLASS_TRAINER"]           = "class trainer"
+L["NPC_WORDS_TRAINER"]                 = "trainer trainers"
+L["NPC_WORDS_INN"]                     = "inn innkeeper"
+L["NPC_WORDS_BANK"]                    = "bank banker"
+L["NPC_WORDS_AUCTION"]                 = "auction auctioneer"
+L["NPC_WORDS_STABLE"]                  = "stable"
+L["NPC_SELLS"]                         = "Sells %s"
 L["NPC_ROLE_QUEST"]                    = "Quest givers"
 L["NPC_ROLE_FLIGHT"]                   = "Flight masters"
 -- A vendor's subtext in the search bar: its kind, its zone, the item.
@@ -842,6 +864,7 @@ L["NPC_SUBTEXT_SELLS_FMT"]             = "%s: %s; sells %s"
 L["NPC_SUBTEXT_TEACHES_FMT"]           = "%s; teaches %s"
 -- A place row's tooltip: the zone and spot, the distance, the spot count; a boss's drops.
 L["TT_PLACE_AT_FMT"]                   = "%s at %s"
+L["TT_TEACHES_FMT"]                    = "Teaches %s"
 L["TT_PLACE_AWAY_FMT"]                 = "%s away"
 L["TT_PLACE_SPOTS_FMT"]                = "%d spots, the nearest shown"
 L["TT_BOSS_DROPS_FMT"]                 = "Drops %d items"
@@ -954,6 +977,10 @@ L["HINT_EQUIP_GEAR_SET"]                = "Equip Gear Set"
 L["HINT_OPEN_MAP"]                      = "Open Map"
 L["HINT_PIN_ON_MAP"]                    = "Pin on Map"
 L["HINT_CLICK_DRAG"]                    = "Click/drag"
+L["HINT_SOURCES"]                       = "Sources"
+L["SOURCES_SOLD_BY"]                    = "Sold by"
+L["SOURCES_DROPPED_BY"]                 = "Dropped by"
+L["SOURCES_NONE"]                       = "No known source for %s"
 
 -- =============================================================================
 -- POI names (Database/StaticLocations.lua)
@@ -1060,6 +1087,7 @@ L["POI_SILVERMOON_CITY_TBC_PORTAL"] = "Silvermoon City (TBC) Portal"
 L["POI_SKINNING_TRAINER"] = "Skinning Trainer"
 L["POI_STABLE_MASTER"] = "Stable Master"
 L["POI_WEAPON_MASTER"] = "Weapon Master"
+L["POI_TITLED_FMT"]    = "%s %s"
 L["POI_STORMWIND_HARBOR"] = "Stormwind Harbor"
 L["POI_TABARD_VENDOR"] = "Tabard Vendor"
 L["POI_TAILORING_TRAINER"] = "Tailoring Trainer"
@@ -1257,6 +1285,27 @@ L["EXT_NEW_FMT"]                        = "EasyFind %s has %s: addons of their o
 L["EXT_PAGE_COPY"]                      = "Copy the address below (Ctrl+C) and open it in your browser."
 L["EXT_PAGE_TT"]                        = "Click for the page's address."
 L["EXT_INSTALLED"]                      = "Installed"
+L["EXT_OUTDATED_FMT"]                   = "%s %s is out of date for this version of EasyFind. Please update it to avoid conflicts."
+L["EXT_CARD_CHAT"]                      = "A messenger for whispers, friends, groups and channels."
+L["EXT_CARD_GPS"]                       = "Directions to anything EasyFind finds, from where you stand."
+L["EXT_CARD_QUESTIE"]                   = "Questie's quests in search, with directions to each step."
+L["EXT_CARD_AUCTIONATOR"]               = "Your Auctionator shopping lists in search and in Notes."
+L["EXT_CARD_ATT"]                       = "Where a thing comes from and whether you have it, on its row."
+L["EXT_CARD_HANDYNOTES"]                = "HandyNotes' map pins in search, by name, loot or zone."
+L["EXT_CARD_NOTES"]                     = "Notes and checklists that show where they apply."
+L["EXT_CARD_BESTIARY"]                  = "Hover a creature's row to see the abilities it casts."
+L["EXT_CARD_SPOKEN"]                    = "Play Spoken's lines for quests, places and bosses from search."
+L["EXT_CARD_DUNGEONJOURNAL"]            = "DungeonJournal's dungeons, bosses and loot in search."
+L["EXT_CARD_CALCULATOR"]                = "Sums and gold math, typed into the bar or in its own window."
+L["EXT_CARD_ICONSEARCH"]                = "Every game icon, searchable by name."
+L["EXT_CARD_SNIPPETS"]                  = "Text you type often, expanded from a keyword in chat."
+L["EXT_CARD_CLIPBOARD"]                 = "What you copied lately, ready to paste again."
+L["EXT_CARD_QUICKLISTS"]                = "Your own lists of results, each opened from a key."
+L["TUT_EXT_INTRO"]                      = "Extensions are free add-ons for EasyFind on CurseForge. Click one for its download link."
+L["TUT_EXT_BUILTIN_INTRO"]              = "These come with EasyFind, ready in the extensions menu."
+L["TUT_EXT_GET"]                        = "Get it"
+L["TUT_EXT_BUILTIN"]                    = "Built in"
+L["TUT_EXT_LINK_TT"]                    = "Click for its download link."
 L["OPT_PAGE_SEARCH_PLACEHOLDER"]        = "Search this page..."
 L["SUBTEXT_DUNGEON_BOSS"]               = "Dungeon boss: %s"
 L["SUBTEXT_RAID_BOSS"]                  = "Raid boss: %s"

@@ -11,7 +11,7 @@ local UIParent = UIParent
 -- The NPC rows' options: how the player's faction sees them, their role,
 -- creature type and expansion, each a flyout of checkboxes over one facet
 -- of EasyFind.db.npcFilters (false leaves a value out). The choices come
--- from the GPS package's creature catalog (ns.GPSNpcs).
+-- from the creature catalog (MapSearch/Npcs.lua, ns.Npcs).
 
 local function Facet(name)
     local db = EasyFind.db
@@ -40,7 +40,7 @@ local function RoleDefs()
 end
 
 local function Choices()
-    local Npcs = ns.GPSNpcs
+    local Npcs = ns.Npcs
     return Npcs and Npcs.FilterChoices and Npcs.FilterChoices() or nil
 end
 
@@ -114,8 +114,8 @@ function Filters:BuildNpcOptionsPopup(StylePopup, CHECK_SIZE, dropdownGuardFrame
             stylePopup = StylePopup,
             checkSize = CHECK_SIZE,
             width = FLYOUT_WIDTH,
-            frameLevel = optionsPopup:GetFrameLevel() + 20,
-            getShowLevel = function() return optionsPopup:GetFrameLevel() + 10 end,
+            frameLevel = optionsPopup:GetFrameLevel() + 2 * Utils.MENU_LEVEL_STEP,
+            getShowLevel = function() return optionsPopup:GetFrameLevel() + Utils.MENU_LEVEL_STEP end,
             getScale = function() return optionsPopup:GetScale() end,
             guardFrames = dropdownGuardFrames,
             sourcesRow = facet.row,

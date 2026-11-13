@@ -19,8 +19,8 @@ local NORTH_TOP = { 1596.0, 282.7 }            -- and its top one in the Ruins
 local CLIENTS = {
     { caps = "era", walk = "Walk_EasternKingdoms_Era.lua", floors = "Floors_Era.lua", data = "Data_Era.lua", cells = 5000 },
     { caps = "tbc", walk = "Walk_EasternKingdoms_TBC.lua", floors = "Floors_TBC.lua", data = "Data_TBC.lua", cells = 5000 },
-    { caps = "forever", walk = "Walk_EasternKingdoms.lua", floors = "Floors_Forever.lua", data = "Data_Forever.lua",
-      cells = 2000 },
+    { caps = "forever", walk = "Walk_EasternKingdoms.lua", kalimdor = "Walk_Kalimdor.lua", floors = "Floors_Forever.lua",
+      data = "Data_Forever.lua", cells = 2000, kalimdorCells = 1000 },
 }
 
 local function Load(client, player)
@@ -30,13 +30,14 @@ local function Load(client, player)
     ns.Caps = { [client.caps] = true }
     env.C_EncodingUtil = { DecodeBase64 = Inflate.DecodeBase64, DecompressString = function(s) return Inflate.Raw(s) end }
     env.GetSubZoneText = function() return player.sub end
-    env.GetZoneText = function() return "Undercity" end
+    env.GetZoneText = function() return player.zone or "Undercity" end
     env.GetLocale = function() return "enUS" end
     H.loadModule(client.walk, env, ns)
+    if client.kalimdor then H.loadModule(client.kalimdor, env, ns) end
     H.loadModule(client.floors, env, ns)
     H.loadModule("Floors.lua", env, ns)
     H.loadModule("Nav.lua", env, ns)
-    ns.GPS = { PlayerWorldPos = function() if player.x then return 0, player.x, player.y end end }
+    ns.GPS = { PlayerWorldPos = function() if player.x then return player.ci or 0, player.x, player.y end end }
     return ns, env
 end
 
@@ -47,38 +48,97 @@ local function U16(s, i)
     return hi * 256 + lo
 end
 
--- The height Nav puts (x, y) at.
-local function HeightAt(ns, x, y)
-    local key, g, cell = ns.GPSNav.Probe(0, x, y, false, true)
-    local t = ns.GPSNav._worlds[0].tiles[key]
-    return ns.GPSFloors.Height(0, key, cell, g - U16(t.cf, cell + 1))
+-- The height Nav puts (x, y) at on continent ci (0 unless given), and the
+-- heights of every floor stacked in that cell.
+local function HeightAt(ns, x, y, ci)
+    ci = ci or 0
+    local key, g, cell = ns.GPSNav.Probe(ci, x, y, false, true)
+    local t = ns.GPSNav._worlds[ci].tiles[key]
+    local first, n = U16(t.cf, cell + 1), U16(t.cf, cell + 2) - U16(t.cf, cell + 1)
+    local all = {}
+    for rank = 0, n - 1 do all[#all + 1] = ns.GPSFloors.Height(ci, key, cell, rank) end
+    return ns.GPSFloors.Height(ci, key, cell, g - first), all
 end
 
--- Each stacked cell's floor count on the client's shipped grid; the count.
+-- Each stacked cell's floor count on the client's shipped grid, per
+-- continent in its table; the counts by continent.
 local function MatchedCells(client)
     local ns = Load(client, { sub = "" })
-    local Nav, checked = ns.GPSNav, 0
-    for key, s in pairs(ns.GPSFloorData[0].cells) do
-        local tx, ty = math.floor(key / 64), key % 64
-        Nav.Probe(0, ORIGIN - ty * TILE - TILE / 2, ORIGIN - tx * TILE - TILE / 2, false, true)
-        local t = Nav._worlds[0].tiles[key]
-        H.assertNotNil(t, "tile " .. key .. " on the grid")
-        local i = 1
-        while i <= #s do
-            local cell, n = tonumber(s:sub(i, i + 3), 16), tonumber(s:sub(i + 4, i + 4), 16)
-            local shipped = U16(t.cf, cell + 2) - U16(t.cf, cell + 1)
-            if shipped ~= n then H.assertEq(shipped, n, "tile " .. key .. " cell " .. cell .. " floors") end
-            checked = checked + 1
-            i = i + 5 + 4 * n
+    local Nav, checked = ns.GPSNav, {}
+    for ci, data in pairs(ns.GPSFloorData) do
+        checked[ci] = 0
+        for key, s in pairs(data.cells) do
+            local tx, ty = math.floor(key / 64), key % 64
+            Nav.Probe(ci, ORIGIN - ty * TILE - TILE / 2, ORIGIN - tx * TILE - TILE / 2, false, true)
+            local t = Nav._worlds[ci].tiles[key]
+            H.assertNotNil(t, "continent " .. ci .. " tile " .. key .. " on the grid")
+            local i = 1
+            while i <= #s do
+                local cell, n = tonumber(s:sub(i, i + 3), 16), tonumber(s:sub(i + 4, i + 4), 16)
+                local shipped = U16(t.cf, cell + 2) - U16(t.cf, cell + 1)
+                if shipped ~= n then
+                    H.assertEq(shipped, n, "continent " .. ci .. " tile " .. key .. " cell " .. cell .. " floors")
+                end
+                checked[ci] = checked[ci] + 1
+                i = i + 5 + 4 * n
+            end
         end
     end
     return checked
 end
 
+-- A stacked cell of the Cavern of Mists (the cave at the Wailing Caverns'
+-- entrance) on Forever: the cave's floor under the Barrens' hill. Its
+-- floors are named only by their zone (the cave's pieces carry none).
+local function CavernCell(ns)
+    local data = ns.GPSFloorData[1]
+    local cave = data.cities[1].box
+    for key, s in pairs(data.cells) do
+        local tx, ty = math.floor(key / 64), key % 64
+        local i = 1
+        while i <= #s do
+            local cell, n = tonumber(s:sub(i, i + 3), 16), tonumber(s:sub(i + 4, i + 4), 16)
+            local zoneNamed = false
+            for r = 0, n - 1 do
+                if tonumber(s:sub(i + 7 + 4 * r, i + 8 + 4 * r), 16) == 255 then zoneNamed = true end
+            end
+            local row, col = math.floor(cell / 133), cell % 133
+            local x = ORIGIN - ty * TILE - TILE + (row + 0.5) * TILE / 133
+            local y = ORIGIN - tx * TILE - TILE + (col + 0.5) * TILE / 133
+            if n >= 2 and zoneNamed and x >= cave[1] and x <= cave[3] and y >= cave[2] and y <= cave[4] then
+                return x, y
+            end
+            i = i + 5 + 4 * n
+        end
+    end
+end
+
+-- Inside the cave the client calls the place Wailing Caverns; on the hill
+-- over it, the Barrens: the same spot takes the cave's floor only there.
+function tests.theCavesFloor_isTakenWhereTheClientNamesTheCave()
+    local player = { ci = 1, sub = "", zone = "Wailing Caverns" }
+    local ns = Load(CLIENTS[3], player)
+    local x, y = CavernCell(ns)
+    H.assertNotNil(x, "a stacked cell of the Cavern of Mists")
+    player.x, player.y = x, y
+    local h, all = HeightAt(ns, x, y, 1)
+    table.sort(all)
+    H.assertTrue(#all >= 2, "floors stack there")
+    H.assertEq(h, all[1], "in the cave: its floor, the lowest")
+    player.zone = "The Barrens"
+    ns = Load(CLIENTS[3], player)
+    local above = HeightAt(ns, x, y, 1)
+    H.assertTrue(above == nil or above > all[1], "on the hill: not the cave's floor")
+end
+
 function tests.eachTableMatchesItsShippedGrid()
     for _, client in ipairs(CLIENTS) do
         local checked = MatchedCells(client)
-        H.assertTrue(checked > client.cells, client.floors .. ": Undercity's stacked cells: " .. checked)
+        H.assertTrue((checked[0] or 0) > client.cells, client.floors .. ": Undercity's stacked cells: " .. tostring(checked[0]))
+        if client.kalimdor then
+            H.assertTrue((checked[1] or 0) > client.kalimdorCells,
+                client.floors .. ": Kalimdor's stacked cells: " .. tostring(checked[1]))
+        end
     end
 end
 
@@ -199,6 +259,17 @@ function tests.onTheRingAboveIt_notArrived()
     H.assertFalse(ns.GPSFloors.SameLevel(0, CAIN[1], CAIN[2]), "the ring over the auctioneer")
     player.sub = "Canals"
     H.assertTrue(ns.GPSFloors.SameLevel(0, CAIN[1], CAIN[2]), "beside the auctioneer")
+end
+
+-- The Royal Quarter lies under a Tirisfal lake, and the bake once took
+-- every floor under the water for the lake's (2026-11-07): from the ring
+-- the walk went out and round by the sewers, 1,880 yd.
+function tests.theRoyalQuarter_walkedToThroughTheCity()
+    for _, client in ipairs(CLIENTS) do
+        local ns = Load(client, { sub = "" })
+        local cost = ns.GPSNav.Walk(0, 1385.1, 341.7, 1341.7, 310.2)
+        H.assertTrue(cost ~= nil and cost < 700, client.walk .. ": ring to Royal Quarter " .. tostring(cost))
+    end
 end
 
 local pass, fail, failures = H.runSuite("GPS floors", tests)

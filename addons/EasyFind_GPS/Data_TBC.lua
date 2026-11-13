@@ -399,6 +399,10 @@ ns.GPSData = {
         { kind = "elevator", n = "Undercity elevator", dest = "Undercity", from = { m = 1458, x = 0.6593, y = 0.5072, ci = 0, wx = 1553, wy = 241, area = 153 }, to = { m = 1458, x = 0.6592, y = 0.5375, ci = 0, wx = 1534, wy = 241, area = 1497 }, sec = 12, wait = 10, bidir = true, approx = true },
         { kind = "elevator", n = "Undercity elevator", dest = "Undercity", from = { m = 1458, x = 0.7041, y = 0.4414, ci = 0, wx = 1595, wy = 198, area = 153 }, to = { m = 1458, x = 0.7239, y = 0.4417, ci = 0, wx = 1595, wy = 179, area = 1497 }, sec = 12, wait = 10, bidir = true, approx = true },
         { kind = "elevator", n = "Undercity elevator", dest = "Undercity", from = { m = 1458, x = 0.6155, y = 0.4405, ci = 0, wx = 1596, wy = 283, area = 153 }, to = { m = 1458, x = 0.595, y = 0.4402, ci = 0, wx = 1596, wy = 302, area = 1497 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "Thunder Bluff elevator", dest = "Thunder Bluff", from = { m = 1456, x = 0.3163, y = 0.6254, ci = 1, wx = -1285, wy = 186, area = 1638 }, to = { m = 1456, x = 0.3163, y = 0.6601, ci = 1, wx = -1309, wy = 186, area = 215 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "Thunder Bluff elevator", dest = "Thunder Bluff", from = { m = 1456, x = 0.543, y = 0.2739, ci = 1, wx = -1041, wy = -50, area = 1638 }, to = { m = 1456, x = 0.5238, y = 0.2567, ci = 1, wx = -1029, wy = -30, area = 215 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "The Great Lift", dest = "Thousand Needles", from = { m = 1441, x = 0.3167, y = 0.2369, ci = 1, wx = -4662, wy = -1827, area = 17 }, to = { m = 1441, x = 0.3221, y = 0.2397, ci = 1, wx = -4670, wy = -1851, area = 400 }, sec = 12, wait = 10, bidir = true, approx = true },
+        { kind = "elevator", n = "Freewind Post elevator", dest = "Freewind Post", from = { m = 1441, x = 0.4698, y = 0.4898, ci = 1, wx = -5404, wy = -2500, area = 484 }, to = { m = 1441, x = 0.467, y = 0.483, ci = 1, wx = -5384, wy = -2488, area = 400 }, sec = 12, wait = 10, bidir = true, approx = true },
     },
     -- Each boat's timetable: its loop in seconds, and per stop where it is, how long
     -- it waits and when it leaves, in seconds after it leaves the first stop.
@@ -756,6 +760,7 @@ ns.GPSData = {
     -- A city whose map's middle is no way in: its gate, by the city's map.
     gates = {
         [1458] = { m = 1458, x = 0.6566, y = 0.4367, ci = 0, wx = 1598, wy = 243 },
+        [1456] = { { m = 1456, x = 0.3163, y = 0.6601, ci = 1, wx = -1309, wy = 186 }, { m = 1456, x = 0.5238, y = 0.2567, ci = 1, wx = -1029, wy = -30 } },
     },
     -- Subzones by zone map, flat triples: area id, x, y (C_Map.GetAreaInfo names them).
     areas = {

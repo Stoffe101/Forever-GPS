@@ -13,6 +13,7 @@ local DOCK_YD = 60               -- a stop this close is where one boards or lan
 local CARRIED_YD = 8             -- moved this far in a sample without walking: aboard
 local NEAR_YD = 300              -- watched this close to a stop, and while aboard
 local ABOARD_YD = 40             -- a docked boat's deck lies this close to where it is boarded
+local SAME_STOP_YD = 10          -- a stop this close to a boarding spot is that spot
 local SAMPLE_SECONDS = 1
 local STILL_SAMPLES = 3          -- not carried this long: landed
 local STALE_SECONDS = 6 * 3600   -- a sighting this old no longer times a route
@@ -82,7 +83,9 @@ local function Sample()
         and (x - last.x) ^ 2 + (y - last.y) ^ 2 >= CARRIED_YD * CARRIED_YD
     if carried and not ride and last then
         local from = StopsNear(last.ci, last.x, last.y, DOCK_YD)
-        if #from > 0 then ride = { from = from, left = GetServerTime() - SAMPLE_SECONDS / 2 } end
+        if #from > 0 then
+            ride = { from = from, left = GetServerTime() - SAMPLE_SECONDS / 2, ci = last.ci, x = last.x, y = last.y }
+        end
     end
     if ride then
         if carried then
@@ -111,11 +114,26 @@ end
 -- Carried by a boat since it left a stop.
 function Boats.Carried() return ride ~= nil end
 
+-- Carried off from the dock at (bci, bx, by): the ride left nearer it than
+-- any other stop (a tower's other zeppelin is another ride).
+local function LeftFrom(bci, bx, by)
+    if not (ride.x and bx) then return true end
+    if ride.ci ~= bci then return false end
+    local d = (bx - ride.x) ^ 2 + (by - ride.y) ^ 2
+    for _, s in ipairs(StopsNear(ride.ci, ride.x, ride.y, DOCK_YD)) do
+        local st = Routes()[s[1]].stops[s[2]]
+        if (st.wx - ride.x) ^ 2 + (st.wy - ride.y) ^ 2 < d and (st.wx - bx) ^ 2 + (st.wy - by) ^ 2 > SAME_STOP_YD ^ 2 then
+            return false
+        end
+    end
+    return true
+end
+
 -- On board at (ci, x, y), its boarding spot at (bci, bx, by): carried by it,
 -- or standing beside that spot where the walking grid has only open water
 -- (the deck of a boat at the dock), not swimming nor falling.
 function Boats.Aboard(ci, x, y, bci, bx, by)
-    if ride then return true end
+    if ride then return LeftFrom(bci, bx, by) end
     if not (ci and bx and ci == bci) or (bx - x) ^ 2 + (by - y) ^ 2 > ABOARD_YD * ABOARD_YD then return false end
     if (IsSwimming and IsSwimming()) or (IsFalling and IsFalling()) then return false end
     local Nav = ns.GPSNav

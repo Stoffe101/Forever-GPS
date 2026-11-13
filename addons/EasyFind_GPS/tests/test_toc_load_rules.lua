@@ -85,7 +85,7 @@ function tests.everyClientOnlyFile_isKeptOffTheOtherClient()
         end
         fh:close()
     end
-    H.assertTrue(checked > 50 and gated > 20, "read the toc file lines")
+    H.assertTrue(checked > 40 and gated > 15, "read the toc file lines")
     H.assertTrue(#bad == 0, table.concat(bad, "\n"))
 end
 

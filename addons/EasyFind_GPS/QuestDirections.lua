@@ -4,8 +4,9 @@ local GPS = ns.GPS
 if not GPS then return end
 local L, Utils = ns.L, ns.Utils
 
--- Directions to log quests at the game's own quest places: its quest
--- menus (Menu.ModifyMenu) and search rows. Era and TBC place no quest.
+-- Directions from the game's own menus (Menu.ModifyMenu): to log quests
+-- from its quest menus, and to NPCs and group members from its unit
+-- menus; and log quests as search rows. Era and TBC place no quest.
 
 local QL = C_QuestLog
 local GetQuestUiMapID = GetQuestUiMapID
@@ -67,12 +68,13 @@ local function Destination(questID)
     if not mapID then return nil end
     local done = QL.IsComplete and QL.IsComplete(questID)
     local dest = { name = QuestTitle(questID) or L["APP_GPS"], mapID = mapID, x = x, y = y,
-                   icon = done and ICON_TURN_IN or ICON_IN_PROGRESS, category = KEY }
+                   icon = done and ICON_TURN_IN or ICON_IN_PROGRESS, category = KEY,
+                   questMark = done and "turnin" or nil, questID = questID }
     return GPS:CanNavigate(dest) and dest or nil
 end
 
-local function Navigate(dest)
-    EasyFind.API.CallAction("gps", "navigate", dest, { popout = true })
+local function Navigate(dest, opts)
+    EasyFind.API.CallAction("gps", "navigate", dest, opts or { popout = true })
 end
 
 -- ==== the client's quest menus ===============================================
@@ -82,7 +84,7 @@ local function AddDirections(root, questID)
     local dest = Destination(questID)
     if not dest then return end
     root:CreateDivider()
-    root:CreateButton(L["GPS_MENU_DIRECTIONS"], function() Navigate(dest) end)
+    root:CreateButton(L["GPS_MENU_EASYFIND_DIRECTIONS"], function() Navigate(dest) end)
 end
 
 -- The quest a frame under the cursor stands for (a tracker block's id, a
@@ -113,6 +115,115 @@ if Menu and Menu.ModifyMenu then
         local logIndex = GetQuestIndexForWatch(owner.index)
         AddDirections(root, logIndex and select(8, GetQuestLogTitle(logIndex)))
     end)
+end
+
+-- ==== the client's unit menus =================================================
+
+-- An NPC to the spot its search row shows (typing its name and taking its
+-- GPS button), a party or raid member followed as it moves. Other
+-- players: the client gives no spot.
+if Menu and Menu.ModifyMenu then
+    local FOLLOW_SECONDS, FOLLOW_YARDS = 3, 25
+    local UnitDirections = {}
+    ns.GPSUnitDirections = UnitDirections
+
+    local function Plain(v)
+        if issecretvalue and issecretvalue(v) then return false end
+        return v ~= nil
+    end
+
+    local function NpcID(unit)
+        local guid = UnitGUID(unit)
+        if not Plain(guid) then return nil end
+        local kind, _, _, _, _, id = strsplit("-", guid)
+        if kind ~= "Creature" and kind ~= "Vehicle" then return nil end
+        return tonumber(id)
+    end
+
+    -- A group member's map and spot on it, or nil (an instance, a client
+    -- that withholds it).
+    local function MemberSpot(unit)
+        local m = C_Map.GetBestMapForUnit(unit)
+        local pos = Plain(m) and C_Map.GetPlayerMapPosition(m, unit)
+        if not pos then return nil end
+        local x, y = pos:GetXY()
+        if not (Plain(x) and Plain(y)) then return nil end
+        return m, x, y
+    end
+
+    local function World(m, x, y)
+        local ci, w = C_Map.GetWorldPosFromMapPos(m, CreateVector2D(x, y))
+        if not w then return nil end
+        return ci, w:GetXY()
+    end
+
+    local function UnitOfGUID(guid)
+        local raid = IsInRaid()
+        local prefix = raid and "raid" or "party"
+        for i = 1, raid and GetNumGroupMembers() or 4 do
+            if UnitGUID(prefix .. i) == guid then return prefix .. i end
+        end
+        return nil
+    end
+
+    local follow   -- { guid, name, ticker }
+
+    local function StopFollowing()
+        if follow and follow.ticker then follow.ticker:Cancel() end
+        follow = nil
+    end
+
+    -- Every few seconds: the member's spot, and a new route once it is far
+    -- from the route's end. Ends when the route is another's or gone, or
+    -- the member left the group.
+    local function Tick()
+        if not follow or GPS:IsPlanning() then return end
+        local route = GPS.CurrentRoute and GPS.CurrentRoute()
+        if not (route and route.dest and route.dest.followGUID == follow.guid) then return StopFollowing() end
+        local unit = UnitOfGUID(follow.guid)
+        if not unit then return StopFollowing() end
+        local m, x, y = MemberSpot(unit)
+        if not m then return end
+        local ci, wx, wy = World(m, x, y)
+        local dci, dx, dy = World(route.dest.mapID, route.dest.x, route.dest.y)
+        if ci and dci and (ci ~= dci or (wx - dx) ^ 2 + (wy - dy) ^ 2 > FOLLOW_YARDS ^ 2) then
+            Navigate({ name = follow.name, mapID = m, x = x, y = y, followGUID = follow.guid }, { quiet = true })
+        end
+    end
+    UnitDirections._Tick = Tick   -- tests
+
+    local function Follow(guid, name)
+        StopFollowing()
+        local unit = UnitOfGUID(guid)
+        local m, x, y
+        if unit then m, x, y = MemberSpot(unit) end
+        if not m then return end
+        follow = { guid = guid, name = name }
+        Navigate({ name = name, mapID = m, x = x, y = y, followGUID = guid })
+        follow.ticker = C_Timer.NewTicker(FOLLOW_SECONDS, Tick)
+    end
+
+    local function AddUnitDirections(root, contextData)
+        local unit = contextData and contextData.unit
+        if not (unit and UnitExists(unit)) then return end
+        if UnitIsPlayer(unit) then
+            if UnitIsUnit(unit, "player") or not (UnitInParty(unit) or UnitInRaid(unit)) then return end
+            local guid, name = UnitGUID(unit), UnitName(unit)
+            if not (Plain(guid) and Plain(name) and MemberSpot(unit)) then return end
+            root:CreateDivider()
+            root:CreateButton(L["GPS_MENU_EASYFIND_DIRECTIONS"], function() Follow(guid, name) end)
+            return
+        end
+        local id = NpcID(unit)
+        local spot = id and ns.Npcs and ns.Npcs.SpotOfID and ns.Npcs.SpotOfID(id)
+        if not spot then return end
+        root:CreateDivider()
+        root:CreateButton(L["GPS_MENU_EASYFIND_DIRECTIONS"], function() Navigate(spot) end)
+    end
+
+    for _, which in ipairs({ "TARGET", "FOCUS", "BOSS", "PARTY", "RAID_PLAYER", "RAID" }) do
+        Menu.ModifyMenu("MENU_UNIT_" .. which, function(_, root, contextData) AddUnitDirections(root, contextData) end)
+    end
 end
 
 -- ==== the log's quests as search rows ========================================

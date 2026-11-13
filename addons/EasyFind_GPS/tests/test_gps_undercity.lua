@@ -41,7 +41,7 @@ function tests.theThreeLifts_linkTheHallAndTheCityBothWays()
         local data = Load(f[1], f[2])
         local n = 0
         for _, e in ipairs(data.edges) do
-            if e.kind == "elevator" then
+            if e.kind == "elevator" and e.dest == "Undercity" then
                 n = n + 1
                 H.assertTrue(e.bidir, f[1] .. ": ridden both ways")
                 H.assertEq(e.from.m, f[3])

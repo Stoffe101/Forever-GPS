@@ -9,7 +9,7 @@ local ZONE_TYPE = Enum and Enum.UIMapType and Enum.UIMapType.Zone or 3
 -- EasyFind.API: what extensions are built on, EasyFind's own included
 -- (API/README.md). VERSION rises only for a change that breaks an extension;
 -- MINOR for an addition.
-local API = { VERSION = 1, MINOR = 9 }
+local API = { VERSION = 1, MINOR = 11 }
 EasyFind.API = API
 
 local Extensions = { byID = {}, order = {} }
@@ -647,6 +647,14 @@ function API.ShowPlaces(key, row)
     return ns.MapSearch:ShowProviderPlaces(p, row)
 end
 
+-- The world map opened on a map, or turned to it, the way the game's own
+-- open does (MINOR 11): an addon's SetMapID marks the map as the addon's
+-- for the session. False in a fight: the turn comes as the fight ends.
+function API.OpenMap(mapID)
+    if not (ns.MapSearch and ns.MapSearch.TurnMap) then return false end
+    return ns.MapSearch.TurnMap(mapID)
+end
+
 -- ==== add targets =============================================================
 
 -- An entry in a result's right-click Add flyout, beside Note and Quicklist.
@@ -851,6 +859,62 @@ end
 -- changed while it shows (a spell's text arrived).
 function API.RedrawRowTooltip()
     if ns.ResultRows and ns.ResultRows.RedrawHoveredTooltip then ns.ResultRows.RedrawHoveredTooltip() end
+end
+
+-- ==== upgrade judge ===========================================================
+
+-- An extension's verdict on @upgrades for the character played now
+-- (MINOR 10): a percent, true (an upgrade, no number), false, or nil.
+local Judge = { def = nil }
+Extensions.Judge = Judge
+
+-- The @upgrades page built again when shown (verdicts landed, gear changed).
+function API.RefreshUpgrades()
+    if ns.Upgrades and ns.Upgrades.Changed then ns.Upgrades.Changed() end
+end
+
+function API.RegisterUpgradeJudge(def)
+    if type(def) ~= "table" then Fail("RegisterUpgradeJudge", "expects a table") end
+    if type(def.rate) ~= "function" then Fail("RegisterUpgradeJudge", "rate must be a function") end
+    local owner = Extensions.Get(def.extension or def.id)
+    if not owner then
+        Fail("RegisterUpgradeJudge", "extension '" .. tostring(def.extension or def.id) .. "' must be registered first")
+    end
+    def.extension = owner.id
+    Judge.def = def
+    API.RefreshUpgrades()
+    return true
+end
+
+function API.UnregisterUpgradeJudge(extension)
+    if not (Judge.def and Judge.def.extension == extension) then return end
+    Judge.def = nil
+    API.RefreshUpgrades()
+end
+
+-- The judge's word on a drop; nil with no judge, unrated, or a failed rate.
+function Judge.Rate(itemID, link)
+    local def = Judge.def
+    if not def then return nil end
+    local ok, verdict = Run(def.rate, itemID, link)
+    if not ok or verdict == nil then return nil end
+    if verdict == false or verdict == true then return verdict end
+    return type(verdict) == "number" and verdict or nil
+end
+
+-- ==== item sources ============================================================
+
+-- Where an item comes from, as an extension knows it (MINOR 11): its rows
+-- under a heading of its name on the item's sources page (a click on an
+-- item row). fn(itemID, name) returns rows, or nothing.
+function API.RegisterItemSources(id, fn)
+    if type(id) ~= "string" or id == "" then Fail("RegisterItemSources", "id must be a string") end
+    if type(fn) ~= "function" then Fail("RegisterItemSources", "fn must be a function") end
+    local owner = Extensions.Get(id)
+    if not owner then Fail("RegisterItemSources", "extension '" .. tostring(id) .. "' must be registered first") end
+    if not ns.ItemSources then return false end
+    ns.ItemSources.Register(owner.id, owner.name, fn)
+    return true
 end
 
 function API.RegisterRowDecorator(def)
@@ -1166,7 +1230,7 @@ end
 function API.HasRow(name, mapID)
     if type(name) ~= "string" or name == "" or type(mapID) ~= "number" then return false end
     local maps = MapAndZone(mapID)
-    local npcs = ns.GPSNpcs
+    local npcs = ns.Npcs
     local npcID = npcs and npcs.NamedOn and npcs.NamedOn(name, maps)
     if npcID then return npcID end
     local on = PlaceMaps()[slower(name)]
@@ -1179,7 +1243,7 @@ end
 
 -- Whether the loaded creature catalog has the creature (MINOR 6).
 function API.HasCreature(npcID)
-    local npcs = ns.GPSNpcs
+    local npcs = ns.Npcs
     return type(npcID) == "number" and npcs ~= nil and npcs.HasID ~= nil and npcs.HasID(npcID) == true
 end
 

@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.7.0 (unreleased, not yet tested in the game or on a controller)
+
+### WoW Forever's own Gamepad UI
+
+Testers using the game's built-in controller interface (Options, Gamepad, "Enable Gamepad UI") saw "Forever-GPS has been blocked from an action only available to the Blizzard UI", again and again, as they do with other addons. The reason, from the Forever client's own UI code: that interface keeps its focus and button bookkeeping in shared tables, which anything an addon does to the game's menus, popups, panels or open world map writes in the addon's name; from then on Blizzard's restricted `SetPreferredGamepadInteractTarget()` is blocked at every target change. [docs/CONTROLLER.md](docs/CONTROLLER.md#the-games-gamepad-ui)
+
+- **While the Gamepad UI is on, Forever-GPS stands aside** from everything that would do that: nothing drawn on the game's world map (the journey shows on Forever-GPS's own route map), no entries added to the game's quest, tracker and unit menus, no menus built with the game's menu system, no game window opened or closed from addon code, no popup. It follows the setting live. With keyboard and mouse nothing changes.
+- **`/fgps pad`** copies a controller report for bug reports: the Gamepad UI state, the controller, the buttons Forever-GPS holds, and every blocked action the game reported this session, with its function.
+
+### Controller
+
+- **Left and right stay on the row, up and down keep to the column**, as console menus move. Right of "+" on the journey is now Start navigation, not Hearth on the row above.
+- **The route map works with the controller**: the D-pad moves between its buttons (next map, the whole route, your position, Start navigation, close) and its marks; LB and RB step through the route, X shows all of it, B closes.
+- A test walks every page at two screen sizes, about 4,600 button presses, and fails on any control that cannot be reached or any move that leaves its row.
+
+### Updated upstream
+
+- **EasyFind 5.3.0, EasyFind GPS 1.6.0, EasyFind Questie 1.3.0.** Their map fixes (opening the world map after a route no longer raises errors), WoW Forever portals that are not there no longer used, zeppelin docks named, lifts and the caves under Thunder Bluff walked properly, Directions from a group member's portrait, a quest's giver and ender in its tooltip, and more. Forever-GPS's own changes to them were merged three ways, and its taint protections kept where upstream does not have them yet.
+
+### Maintenance
+
+- **Upstream watch** (`tools/upstream_watch.py`, a workflow twice a day once on `main`): new EasyFind releases are merged, tested and packaged into a draft pull request automatically; Questie's releases are checked against what Forever-GPS reads; the reused MIT sources and the WoW Forever client's builds and API are watched. Nothing is merged, released or installed without approval. [docs/UPSTREAM.md](docs/UPSTREAM.md#watching-upstream)
+- **Artifact cleanup** (`tools/artifacts.py`, a weekly workflow, listing by default).
+- Client build 1.60.1.70938 is live; its UI code was compared with 70790 (verified in the game): no change to the controller code since 70862, one new profession API. Not yet played with Forever-GPS.
+
+
 ## 2.6.0 (unreleased, not yet tested in the game or on a controller)
 
 Forever-GPS with a controller, on a PC or a Steam Deck. [docs/CONTROLLER.md](docs/CONTROLLER.md)

@@ -78,9 +78,20 @@ function Floors.Height(ci, key, cell, rank)
 end
 
 local function Named(city, k, sub, zone)
-    if k == ZONE_NAME then return sub == "" or sub == zone end
+    local locale = GetLocale and GetLocale() or "enUS"
+    if k == ZONE_NAME then
+        -- A floor named only by its zone: the client must call the place
+        -- the city (the hill over a cave shows the land's zone instead),
+        -- as the sub-zone, or as the zone with no sub-zone shown.
+        local zones = city.zone and (city.zone[locale] or city.zone.enUS)
+        if not zones then return sub == "" or sub == zone end
+        for i = 1, #zones do
+            if zones[i] == sub or (sub == "" and zones[i] == zone) then return true end
+        end
+        return false
+    end
     if k == 0 then return false end
-    local names = city.names[GetLocale and GetLocale() or "enUS"] or city.names.enUS
+    local names = city.names[locale] or city.names.enUS
     return names[k] == sub
 end
 
@@ -121,6 +132,7 @@ end
 local function NamedHeight(ci, city, x, y, sub, zone)
     local grid = ns.GPSNavData and ns.GPSNavData[ci]
     if not grid then return nil end
+    local land
     for ring = 0, NAME_CELLS do
         for dx = -ring, ring do
             for dy = -ring, ring do
@@ -129,12 +141,18 @@ local function NamedHeight(ci, city, x, y, sub, zone)
                     local flat, at
                     if key then flat, at = Cell(ci, key, cell) end
                     for r = 0, flat and flat[at] - 1 or -1 do
-                        if Named(city, flat[at + 2 + 2 * r], sub, zone) then return flat[at + 1 + 2 * r] end
+                        local name = flat[at + 2 + 2 * r]
+                        if Named(city, name, sub, zone) then return flat[at + 1 + 2 * r] end
+                        -- No piece of the city under this floor: the land's.
+                        if name == 0 and land == nil then land = flat[at + 1 + 2 * r] end
                     end
                 end
             end
         end
     end
+    -- The client names no piece of the city where the player stands: he
+    -- is on the land over it (the hill over a cave, Tirisfal over the sewers).
+    return land
 end
 
 local function SpotKey(ci, x, y)

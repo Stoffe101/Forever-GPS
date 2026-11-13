@@ -124,7 +124,7 @@ end
 -- waiting out a fight must not take a waypoint the player dropped meanwhile.
 function MapSearch.ClearGameWaypoint()
     local was = C_Map.GetUserWaypoint and C_Map.GetUserWaypoint()
-    MapSearch.WaypointChange("place", function()
+    MapSearch.WaypointChange("clear", function()
         local now = C_Map.GetUserWaypoint and C_Map.GetUserWaypoint()
         if not now then return end
         if was and was.position and now.position and (now.uiMapID ~= was.uiMapID
@@ -149,42 +149,37 @@ function MapSearch.TrackChange(on)
         C_SuperTrack.SetSuperTrackedUserWaypoint(on)
     end)
 end
-
--- The one door to the game's map, for a click in the map's own panel. An id written from
--- here stays tainted for every refresh that reads it, so never in a fight, and never to
--- the map it is already on. Forever-GPS itself does not come through here at all.
-function MapSearch.TurnMap(mapID)
-    if not (WorldMapFrame and mapID) or WorldMapFrame:GetMapID() == mapID then return end
-    if InCombatLockdown() then
-        changes.mapRefused = changes.mapRefused + 1
-        return
-    end
-    changes.mapTurns = changes.mapTurns + 1
-    WorldMapFrame:SetMapID(mapID)
-end
 """, 1),
+    # Upstream's own door to the game's map (5.3.0): counted for /fgps diag, never to the
+    # map it is already on, and not at all under the game's Gamepad UI.
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """function MapSearch.TurnMap(mapID)
+    if not (mapID and WorldMapFrame) then return false end
+    if InCombatLockdown() then
+        turnAfterFight = mapID
+""",
+     """function MapSearch.TurnMap(mapID)
+    if not (mapID and WorldMapFrame) then return false end
+    if ForeverGPSPreflight.GamepadUI() or WorldMapFrame:GetMapID() == mapID then return false end
+    local counts = MapSearch.WaypointChanges
+    if InCombatLockdown() then
+        if counts then counts.mapRefused = counts.mapRefused + 1 end
+        turnAfterFight = mapID
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """    if OpenWorldMap then
+        OpenWorldMap(mapID)""",
+     """    if counts then counts.mapTurns = counts.mapTurns + 1 end
+    if OpenWorldMap then
+        OpenWorldMap(mapID)""", 1),
     ("EasyFind", "MapSearch/Navigation.lua",
      """    if WAYPOINTS then MapSearch.WaypointChange("track", function() C_SuperTrack.SetSuperTrackedUserWaypoint(on) end) end
 """,
      """    if WAYPOINTS then MapSearch.TrackChange(on) end
 """, 1),
     ("EasyFind", "MapSearch/Navigation.lua",
-     """        TrackWaypoint(false)
-        if WAYPOINTS and HasUserWaypoint() then
-            ClearUserWaypoint()
-        end
-""",
-     """        TrackWaypoint(false)
-        if WAYPOINTS and HasUserWaypoint() then
-            MapSearch.ClearGameWaypoint()
-        end
-""", 1),
-    ("EasyFind", "MapSearch/Navigation.lua", "WorldMapFrame:SetMapID(targetMapID)", "MapSearch.TurnMap(targetMapID)", 1),
-    ("EasyFind", "MapSearch/Navigation.lua", "WorldMapFrame:SetMapID(data.zoneMapID)", "MapSearch.TurnMap(data.zoneMapID)", 3),
-    ("EasyFind", "MapSearch/Navigation.lua", "WorldMapFrame:SetMapID(spotMapID)", "MapSearch.TurnMap(spotMapID)", 1),
-    ("EasyFind", "MapSearch/UINavigation.lua", "WorldMapFrame:SetMapID(data.entranceMapID)", "MapSearch.TurnMap(data.entranceMapID)", 1),
-    ("EasyFind", "MapSearch/UINavigation.lua", "WorldMapFrame:SetMapID(data.zoneMapID)", "MapSearch.TurnMap(data.zoneMapID)", 1),
-    ("EasyFind", "MapSearch/UINavigation.lua", "WorldMapFrame:SetMapID(data.mapID)", "MapSearch.TurnMap(data.mapID)", 1),
+     'MapSearch.WaypointChange("clear", function() if HasUserWaypoint() then ClearUserWaypoint() end end)',
+     "MapSearch.ClearGameWaypoint()", 1),
     # The native pin stays as the game draws it: a second mark under ours is a small price
     # for writing nothing onto a pooled pin of the game's.
     ("EasyFind", "MapSearch/Navigation.lua",
@@ -226,7 +221,7 @@ local nativePinScales = setmetatable({}, { __mode = "k" })
      """        nativePinScales[pin] = nativePinScales[pin] or (pin:GetScale() or 1)
         pcall(pin.SetScale, pin, nativePinScales[pin] * nativePinScale)
 """, 1),
-    ("EasyFind_GPS", "GPS.lua", "    if C_Map.ClearUserWaypoint then C_Map.ClearUserWaypoint() end\n",
+    ("EasyFind_GPS", "GPS.lua", '    if C_Map.ClearUserWaypoint then GPS.GamePinChange("clear", C_Map.ClearUserWaypoint) end\n',
      "    if ns.MapSearch and ns.MapSearch.ClearGameWaypoint then ns.MapSearch.ClearGameWaypoint() end\n", 2),
     ("EasyFind_GPS", "GPS.lua",
      """    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
@@ -253,12 +248,6 @@ end
 
 local function ToggleRouteTracking()
 """, 1),
-    ("EasyFind_GPS", "MapClick.lua",
-     "if map:IsShown() and map:GetMapID() ~= p.mapID then map:SetMapID(p.mapID) end",
-     "if map:IsShown() and ns.MapSearch then ns.MapSearch.TurnMap(p.mapID) end", 1),
-    ("EasyFind_GPS", "Preview.lua",
-     "if mapID and here ~= mapID and WorldMapFrame.SetMapID then pcall(WorldMapFrame.SetMapID, WorldMapFrame, mapID) end",
-     "if mapID and here ~= mapID and ns.MapSearch then ns.MapSearch.TurnMap(mapID) end", 1),
     # The GPS is always here, so nothing reached this: the only setters left outside the door.
     ("EasyFind_Questie", "Quests.lua",
      """    elseif C_Map.CanSetUserWaypointOnMap and C_Map.CanSetUserWaypointOnMap(dest.mapID) then
@@ -456,6 +445,8 @@ GAMEPAD_EDITS = [
     # Entries added to the game's own menus (Menu.ModifyMenu): the menu opens as the game's.
     ("EasyFind_GPS", "QuestDirections.lua", "local function AddDirections(root, questID)\n",
      "local function AddDirections(root, questID)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind_GPS", "QuestDirections.lua", "    local function AddUnitDirections(root, contextData)\n",
+     "    local function AddUnitDirections(root, contextData)\n        if " + GAMEPAD + " then return end\n", 1),
     ("EasyFind", "Search/NoteMenus.lua", "local function AddMakeNote(_, root, contextData)\n",
      "local function AddMakeNote(_, root, contextData)\n    if " + GAMEPAD + " then return end\n", 1),
     # The game's panels, opened or closed from our code.
@@ -467,6 +458,8 @@ GAMEPAD_EDITS = [
      "if not " + GAMEPAD + " and WorldMapFrame and WorldMapFrame:IsShown() and ToggleWorldMap then ToggleWorldMap() end", 1),
     ("EasyFind_GPS", "QuestDirections.lua", "local function OpenLog(questID)\n",
      "local function OpenLog(questID)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind_Questie", "Quests.lua", "local function AbandonPrompt(id)\n",
+     "local function AbandonPrompt(id)\n    if " + GAMEPAD + " then return end\n", 1),
     ("EasyFind_Questie", "Quests.lua", "local function OpenQuestLog(id)\n",
      "local function OpenQuestLog(id)\n    if " + GAMEPAD + " then return end\n", 1),
     ("EasyFind", "Search/Openers.lua", "local function SecureShowUIPanel(frame)\n",

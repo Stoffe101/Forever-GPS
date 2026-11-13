@@ -753,6 +753,64 @@ local function WithFloor(text, floor)
     return text .. " (" .. tostring(word) .. ")"
 end
 
+-- A zeppelin tower's docks lie this close together; nearer is one dock.
+local TOWER_YARDS, SAME_DOCK = 75, 10
+local MASTER_YARDS = 40
+local DOCK_ARRIVE = 0.3   -- of the gap to the next dock: the walk there is done this close
+local LIFT_ARRIVE = 10    -- yards from a lift's door: the walk there is done this close
+local SIDE_KEYS = { "GPS_SIDE_N", "GPS_SIDE_NE", "GPS_SIDE_E", "GPS_SIDE_SE",
+                    "GPS_SIDE_S", "GPS_SIDE_SW", "GPS_SIDE_W", "GPS_SIDE_NW" }
+local atan2 = math.atan2 or math.atan
+
+-- A zeppelin dock p on a tower with others (Tirisfal's: Orgrimmar and
+-- Grom'gol 58 yd apart): the tower's other docks { { wx, wy }, ... }, the
+-- side p is on (from the docks' middle) and the yards to the nearest
+-- other; nil on a tower of one.
+local function TowerDocks(data, p, kind)
+    if not (p and p.wx) then return nil end
+    local others, gap = {}, nil
+    local sx, sy = p.wx, p.wy
+    local function Add(q)
+        if not (q and q.wx and q.ci == p.ci) then return end
+        local d = ((q.wx - p.wx) ^ 2 + (q.wy - p.wy) ^ 2) ^ 0.5
+        if d <= SAME_DOCK or d > TOWER_YARDS then return end
+        for _, o in ipairs(others) do
+            if (o[1] - q.wx) ^ 2 + (o[2] - q.wy) ^ 2 <= SAME_DOCK * SAME_DOCK then return end
+        end
+        others[#others + 1] = { q.wx, q.wy }
+        sx, sy = sx + q.wx, sy + q.wy
+        if not gap or d < gap then gap = d end
+    end
+    for _, e in ipairs(data and data.edges or {}) do
+        if e.kind == kind then
+            Add(e.from)
+            if e.bidir then Add(e.to) end
+        end
+    end
+    if not gap then return nil end
+    local n = #others + 1
+    -- World x runs north, y west: clockwise from north, east positive.
+    local angle = atan2(-(p.wy - sy / n), p.wx - sx / n)
+    return others, SIDE_KEYS[mfloor(angle / (math.pi / 4) + 0.5) % 8 + 1], gap
+end
+Route._TowerDocks = TowerDocks   -- tests
+
+-- The step boarding a zeppelin at p: named by the master who stands at
+-- its dock and the tower's side where the tower has other docks; the
+-- yards to the nearest other dock, nil on a tower of one.
+local function ZeppelinStep(data, p, dest)
+    local L = ns.L
+    local others, side, gap = TowerDocks(data, p, "zeppelin")
+    local Npcs = ns.Npcs
+    local master = p and p.wx and Npcs and Npcs.TitledNear
+        and Npcs.TitledNear("Zeppelin Master", p.ci, p.wx, p.wy, MASTER_YARDS, others)
+    local text = master and (L["GPS_STEP_ZEPPELIN_AT_FMT"]):format(dest, master)
+        or (L["GPS_STEP_ZEPPELIN_FMT"]):format(dest)
+    if side then text = text .. " (" .. tostring(L[side]) .. ")" end
+    return text, gap
+end
+Route._ZeppelinStep = ZeppelinStep   -- tests
+
 -- Requirement table: quest, anyQuest, notQuest, minLevel, maxLevel, covenant,
 -- reputation { id, standing }, art { map, artID }. Unanswerable counts as met.
 local function Meets(req)
@@ -856,12 +914,13 @@ local function Steps(g, path, goalName, goalStep)
         if node.kind == "taxi" then return nxt.edge.kind == "taxi" end
         return node.edge ~= nil and nxt.edge.edge == node.edge
     end
-    -- inside: the building whose hall the step's spot is in (Buildings.lua).
-    local function Approach(spot, text, inside)
+    -- inside: the building whose hall the step's spot is in (Buildings.lua);
+    -- yards: reached this close (a dock beside others), else the usual.
+    local function Approach(spot, text, inside, yards)
         if not (approach and spot) then return end
         tinsert(steps, { kind = "travel", approach = true, text = text,
                          mapID = spot.m, x = spot.x, y = spot.y, go = spot, arrive = spot, sec = approach,
-                         wind = approachWind, fly = g.fly, inside = inside })
+                         wind = approachWind, fly = g.fly, inside = inside, arriveYards = yards })
         approach, approachWind = nil, nil
     end
     while i <= #path do
@@ -937,8 +996,14 @@ local function Steps(g, path, goalName, goalStep)
             local dest = building and (AreaName(building) or e.edge.n) or EdgeDestName(e.edge, e.reverse)
             local reachKey = REACH_KEY[e.kind]
             local reachText = reachKey and WithFloor((L[reachKey]):format(dest), floor) or nil
-            Approach(from.p, reachText or (L[GoKey(g)]):format(AreaName(from.p.area) or MapName(from.p.m)), from.inside)
             local text = WithFloor((L[key]):format(dest), floor)
+            -- On a tower of several docks the walk there ends nearer this
+            -- one than any other, so the wrong one never reads as reached.
+            local dockGap
+            if e.kind == "zeppelin" and not floor and not e.reverse then text, dockGap = ZeppelinStep(g.data, from.p, dest) end
+            -- A lift's door is reached at the door, not from the hall's ring round it.
+            Approach(from.p, reachText or (L[GoKey(g)]):format(AreaName(from.p.area) or MapName(from.p.m)), from.inside,
+                (dockGap and dockGap * DOCK_ARRIVE) or (e.kind == "elevator" and LIFT_ARRIVE) or nil)
             -- The other faction's transport: said so on the step.
             if e.hostile then text = text .. " (" .. (_G["HOSTILE"] or "Hostile") .. ")" end
             tinsert(steps, { kind = e.kind, text = text, hostile = e.hostile,
@@ -1550,14 +1615,6 @@ function Route:Build(dest, opts)
     local goal = Resolve({ m = dest.mapID, x = dest.x, y = dest.y })
     if not goal then return nil end
     local Nav = ns.GPSNav
-    local gate = dest.zone and data.gates and data.gates[dest.mapID]
-    if gate then
-        -- A city's gate stands for its middle (Undercity's lies underground).
-        goal = Resolve({ m = gate.m, x = gate.x, y = gate.y, ci = gate.ci, wx = gate.wx, wy = gate.wy }) or goal
-    elseif dest.zone and Nav and Nav.Ground then
-        local wx, wy = Nav.Ground(goal.ci, goal.wx, goal.wy, ZONE_GROUND_CELLS)
-        if wx then goal = { m = goal.m, x = goal.x, y = goal.y, ci = goal.ci, wx = wx, wy = wy } end
-    end
     local start = opts.start
     if not start then
         local m = C_Map.GetBestMapForUnit("player")
@@ -1569,6 +1626,23 @@ function Route:Build(dest, opts)
         end
     end
     if not start then return nil end
+    local gate = dest.zone and data.gates and data.gates[dest.mapID]
+    -- A city with several ways in (Thunder Bluff's lifts): the nearest.
+    if gate and gate[1] then
+        local best, bestD = gate[1], mhuge
+        for _, p in ipairs(gate) do
+            local d = p.ci == start.ci and (p.wx - start.wx) ^ 2 + (p.wy - start.wy) ^ 2 or mhuge
+            if d < bestD then best, bestD = p, d end
+        end
+        gate = best
+    end
+    if gate then
+        -- A city's gate stands for its middle (Undercity's lies underground).
+        goal = Resolve({ m = gate.m, x = gate.x, y = gate.y, ci = gate.ci, wx = gate.wx, wy = gate.wy }) or goal
+    elseif dest.zone and Nav and Nav.Ground then
+        local wx, wy = Nav.Ground(goal.ci, goal.wx, goal.wy, ZONE_GROUND_CELLS)
+        if wx then goal = { m = goal.m, x = goal.x, y = goal.y, ci = goal.ci, wx = wx, wy = wy } end
+    end
     local known, listed, names
     if opts.known ~= nil then
         known, listed = opts.known or nil, opts.listed
@@ -1577,7 +1651,7 @@ function Route:Build(dest, opts)
     end
     -- Walks go around what this character should not walk through
     -- (opts.level: the character's level, the player's by default).
-    local Npcs = ns.GPSNpcs
+    local Npcs = ns.Npcs
     if Nav and Nav.SetDanger then
         local on = opts.avoid and opts.avoid.danger and Npcs and Npcs.DangerTiles
         Nav.SetDanger(on and Npcs.DangerTiles(opts.level or (UnitLevel and UnitLevel("player")),
@@ -1784,8 +1858,28 @@ local function WalkPieces(step, from, data, env, first)
     step.jumps = path.jumps
     local pts, cum = path.pts, path.cum
     local runs = {}
+    -- The continent names the zone around a city for the city's own points
+    -- (Thunder Bluff's read as Mulgore, 2026-11-09): inside the map box of
+    -- the city set out from, or walked to, a point is the city's.
+    local cities = {}
+    if first and env.startCity then cities[#cities + 1] = env.startCity end
+    if env.goalCity and not (env.startCity and env.startCity.map == env.goalCity.map) then
+        cities[#cities + 1] = env.goalCity
+    end
+    local function Within(mapID, x, y)
+        if not env.mapPos then return false end
+        local mx, my = env.mapPos(ci, x, y, mapID)
+        return mx ~= nil and mx >= 0 and mx <= 1 and my >= 0 and my <= 1
+    end
     local function Read(x, y, at)
         local map, name = env.zoneAt(ci, x, y)
+        for i = 1, #cities do
+            local city = cities[i]
+            if map ~= city.map and Within(city.map, x, y) then
+                map, name = city.map, city.name
+                break
+            end
+        end
         local run = runs[#runs]
         if map and (not run or run.map ~= map) then
             runs[#runs + 1] = { map = map, name = name or "?", at = at, x = x, y = y }
@@ -1918,8 +2012,8 @@ local function WalkPieces(step, from, data, env, first)
 end
 
 -- Each long walk as a step per zone crossed. env: zoneAt(ci, wx, wy) -> map, name;
--- mapPos(ci, wx, wy, mapID); isCity(mapID); startCity { map, name }; goalZone;
--- wholeWalks: a walk stays one step.
+-- mapPos(ci, wx, wy, mapID); isCity(mapID); startCity { map, name }; goalCity
+-- { map, name }; goalZone; wholeWalks: a walk stays one step.
 function Route.SplitWalks(steps, start, data, env)
     local out = {}
     for i = 1, #steps do

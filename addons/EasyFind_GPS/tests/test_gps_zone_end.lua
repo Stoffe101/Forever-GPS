@@ -14,6 +14,7 @@ local function Load(pinned)
         ns = { MapSearch = { PinRouteEnd = function(_, dest, x, y) pinned[#pinned + 1] = { dest = dest, x = x, y = y } end,
                              GetActivePinState = function() return nil end } },
         World = function(p) return p.ci, p.wx, p.wy end,
+        QuestGlyph = function() return nil end,
         C_Map = { GetMapPosFromWorldPos = function() return nil end },
         CreateVector2D = function(x, y) return { x = x, y = y } end,
     }, { __index = _G })

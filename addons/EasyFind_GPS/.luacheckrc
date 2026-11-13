@@ -52,7 +52,7 @@ read_globals = {
     -- Menus
     "MenuUtil",
     "ColorPickerFrame", "TooltipDataProcessor", "tContains", "GetInstanceInfo",
-    "UnitIsUnit", "C_PvP", "C_ChallengeMode", "GetNumClasses", "GetClassInfo", "GetNormalizedRealmName",
+    "UnitIsUnit", "UnitInParty", "UnitInRaid", "GetNumGroupMembers", "C_PvP", "C_ChallengeMode", "GetNumClasses", "GetClassInfo", "GetNormalizedRealmName",
 
     -- Clock
     "FlashClientIcon", "GameTime_GetFormattedTime", "UnitAffectingCombat",
@@ -104,7 +104,7 @@ read_globals = {
     "INVSLOT_MAINHAND", "INVSLOT_OFFHAND", "INVSLOT_RANGED",
 
     -- Frames and UI objects
-    "UIParent", "GameTooltip", "WorldMapFrame", "WorldFrame", "Minimap", "MinimapCluster",
+    "UIParent", "GameTooltip", "WorldMapFrame", "MapCanvasSecureUtil", "WorldFrame", "Minimap", "MinimapCluster",
     "CharacterFrame", "PaperDollFrame", "AchievementFrame",
     "CharacterStatsPane", "PaperDollTitlesPane", "PaperDollEquipmentManagerPane",
     "CurrencyFrame",

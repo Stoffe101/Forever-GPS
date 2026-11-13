@@ -90,6 +90,101 @@ function tests.backInItsSlotAfterADrag()
     H.assertEq(rel, uiParent, "back under the tracker, not on the window")
 end
 
+-- GPS.AwaitHost and GPS:OpenWindow cut from GPS.lua, with the tracker, the
+-- ticker and the clock in the test's hands.
+local function LoadOpen()
+    local f = assert(io.open(H.Path("GPS.lua"), "rb"))
+    local src = f:read("*a")
+    f:close()
+    local s = assert(src:find("local HOST_GRACE = 5", 1, true), "HOST_GRACE not in GPS.lua")
+    local e = assert(src:find("-- Opened or routed to with the tracker folded", s, true), "end of OpenWindow not found")
+    local w = { now = 0, host = nil, open = false, docked = 0, db = { gpsDocked = true }, c = {} }
+    local GPS = {
+        Dock = function() if w.host then w.docked = w.docked + 1 return true end return false end,
+        TogglePopout = function(_, show) w.open = show w.db.gpsDocked = nil end,
+        IsWindowOpen = function() return w.open end,
+        ShowWhileFolded = function() end,
+    }
+    local env = setmetatable({
+        GPS = GPS,
+        DB = function() return w.db end,
+        CharDB = function() return w.c end,
+        Tracker = function() return w.host end,
+        Watch = function() return nil end,
+        GetTime = function() return w.now end,
+        C_Timer = { NewTicker = function(_, fn)
+            local t = { fn = fn }
+            function t:Cancel() self.cancelled = true end
+            w.ticker = t
+            return t
+        end },
+    }, { __index = _G })
+    assert(load(src:sub(s, e - 1), "=GPS.lua OpenWindow", "t", env))()
+    function w.Tick()
+        w.now = w.now + 0.5
+        if w.ticker and not w.ticker.cancelled then w.ticker.fn() end
+    end
+    return GPS, w
+end
+
+-- After a reload Questie's tracker shows a moment late: the section waits
+-- for it and snaps in, no window in between.
+function tests.atLogin_waitsForTheTrackerAndSnapsIn()
+    local GPS, w = LoadOpen()
+    GPS:OpenWindow(true)
+    H.assertEq(w.open, false, "no window while the tracker may be a moment away")
+    w.Tick()
+    H.assertEq(w.docked, 0)
+    w.host = {}
+    w.Tick()
+    H.assertEq(w.docked, 1, "snapped in as the tracker showed")
+    H.assertEq(w.c.popoutOpen, true)
+    H.assertEq(w.ticker.cancelled, true, "the wait is over")
+    H.assertEq(w.open, false, "never a window")
+end
+
+-- No tracker within the grace: the window opens, still wanting the
+-- tracker, and leaves for it when it shows.
+function tests.atLogin_opensTheWindowAfterTheGrace_thenSnapsIn()
+    local GPS, w = LoadOpen()
+    GPS:OpenWindow(true)
+    for _ = 1, 11 do w.Tick() end
+    H.assertEq(w.open, true, "the window after the grace")
+    H.assertEq(w.db.gpsDocked, true, "the snap kept")
+    H.assertEq(w.ticker.cancelled, nil, "still waiting for a tracker")
+    w.host = {}
+    w.Tick()
+    H.assertEq(w.docked, 1, "snapped in when the tracker showed")
+end
+
+-- The player closed the window or turned snapping off: the wait ends.
+function tests.aClosedWindowOrSnapOff_endsTheWait()
+    local GPS, w = LoadOpen()
+    GPS:OpenWindow(true)
+    w.c.popoutOpen = false
+    w.host = {}
+    w.Tick()
+    H.assertEq(w.docked, 0, "nothing snaps in behind a closed window")
+    H.assertEq(w.ticker.cancelled, true)
+    GPS, w = LoadOpen()
+    w.db.gpsNeverDock = true
+    GPS:OpenWindow(true)
+    H.assertEq(w.open, true, "snapping off: the window at once")
+    H.assertEq(w.ticker, nil, "and no wait")
+end
+
+-- Opened by hand with no tracker up: the window now, and the section
+-- snaps in when a tracker shows.
+function tests.openedByHand_theWindowNow_thenSnapsIn()
+    local GPS, w = LoadOpen()
+    GPS:OpenWindow()
+    H.assertEq(w.open, true)
+    H.assertEq(w.db.gpsDocked, true, "the snap kept")
+    w.host = {}
+    w.Tick()
+    H.assertEq(w.docked, 1)
+end
+
 -- Every line of the section is a button, and a button that takes only the
 -- left click swallows the right one: each takes it and opens a menu.
 function tests.everyLineOpensTheMenuOnRightClick()
@@ -125,7 +220,8 @@ local function MenuRows()
     local GPS = {
         WorldPinRow = row("GPS_WORLD_PIN"), SnapRow = row("GPS_SNAP_TRACKER"), AutoLearnRow = row("GPS_AUTO_LEARN"),
         DetoursRow = row("GPS_SHOW_DETOURS"), OtherWaysRow = row("GPS_SHOW_OTHER_WAYS"), LaunchRow = row("GPS_LAUNCH_WINDOW"),
-        HideDoneRow = row("GPS_HIDE_DONE"), NextOnlyRow = row("GPS_SIZE_NEXT_ONLY"),
+        HideDoneRow = row("GPS_HIDE_DONE"), NextOnlyRow = row("GPS_SIZE_NEXT_ONLY"), ArrowRow = row("GPS_ARROW"),
+        ArrowResetRow = function() return nil end,
         ListChoiceRow = function(_, which) return { kind = "check", label = which } end,
         StyleMenu = function() return { kind = "submenu", label = "GPS_STYLE", rows = {} } end,
         PlanningMenu = function(frame) return { kind = "submenu", label = "GPS_PLANNING", rows = {}, window = frame and frame.isPopout } end,
@@ -164,7 +260,7 @@ end
 function tests.everySurfaceHasTheSameMenu()
     local rowsFor = MenuRows()
     local shared = { "GPS_CLEAR", "GPS_FROM_PICK", "CTX_SEND_LINK", "GPS_REPORT",
-        "Show", "GPS_SNAP_TRACKER", "GPS_PLANNING", "GPS_LAUNCH_WINDOW" }
+        "Show", "GPS_ARROW", "GPS_SNAP_TRACKER", "GPS_PLANNING", "GPS_LAUNCH_WINDOW" }
     for _, s in ipairs({
         { name = "snapped in", f = { docked = true } },
         { name = "floating", f = { floating = true, look = "game" }, style = true },
@@ -186,6 +282,61 @@ function tests.everySurfaceHasTheSameMenu()
         H.assertEq(has.GPS_STYLE == true, s.style == true, s.name .. ": style rows")
         H.assertEq(has.GPS_SIZE_WIDTH == true, s.size == true, s.name .. ": width rows")
     end
+end
+
+-- The arrow's rows cut from GPS.lua: the check reads off while a quest
+-- holds the tracking and checking it tracks the route again (the way back
+-- to a lost arrow); the reset row only while the arrow has a place.
+local function ArrowRows(db, route)
+    local f = assert(io.open(H.Path("GPS.lua"), "rb"))
+    local src = f:read("*a")
+    f:close()
+    local s = assert(src:find("function GPS.ArrowRow()", 1, true), "GPS.ArrowRow not in GPS.lua")
+    local _, e = src:find("\nfunction GPS.ArrowResetRow%(%).-\nend\r?\n", s)
+    assert(e, "GPS.ArrowResetRow not after GPS.ArrowRow")
+    local seen = { tracked = 0, refreshed = 0, reset = 0 }
+    local GPS = {}
+    local env = setmetatable({
+        GPS = GPS, L = setmetatable({}, { __index = function(_, k) return k end }),
+        DB = function() return db end, Route = function() return route end,
+        Utils = { OffOrNil = function(on) if on then return nil end return false end },
+        ToggleRouteTracking = function() seen.tracked = seen.tracked + 1 route.untracked = nil end,
+        Refresh = function() seen.refreshed = seen.refreshed + 1 end,
+        ns = { GPSArrow = { ResetPlace = function() seen.reset = seen.reset + 1 db.gpsArrowPos = nil end } },
+    }, { __index = _G })
+    assert(load(src:sub(s, e), "=GPS.lua ArrowRow", "t", env))()
+    return GPS, seen
+end
+
+function tests.theArrowRowTracksALetGoRouteAgain()
+    local db, route = {}, { untracked = true }
+    local GPS, seen = ArrowRows(db, route)
+    local row = GPS.ArrowRow()
+    H.assertEq(row.kind, "check")
+    H.assertEq(row.label, "GPS_ARROW")
+    H.assertTrue(not row.get(), "off while a quest holds the tracking")
+    row.set(true)
+    H.assertEq(seen.tracked, 1, "checking it tracks the route again")
+    H.assertTrue(row.get(), "on once the route is tracked")
+    H.assertEq(db.gpsArrow, nil, "the setting is on")
+    row.set(false)
+    H.assertEq(db.gpsArrow, false, "unchecked, the setting is off")
+    H.assertEq(seen.tracked, 1, "turning it off leaves the tracking")
+    row.set(true)
+    H.assertEq(seen.tracked, 1, "a tracked route is not tracked again")
+    H.assertTrue(seen.refreshed >= 3, "every flip redraws the arrow")
+end
+
+function tests.theArrowResetRowShowsOnlyForAMovedArrow()
+    local db = {}
+    local GPS, seen = ArrowRows(db, nil)
+    H.assertEq(GPS.ArrowResetRow(), nil, "no row while the arrow is in its home place")
+    db.gpsArrowPos = { x = 10, y = 20 }
+    local row = GPS.ArrowResetRow()
+    H.assertEq(row.label, "GPS_ARROW_RESET_MENU")
+    row.onClick()
+    H.assertEq(seen.reset, 1)
+    H.assertEq(db.gpsArrowPos, nil, "back to its home place")
 end
 
 -- The map's page: its menu opens the window, never closes one.
@@ -276,12 +427,16 @@ function tests.planningAndBorderAreFlyoutSwitches()
     H.assertTrue(planning.rows()[2].icon ~= nil, "listed anew, it is ticked")
     -- Avoid: a flyout of its own inside planning, the settings page's switches.
     H.assertEq(rows[4].text, "GPS_AVOID")
-    local avoid = rows[4].submenu
+    -- A function: the flyout lists it anew after a click (a table never redrew its checks).
+    H.assertEq(type(rows[4].submenu), "function", "listed on each open, so a click redraws its checks")
+    local avoid = rows[4].submenu()
     H.assertEq(#avoid, 2, "one switch per way of travel")
     H.assertEq(avoid[2].text, "GPS_AVOID_BOAT")
     H.assertTrue(avoid[2].keepOpen, "a click keeps it open")
+    H.assertNil(avoid[2].icon, "off: no tick")
     avoid[2].onClick()
     H.assertTrue(on.avoid_boat, "the click flips it")
+    H.assertTrue(rows[4].submenu()[2].icon ~= nil, "listed anew, it is ticked")
     H.assertTrue(rows[5].isSeparator, "a line before the step-list switches")
     H.assertEq(rows[6].text, "GPS_HIDE_DONE")
     local window = GPS.PlanningMenu({ isPopout = true }).rows()
@@ -376,7 +531,7 @@ local function Windows(db, folded)
     local f = assert(io.open(H.Path("GPS.lua"), "rb"))
     local src = f:read("*a")
     f:close()
-    local s = assert(src:find("function GPS:OpenWindow()", 1, true), "GPS:OpenWindow not in GPS.lua")
+    local s = assert(src:find("function GPS:OpenWindow(atLogin)", 1, true), "GPS:OpenWindow not in GPS.lua")
     local c2 = assert(src:find("function GPS:CloseWindow()", s, true), "GPS:CloseWindow not after it")
     local _, e = src:find("\nend\r?\n", c2)
     local c = {}
@@ -620,7 +775,10 @@ function tests.aTrackerGoneLeavesForTheWindowRememberingTheSnap()
         db.gpsDocked = nil
         dock.docked = nil
     end
-    function GPS:TogglePopout(show) window = show end
+    -- As GPS:TogglePopout: showing the window leaves the tracker.
+    function GPS:TogglePopout(show) window = show db.gpsDocked = nil end
+    local awaited
+    function GPS.AwaitHost(grace) awaited = grace end
     local env = setmetatable({
         dockFrame = dock, GPS = GPS, DB = function() return db end, Host = function() return nil end,
         SectionLook = function() return "game" end, Look = {},
@@ -629,6 +787,7 @@ function tests.aTrackerGoneLeavesForTheWindowRememberingTheSnap()
     H.assertTrue(window, "the window shows the route")
     H.assertNil(dock.docked)
     H.assertTrue(db.gpsDocked, "remembered as snapped in")
+    H.assertEq(awaited, 0, "and waits for a tracker to snap back into, the window up")
 end
 
 local pass, fail, failures = H.runSuite("GPSDock", tests)

@@ -155,8 +155,10 @@ function Stack.new(opts)
         for _, fn in ipairs(self.questieReady or {}) do fn() end
     end
     if not opts.questieLate then c:QuestieReady() end
-    c.env.EasyFind._ns.GPSNpcs.Load()
-    c.env.EasyFind._ns.GPSNpcs.LoadGoods()
+    -- The creature catalog: EasyFind's own from 5.3.0, the GPS's before it.
+    local catalog = c.env.EasyFind._ns.Npcs or c.env.EasyFind._ns.GPSNpcs
+    catalog.Load()
+    if catalog.LoadGoods then catalog.LoadGoods() end
     c.FG = c.env.ForeverGPS
     c.ns = c.env.EasyFind._ns
     c.errors = {}

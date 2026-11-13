@@ -61,6 +61,7 @@ local GetAtlasInfo = C_Texture.GetAtlasInfo
 -- Arrival rings: a step's spot; the last step to a creature or other spot
 -- (beside it); a crossing's far spot, where it drops you, give or take.
 local ARRIVE = { yards = 40, spot = 8, cross = 300 }
+local LEFT_DOCK_YARDS = 400   -- a zeppelin's step, this far from its dock unridden: off the route
 -- A lift: its near door's reach, and the far door's for one stepped off.
 local LIFT_YARDS, LIFT_OFF = 15, 3
 local LIFT_ABOARD = 6   -- on its platform: this near the middle of its doors
@@ -282,8 +283,12 @@ end
 local INSTANCE_CATEGORIES = { dungeon = true, raid = true, delve = true }
 
 local function Destination(data)
+    -- questMark: "offer" or "turnin", the quest button its end wears;
+    -- questID: a log quest's, tracked itself on the last step; followGUID:
+    -- a group member followed (UnitDirections.lua).
     local dest = { name = data.destName or data.name, icon = data.icon, category = data.category, displayID = data.displayID,
-                   step = type(data.step) == "string" and data.step or nil }
+                   step = type(data.step) == "string" and data.step or nil, questMark = data.questMark,
+                   questID = data.questID, followGUID = data.followGUID }
     local em, ex, ey
     if data.isDungeonEntrance and not (data.x and data.y) then em, ex, ey = EntranceOf(data) end
     if em then
@@ -388,6 +393,7 @@ local function SplitWalks(steps, dest, origin)
     local ok, out = pcall(Route.SplitWalks, steps, start, ns.GPSData, {
         zoneAt = ZoneAt, mapPos = MapPos, isCity = IsCity,
         startCity = hereInfo and { map = here, name = hereInfo.name } or nil,
+        goalCity = dest.mapID and IsCity(dest.mapID) and { map = dest.mapID, name = (C_Map.GetMapInfo(dest.mapID) or {}).name } or nil,
         goalZone = dest.zone and dest.mapID or nil,
         wholeWalks = db ~= nil and db.gpsZoneSteps == false,
     })
@@ -443,7 +449,9 @@ end
 
 -- avoid: ways to leave out, the settings' by default; quick: no advice;
 -- draw: "first" draws the walk set out on (a route to show), nothing
--- otherwise (a route to compare).
+-- otherwise (a route to compare); startFrom: a world point to set out
+-- from, false for the player whatever start is set, nil for the start
+-- as set, else the player.
 -- The flight points the player dropped from the trip dest belongs to.
 function GPS.SkipFor(dest)
     local route = Route()
@@ -456,7 +464,7 @@ end
 
 function GPS:BuildRoute(dest, via, avoid, quick, draw, startFrom, dropLimit)
     local Route = ns.GPSRoute
-    local planned = startFrom or StartPoint()
+    local planned = startFrom or (startFrom == nil and StartPoint()) or nil
     local origin = planned or GPS.PlayerStart()
     if Route and ns.GPSData then
         local h = HearthPoint()
@@ -522,11 +530,19 @@ end
 
 GPS.WorldPos = WorldPos   -- the trip's legs start at a stop's world spot
 
+-- Where a route's plans set out from now: its start as set until the
+-- player reaches it, the player from then on (false: whatever start is set).
+function GPS.RouteStart(route)
+    if route.origin and not route.joined then return route.origin end
+    return false
+end
+
 -- The route's stops planned leg by leg (Trip.lua); one stop is the route itself.
 function GPS:BuildStops(route, via, avoid, quick, draw)
     local Trip = ns.GPSTrip
-    if Trip and route.stops and #route.stops > 1 then return Trip.Build(route.stops, via, avoid, quick, draw) end
-    return self:BuildRoute(route.dest, via, avoid, quick, draw)
+    local from = GPS.RouteStart(route)
+    if Trip and route.stops and #route.stops > 1 then return Trip.Build(route.stops, via, avoid, quick, draw, from) end
+    return self:BuildRoute(route.dest, via, avoid, quick, draw, from)
 end
 
 PlayerWorldPos = function()
@@ -691,7 +707,7 @@ local function LiftPin(route)
     if math.abs(wp.position.x - x) > 0.001 or math.abs(wp.position.y - y) > 0.001 then return end
     if ns.MapSearch and ns.MapSearch.SetEasyFindWaypointPlaced then ns.MapSearch:SetEasyFindWaypointPlaced(false) end
     GPS.TrackGamePin(false)
-    if C_Map.ClearUserWaypoint then C_Map.ClearUserWaypoint() end
+    if C_Map.ClearUserWaypoint then GPS.GamePinChange("clear", C_Map.ClearUserWaypoint) end
 end
 
 -- A flight path to learn at or after the active step.
@@ -713,6 +729,17 @@ function GPS.TrackGamePin(on)
         GPS.GamePinChange("track", function() C_SuperTrack.SetSuperTrackedUserWaypoint(on) end)
     end
 end
+-- The quest a route's last step tracks in place of the game's pin: the
+-- destination's, while it is in the log and the client tracks quests.
+function GPS.EndQuest(route, index)
+    local quest = route.dest and route.dest.questID
+    if not (quest and index == #route.steps and C_SuperTrack and C_SuperTrack.SetSuperTrackedQuestID) then return nil end
+    local QL = C_QuestLog
+    return QL and QL.GetLogIndexForQuestID and QL.GetLogIndexForQuestID(quest) and quest or nil
+end
+function GPS.TrackQuest(quest)
+    GPS.GamePinChange("quest", function() C_SuperTrack.SetSuperTrackedQuestID(quest) end)
+end
 function GPS.DropWaitingPin()
     local MS = ns.MapSearch
     if MS and MS.DropWaypointChange then MS.DropWaypointChange("place") end
@@ -727,7 +754,7 @@ function GPS.DropPin(route)
     if math.abs(wp.position.x - pin[2]) > 0.001 or math.abs(wp.position.y - pin[3]) > 0.001 then return end
     if ns.MapSearch and ns.MapSearch.SetEasyFindWaypointPlaced then ns.MapSearch:SetEasyFindWaypointPlaced(false) end
     GPS.TrackGamePin(false)
-    if C_Map.ClearUserWaypoint then C_Map.ClearUserWaypoint() end
+    if C_Map.ClearUserWaypoint then GPS.GamePinChange("clear", C_Map.ClearUserWaypoint) end
 end
 
 local REACH_YARDS = 40
@@ -856,10 +883,19 @@ TrackStep = function(index)
     -- None for a spot in a building's hall: on the city's map it reads as
     -- the ground outside and the game leads back out (Buildings.lua); the
     -- pin set before goes too, and the arrow and minimap line lead.
+    -- The last step to a quest in the log tracks the quest itself: its own
+    -- icon is the end's mark (the game's pin drew over it), and the beacon
+    -- stands on the game's way to it.
     local MapSearch = ns.MapSearch
     local mapID, x, y
-    if step.inside then GPS.DropPin(route) end
-    if not (step.noWay or step.inside) then mapID, x, y = WaypointPoint(step) end
+    local quest = GPS.EndQuest(route, index)
+    route.questTracked = quest
+    if step.inside or quest then GPS.DropPin(route) end
+    if quest then
+        if not route.untracked then GPS.TrackQuest(quest) end
+    elseif not (step.noWay or step.inside) then
+        mapID, x, y = WaypointPoint(step)
+    end
     if mapID and UiMapPoint and MapSearch and MapSearch.PlaceUserWaypoint then
         MapSearch:PlaceUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x, y))
         route.pin = { mapID, x, y }
@@ -1059,7 +1095,24 @@ local function OffRoute(route, ci, px, py)
         -- where it lands. A ride in progress is always on one of the two.
         local gci = step.go and PointWorld(step.go) or fci
         local aci = step.arrive and PointWorld(step.arrive) or gci
-        return ci ~= nil and gci ~= nil and ci ~= gci and ci ~= aci and ci ~= fci
+        if ci ~= nil and gci ~= nil and ci ~= gci and ci ~= aci and ci ~= fci then return true end
+        -- The tower's other zeppelin taken: landed far from both ends, not carried.
+        local Boats = ns.GPSBoats
+        if step.kind == "zeppelin" and ci ~= nil and ci == gci and not (Boats and Boats.Carried and Boats.Carried()) then
+            local _, gx, gy = PointWorld(step.go)
+            local _, ax, ay = PointWorld(step.arrive)
+            local nearEnd = aci == ci and ax and (px - ax) ^ 2 + (py - ay) ^ 2 <= ARRIVE.cross * ARRIVE.cross
+            return gx ~= nil and not nearEnd and (px - gx) ^ 2 + (py - gy) ^ 2 > LEFT_DOCK_YARDS * LEFT_DOCK_YARDS
+        end
+        -- Another way taken (flown to the city the hearth was for): on the
+        -- destination's map and well away from where this step set out,
+        -- the route starts over from here.
+        local dest = route.dest
+        if dest and dest.mapID and not dest.zone and fci ~= nil and fx and OnMap(dest.mapID)
+            and (ci ~= fci or (px - fx) ^ 2 + (py - fy) ^ 2 > OFF_ROUTE_YARDS * OFF_ROUTE_YARDS) then
+            return true
+        end
+        return false
     end
     local tci, tx, ty = PointWorld(step.go or step.arrive)
     if not (fci and tci and fci == tci) then return false end
@@ -1096,13 +1149,65 @@ function GPS.StopsAhead(route)
     return #ahead > 0 and ahead or stops
 end
 
--- The route again from where the player stands, to the same place. A stop
--- to learn a flight master stays until that master is learned.
+-- A walk on to another walk is done once its spot is passed: within
+-- PASS_YARDS of it and nearer the next step's spot than it is, a corner
+-- cut past it. The walk on is found from there and joins ahead, never
+-- back to the spot: the shortest walk from here to the next spot is never
+-- longer than the one by this spot, and still goes by it where it must.
+-- A field, not a local: the file is at Lua's 200 locals.
+function GPS.StepPassed(route, ci, px, py)
+    local PASS_YARDS, PASS_MARGIN = 250, 20
+    local i = route.active or 1
+    local step, nxt = route.steps[i], route.steps[i + 1]
+    if not (step and nxt and step.kind == "travel" and nxt.kind == "travel") then return false end
+    if step.fly or nxt.fly or step.corpse or step.inside then return false end
+    local sci, sx, sy = PointWorld(step.arrive or step.go)
+    local nci, nx, ny = PointWorld(nxt.go or nxt.arrive)
+    if not (sci and nci and sci == ci and nci == ci) then return false end
+    if (px - sx) ^ 2 + (py - sy) ^ 2 > PASS_YARDS * PASS_YARDS then return false end
+    local toNext = ((px - nx) ^ 2 + (py - ny) ^ 2) ^ 0.5
+    return toNext < ((sx - nx) ^ 2 + (sy - ny) ^ 2) ^ 0.5 - PASS_MARGIN
+end
+
+-- While a crossing is the step (a hearth, a flight), a later step the
+-- player stands at, whatever way got him there (flown to the city the
+-- hearth was for): the furthest one. At its spot it is taken up; at where
+-- it lands, the step after it, or the journey's end. A walk's own
+-- detours are the reroute's and StepPassed's.
+function GPS.StepReached(route, ci, px, py)
+    local steps, active = route.steps, route.active or 1
+    local step = steps[active]
+    if not step or step.kind == "travel" or step.corpse then return nil end
+    local reach = ARRIVE.yards * ARRIVE.yards
+    for k = #steps, active + 1, -1 do
+        local later = steps[k]
+        local aci, ax, ay = PointWorld(later.arrive)
+        if aci == ci and ax and (px - ax) ^ 2 + (py - ay) ^ 2 <= reach then
+            return steps[k + 1] and k + 1 or "arrive"
+        end
+        local gci, gx, gy = PointWorld(later.go)
+        if gci == ci and gx and (px - gx) ^ 2 + (py - gy) ^ 2 <= reach then return k end
+    end
+    return nil
+end
+
+-- A plan of the same trip taken up: its steps and times, and its start
+-- where the plan set out from (BuildStops), so the drawn way begins there.
+function GPS.Replanned(route, steps, total, advice)
+    route.steps, route.eta, route.total, route.advice, route.t, route.there = steps, total, total, advice, time(), nil
+    local here = GPS.RouteStart(route) or GPS.PlayerStart()
+    route.from = here and { ci = here.ci, wx = here.wx, wy = here.wy } or nil
+    closing.step = nil
+end
+
+-- The route again from where it stands (the start as set until reached,
+-- the player from then on), to the same place. A stop to learn a flight
+-- master stays until that master is learned.
 local function Reroute(route)
     if GPS:IsPlanning() then return end
     -- Forever-GPS: from here, a trip goes on to the stops still ahead, not back
     -- round the ones already reached.
-    route.stops = GPS.StopsAhead(route)
+    if GPS.StopsAhead then route.stops = GPS.StopsAhead(route) end
     local via = GPS.ViaLeft(route, ns.GPSRoute and ns.GPSRoute.recordedKnown)
     GPS:Plan(nil, function() return GPS:BuildStops(route, via, route.wayAvoid, true, "first") end,
         function(steps, total, advice)
@@ -1111,7 +1216,7 @@ local function Reroute(route)
 end
 
 function GPS.Rerouted(route, via, steps, total, advice)
-    local here = GPS.PlayerStart()
+    local here = GPS.RouteStart(route) or GPS.PlayerStart()
     local ci, wx, wy
     if here then ci, wx, wy = here.ci, here.wx, here.wy end
     -- The report keeps the first plan, and counts the starts over.
@@ -1119,8 +1224,8 @@ function GPS.Rerouted(route, via, steps, total, advice)
     if report then report.re = (report.re or 0) + 1 end
     CharDB().route = { dest = route.dest, steps = steps, active = 1, t = time(), eta = total, total = total, advice = advice,
                        via = via, from = ci and { ci = ci, wx = wx, wy = wy } or nil, report = report,
-                       wayAvoid = route.wayAvoid, dangerSeen = route.dangerSeen,
-                       stops = route.stops, skipLearn = route.skipLearn }   -- Forever-GPS: a trip stays a trip
+                       origin = route.origin, joined = route.joined, stops = route.stops, skipLearn = route.skipLearn,
+                       wayAvoid = route.wayAvoid, dangerSeen = route.dangerSeen }
     closing.step = nil
     if GPS.AfterRoute then GPS.AfterRoute() end
     if ns.GPSPreview and ns.GPSPreview.Reset then ns.GPSPreview:Reset() end
@@ -1241,6 +1346,20 @@ local function Tick()
     else
         offRoute.ticks = 0
     end
+    if not planned and GPS.StepPassed(route, ci, px, py) then
+        TrackStep((route.active or 1) + 1)
+        return
+    end
+    if not planned and not (UnitOnTaxi and UnitOnTaxi("player")) then
+        local reached = GPS.StepReached(route, ci, px, py)
+        if reached == "arrive" then
+            Arrive(route)
+            return
+        elseif reached then
+            TrackStep(reached)
+            return
+        end
+    end
     -- A step is done where it lands you (the far side of a portal or a
     -- flight), which is not always where it starts.
     local arrive = step.arrive
@@ -1288,8 +1407,11 @@ local function Tick()
     local crossing = step.kind ~= "travel"
     -- A crossing to another continent is done the moment you are on it;
     -- one that stays on this continent is done near its far spot.
-    if not (crossing and step.go and step.go.ci ~= sci) then
-        local radius = crossing and ARRIVE.cross or ARRIVE.yards
+    -- The walk to a dock reached by a tight ring: carried off, it is done.
+    local Boats = ns.GPSBoats
+    local carried = step.arriveYards and Boats and Boats.Carried and Boats.Carried()
+    if not carried and not (crossing and step.go and step.go.ci ~= sci) then
+        local radius = crossing and ARRIVE.cross or step.arriveYards or ARRIVE.yards
         -- The marks stay on a creature until the player stands beside it
         -- (several stand in a town); an entrance keeps the wider ring.
         local dest = route.dest
@@ -1422,12 +1544,9 @@ function GPS:DropLearn(nodeID)
 end
 
 function GPS.StopAdded(route, via, tip, steps, total, advice)
-    route.steps, route.eta, route.total, route.advice, route.t, route.there = steps, total, total, advice, time(), nil
+    GPS.Replanned(route, steps, total, advice)
     route.via = via
     if route.report and tip.id then route.report.via = tip.id end
-    local ci, wx, wy = PlayerWorldPos()
-    route.from = ci and { ci = ci, wx = wx, wy = wy } or nil
-    closing.step = nil
     TrackStep(1)
     if GPS.AfterRoute then GPS.AfterRoute(true) end
 end
@@ -1660,9 +1779,8 @@ function GPS:TakeOtherWay(other)
     self:Plan(route.dest.name, function() return self:BuildStops(route, nil, other.avoid, true, "first") end,
         function(steps, total, advice)
             if not (steps and Route() == route) then return end
-            route.steps, route.eta, route.total, route.advice, route.t, route.there = steps, total, total, advice, time(), nil
+            GPS.Replanned(route, steps, total, advice)
             route.wayAvoid, route.others = other.avoid, nil
-            closing.step = nil
             TrackStep(1)
             AfterRoute()
         end)
@@ -1762,7 +1880,8 @@ function GPS:SetStart(data, quiet)
             ns.GPSTrip.Navigate({ quiet = true })
         else
             GPS:NavigateTo({ name = dest.name, icon = dest.icon, category = dest.category, isZone = dest.zone,
-                             displayID = dest.displayID,
+                             displayID = dest.displayID, questMark = dest.questMark, questID = dest.questID,
+                             followGUID = dest.followGUID,
                              mapID = dest.mapID, x = not dest.zone and dest.x or nil, y = not dest.zone and dest.y or nil },
                            { quiet = true })
         end
@@ -2206,7 +2325,7 @@ GPS.dangerFound = setmetatable({}, { __mode = "k" })
 function GPS.DangerText(route)
     local db = DB()
     if route.dangerSeen or route.arrived or (db and db.gpsDangerWarn == false) then return nil end
-    local Npcs, Engine, Follow = ns.GPSNpcs, ns.GPSRoute, ns.GPSFollow
+    local Npcs, Engine, Follow = ns.Npcs, ns.GPSRoute, ns.GPSFollow
     local level = UnitLevel("player")
     if not (Npcs and Npcs.DeadlyAlong and Engine and Engine.WalkPath and Follow and level) then return nil end
     local steps, active = route.steps, route.active or 1
@@ -3117,6 +3236,10 @@ do
                 and ST.IsSuperTrackingQuest()) then
                 return
             end
+            -- The route's own last step tracking its quest: no pick of the player's.
+            if route.questTracked and ST.GetSuperTrackedQuestID and ST.GetSuperTrackedQuestID() == route.questTracked then
+                return
+            end
             GPS.ReleaseTracking(route)
             Refresh()
         end)
@@ -3718,6 +3841,34 @@ function GPS.WorldPinRow()
         end }
 end
 
+-- The menu row for the arrow at the character (on unless turned off). It
+-- points only while the route is tracked, so a route let go for a quest
+-- shows it off, and checking it tracks the route again: the way back to a
+-- lost arrow from every surface's menu.
+function GPS.ArrowRow()
+    return { kind = "check", label = L["GPS_ARROW"], tooltip = L["GPS_ARROW_MENU_TT"],
+        get = function()
+            local db, route = DB(), Route()
+            return not (db and db.gpsArrow == false) and not (route and route.untracked)
+        end,
+        set = function(v)
+            local db, route = DB(), Route()
+            if db then db.gpsArrow = Utils.OffOrNil(v) end
+            if v and route and route.untracked then ToggleRouteTracking() end
+            Refresh()
+        end }
+end
+
+-- Back under the character, shown only while it has a place of its own.
+function GPS.ArrowResetRow()
+    local db = DB()
+    if not (db and db.gpsArrowPos) then return nil end
+    return { kind = "action", label = L["GPS_ARROW_RESET_MENU"], onClick = function()
+        local Arrow = ns.GPSArrow
+        if Arrow and Arrow.ResetPlace then Arrow.ResetPlace() else db.gpsArrowPos = nil end
+    end }
+end
+
 -- The menu row for learning cheap flight points on the way (on unless
 -- turned off); the trip on screen is planned again either way.
 -- The menu rows for two of the advice lines: a detour to learn a flight
@@ -3922,6 +4073,7 @@ ShowGameMenu = function(owner, defs)
     end)
     return ok
 end
+GPS.ShowGameMenu = ShowGameMenu
 
 local function HideMenus()
     if ns.HideTogglePopup then
@@ -4131,12 +4283,13 @@ local function PlaceDock()
         return RenderDock(dockFrame)
     end
     -- Nothing left to snap into (the tracker hidden or emptied): the window,
-    -- snapped back in on the next open.
+    -- snapped back in when a tracker shows again.
     if dockFrame.docked and not (dockFrame.dragging or dockFrame.ghost) and Host() == nil then
         GPS:Undock()
+        GPS:TogglePopout(true)
         local db = DB()
         if db then db.gpsDocked = true end
-        return GPS:TogglePopout(true)
+        return GPS.AwaitHost(0)
     end
     local watch, api = Watch()
     if watch then return Look.PlaceInWatch(watch, api) end
@@ -5114,11 +5267,46 @@ function GPS.DragProbe()
     return out
 end
 
+-- A GPS window on the game windows' layer: raised when it opens or is
+-- clicked, so it covers the bars and a bag opened after it covers it.
+function GPS.RaiseLikeAWindow(window)
+    local function Lift()
+        if window.docked then return end
+        window:Raise()
+        -- Cast buttons hang from UIParent: back over their rows.
+        if InCombatLockdown and InCombatLockdown() then return end
+        for i = 1, #castButtons do
+            local btn = castButtons[i]
+            if btn:IsShown() and btn.row:IsVisible() then btn:SetFrameLevel(btn.row:GetFrameLevel() + 3) end
+        end
+    end
+    local function Clicked()
+        local foci = GetMouseFoci and GetMouseFoci() or { GetMouseFocus and GetMouseFocus() }
+        for i = 1, #foci do
+            local f, depth = foci[i], 0
+            while f and depth < 8 and not f:IsForbidden() do
+                if f == window then return Lift() end
+                f, depth = f:GetParent(), depth + 1
+            end
+        end
+    end
+    local catch = CreateFrame("Frame", nil, window)
+    catch:SetScript("OnShow", function(self)
+        Lift()
+        Utils.RegisterEventIfValid(self, "GLOBAL_MOUSE_DOWN")
+    end)
+    catch:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+    catch:SetScript("OnEvent", Clicked)
+    if window:IsVisible() then Utils.RegisterEventIfValid(catch, "GLOBAL_MOUSE_DOWN") end
+    window.Lift = Lift
+end
+
 local function BuildDock()
     local f = CreateFrame("Frame", "EasyFindGPSDock", UIParent)
     f:SetSize(260, DOCK_HEADER_H)
     f:SetFrameStrata("LOW")
     f:SetFrameLevel(5)
+    GPS.RaiseLikeAWindow(f)
     f:SetMovable(true)
     f:SetClampedToScreen(true)
     f.lines = {}
@@ -5437,8 +5625,7 @@ function GPS.FloatDockAt(left, top)
     if not dockFrame then return end
     dockFrame.docked = nil
     dockFrame.floating = true
-    -- Over the action bars, as the window.
-    dockFrame:SetFrameStrata("HIGH")
+    dockFrame:SetFrameStrata("MEDIUM")
     -- A section's width, floating or not.
     local t = ClientTracker()
     local ref = t and t.modules and t.modules[1]
@@ -5458,6 +5645,7 @@ function GPS.FloatDockAt(left, top)
     end
     dockFrame:SetAlpha(1)
     dockFrame:Show()
+    dockFrame.Lift()
     -- A grip the game stopped drawing (shown, yet not visible under a
     -- visible header) comes back with a hide and show.
     if dockFrame.grip and dockFrame.head and dockFrame.head:IsVisible() and not dockFrame.grip:IsVisible() then
@@ -5499,9 +5687,13 @@ end
 -- Learning flight paths on the way and the advice lines under the route;
 -- under a line, which steps the list shows (the next alone: the window's).
 function GPS.PlanningMenu(f)
+    -- Listed on each open: a click redraws the flyout with its checks.
+    local function avoid()
+        local out = {}
+        for _, kind in ipairs(GPS.AvoidKinds()) do out[#out + 1] = CheckFlyoutRow(GPS.AvoidRow(kind)) end
+        return out
+    end
     return { kind = "submenu", label = L["GPS_PLANNING"], rows = function()
-        local avoid = {}
-        for _, kind in ipairs(GPS.AvoidKinds()) do avoid[#avoid + 1] = CheckFlyoutRow(GPS.AvoidRow(kind)) end
         local rows = { CheckFlyoutRow(GPS.AutoLearnRow()), CheckFlyoutRow(GPS.DetoursRow()),
                        CheckFlyoutRow(GPS.OtherWaysRow()), { text = L["GPS_AVOID"], submenu = avoid },
                        { isSeparator = true }, CheckFlyoutRow(GPS.HideDoneRow()) }
@@ -5627,17 +5819,57 @@ function GPS:Dock(slot)
     return true
 end
 
+-- The tracker not up yet (Questie's shows a moment after a reload) or gone
+-- (hidden, emptied): the section waits for one and snaps in when it shows.
+-- The window opens meanwhile, after the grace, and leaves for the tracker
+-- on its return. The wait ends with the window closed or snapping off.
+local HOST_GRACE = 5
+function GPS.AwaitHost(grace)
+    if GPS.hostWait then return end
+    local started = GetTime()
+    GPS.hostWait = C_Timer.NewTicker(0.5, function()
+        local db, c = DB(), CharDB()
+        local wanted = db and db.gpsDocked and not db.gpsNeverDock and not (c and c.popoutOpen == false)
+        if not wanted or (dockFrame and dockFrame.docked) then return GPS.StopAwaitingHost() end
+        if dockFrame and dockFrame.dragging then return end
+        if Tracker() or Watch() then
+            GPS.StopAwaitingHost()
+            if GPS:Dock() then
+                if c then c.popoutOpen = true end
+                GPS.ShowWhileFolded()
+            end
+        elseif not GPS:IsWindowOpen() and GetTime() - started >= grace then
+            GPS:TogglePopout(true)
+            db.gpsDocked = true
+        end
+    end)
+end
+
+function GPS.StopAwaitingHost()
+    if GPS.hostWait then
+        GPS.hostWait:Cancel()
+        GPS.hostWait = nil
+    end
+end
+
 -- The window as it was left: snapped into the tracker when it was there
--- (and there is one), else the window at its last spot.
-function GPS:OpenWindow()
+-- (and there is one), else the window at its last spot. atLogin: the
+-- tracker may be a moment away, so the window waits for it too.
+function GPS:OpenWindow(atLogin)
     local db = DB()
-    if db and db.gpsDocked and not db.gpsNeverDock and GPS:Dock() then
+    local snap = db and db.gpsDocked and not db.gpsNeverDock
+    if snap and GPS:Dock() then
         local c = CharDB()
         if c then c.popoutOpen = true end
         GPS.ShowWhileFolded()
         return
     end
+    if snap then
+        GPS.AwaitHost(atLogin and HOST_GRACE or 0)
+        if atLogin then return end
+    end
     GPS:TogglePopout(true)
+    if snap then db.gpsDocked = true end
 end
 
 -- Opened or routed to with the tracker folded: the section shows on its
@@ -5785,6 +6017,8 @@ function GPS.MenuRows(f)
         end }
     end
     defs[#defs + 1] = { kind = "separator" }
+    defs[#defs + 1] = GPS.ArrowRow()
+    defs[#defs + 1] = GPS.ArrowResetRow()
     defs[#defs + 1] = GPS.SnapRow()
     defs[#defs + 1] = GPS.LaunchRow()
     defs[#defs + 1] = GPS.PlanningMenu(f)
@@ -5806,8 +6040,8 @@ local function BuildPopout()
     -- Its Classic frame at a window's full weight.
     f._efClassicStyle = "window"
     f:SetSize((PopoutSize()), 120)
-    -- Over the action bars, which share MEDIUM and cut into a window there.
-    f:SetFrameStrata("HIGH")
+    f:SetFrameStrata("MEDIUM")
+    GPS.RaiseLikeAWindow(f)
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)
@@ -6317,8 +6551,7 @@ local function RecordKnownFlights()
         return steps, total, advice
     end, function(steps, total, advice)
         if not (steps and Route() == route) then return end
-        route.steps, route.eta, route.total, route.advice, route.t, route.there = steps, total, total, advice, time(), nil
-        closing.step = nil
+        GPS.Replanned(route, steps, total, advice)
         TrackStep(1)
         AfterRoute(true)
     end)
@@ -6711,7 +6944,7 @@ loginFrame:SetScript("OnEvent", function(self, event, unit, _, spellID)
     local c = CharDB()
     -- Open as it was left; nil while snapped in is a save from before
     -- closing it was remembered.
-    if c and (c.popoutOpen or (c.popoutOpen == nil and db and db.gpsDocked)) then GPS:OpenWindow() end
+    if c and (c.popoutOpen or (c.popoutOpen == nil and db and db.gpsDocked)) then GPS:OpenWindow(true) end
     local route = Route()
     if not route then return end
     -- A route is for the trip in progress; one left from another day is

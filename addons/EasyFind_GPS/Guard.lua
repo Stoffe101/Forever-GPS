@@ -2,7 +2,7 @@
 -- an older one a chat line asks for an update and each code file stops at
 -- its first lines (own.tooOld).
 local ADDON, own = ...
-local MIN_EASYFIND = "4.0.0"
+local MIN_EASYFIND = "5.3.0"
 
 local Meta = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
 
