@@ -1,0 +1,53 @@
+name: Artifact cleanup
+
+# Weekly: Actions artifacts that nothing needs any more (tools/artifacts.py has the rules:
+# the newest of each name per live branch, open pull requests, failed runs for 14 days and
+# names with release/rollback/keep are always kept). It lists by default, and deletes only
+# when run by hand with "apply", or with the repository variable ARTIFACT_PRUNE_APPLY=true.
+#
+# GITHUB_TOKEN reaches this repository alone. For the owner's other repositories, store a
+# fine-grained token with Actions: read and write on them as the secret ARTIFACT_PRUNE_TOKEN.
+#
+# GitHub runs scheduled workflows from the default branch only: this file has to be on main
+# for the schedule to start.
+
+on:
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Delete what the rules allow (otherwise list only)"
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: artifact-cleanup
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: List, or delete, obsolete artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ vars.FGPS_DEV_BRANCH || 'feature/forever-gps-v1' }}
+      - name: Prune
+        env:
+          PRUNE_TOKEN: ${{ secrets.ARTIFACT_PRUNE_TOKEN }}
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLY: ${{ (inputs.apply || vars.ARTIFACT_PRUNE_APPLY == 'true') && '--apply' || '' }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          if [ -n "$PRUNE_TOKEN" ]; then
+            GITHUB_TOKEN="$PRUNE_TOKEN" python3 tools/artifacts.py prune --owner "$OWNER" $APPLY --report artifacts.md
+          else
+            GITHUB_TOKEN="$REPO_TOKEN" python3 tools/artifacts.py prune --owner "$OWNER" --repo "$REPO" $APPLY --report artifacts.md
+          fi
