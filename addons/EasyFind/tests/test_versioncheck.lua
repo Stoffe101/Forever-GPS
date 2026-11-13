@@ -1,0 +1,213 @@
+-- Tests for Core/VersionCheck.lua: what the peer update notice accepts.
+-- The wire itself (SendAddonMessage) is not exercised; NotePeerVersion is
+-- the single gate every received version passes through.
+
+local H = require("Harness")
+local env = H.newEnv()
+local ns = H.newNs(env)
+
+env.EasyFind = { db = { updateNotify = true } }
+env.C_ChatInfo = {
+    SendAddonMessage = function() end,
+    RegisterAddonMessagePrefix = function() end,
+}
+env.IsInGroup = function() return false end
+env.IsInRaid = function() return false end
+env.IsInGuild = function() return false end
+env.IsInInstance = function() return false, "none" end
+
+ns.version = "3.1.0"
+ns.GOLD_COLOR = { 1.0, 0.82, 0.0 }
+ns.L = setmetatable({}, { __index = function(_, key) return key end })
+ns.CompareVersion = function(a, b)
+    local ai = tostring(a or ""):gmatch("%d+")
+    local bi = tostring(b or ""):gmatch("%d+")
+    while true do
+        local av, bv = ai(), bi()
+        if av == nil and bv == nil then return 0 end
+        av, bv = tonumber(av) or 0, tonumber(bv) or 0
+        if av ~= bv then return av < bv and -1 or 1 end
+    end
+end
+
+-- The installed addons the extension list reads, set per test.
+local addons = {}
+local function Find(name)
+    for _, a in ipairs(addons) do if a.name == name then return a end end
+end
+env.C_AddOns = {
+    GetNumAddOns = function() return #addons end,
+    GetAddOnInfo = function(i) return addons[i] and addons[i].name end,
+    IsAddOnLoaded = function(name) return Find(name) ~= nil end,
+    GetAddOnMetadata = function(name, field)
+        if name == "EasyFind" then return field == "X-Curse-Project-ID" and "1454793" or nil end
+        local a = Find(name)
+        return a and a[field]
+    end,
+}
+local printed = {}
+env.print = function(msg) printed[#printed + 1] = msg end
+ns.L.UPDATE_CHAT_CORE = "EasyFind v%s out, have v%s"
+ns.L.UPDATE_CHAT_EXT = "%s v%s out, have v%s"
+
+local frames, makeFrame = {}, env.CreateFrame
+env.CreateFrame = function(...) local f = makeFrame(...) frames[#frames + 1] = f return f end
+H.loadModule("Core/VersionCheck.lua", env, ns)
+
+local VC = ns.VersionCheck
+local tests = {}
+
+local function reset()
+    for i = #addons, 1, -1 do addons[i] = nil end
+    for i = #printed, 1, -1 do printed[i] = nil end
+    VC:ResetSeen()
+    env.EasyFind.db.updateNotify = true
+end
+
+local GPS = { name = "EasyFind_GPS", Version = "1.1.0", ["X-Curse-Project-ID"] = "1774025",
+              Title = "|cff66ccffEasyFind|r [GPS]" }
+
+function tests.accepts_newerVersionOnRosterChannel()
+    reset()
+    H.assertEq(VC:NotePeerVersion("3.2.0", "GUILD"), true, "newer peer version accepted")
+    H.assertTrue(VC:IsUpdateAvailable(), "update flag set")
+    H.assertEq(VC:GetAvailableVersion(), "3.2.0")
+end
+
+function tests.rejects_sameOrOlderVersion()
+    reset()
+    H.assertEq(VC:NotePeerVersion("3.1.0", "GUILD"), false, "same version is not an update")
+    H.assertEq(VC:NotePeerVersion("3.0.9", "GUILD"), false, "older version is not an update")
+    H.assertTrue(not VC:IsUpdateAvailable(), "flag stays clear")
+end
+
+function tests.rejects_nonRosterChannels()
+    reset()
+    -- A whisper is unsolicited and unverifiable: the roster channels are
+    -- the only ones that imply shared context.
+    H.assertEq(VC:NotePeerVersion("9.9.9", "WHISPER"), false, "whisper dropped")
+    H.assertEq(VC:NotePeerVersion("9.9.9", "SAY"), false, "say dropped")
+    H.assertEq(VC:NotePeerVersion("9.9.9", nil), false, "missing channel dropped")
+    H.assertTrue(not VC:IsUpdateAvailable(), "flag stays clear")
+end
+
+function tests.rejects_malformedVersions()
+    reset()
+    local bad = { "3.2", "3.2.0.1", "v3.2.0", "3.2.0-beta", "banana", "", "999999999" }
+    for i = 1, #bad do
+        H.assertEq(VC:NotePeerVersion(bad[i], "GUILD"), false,
+            "malformed version rejected: " .. tostring(bad[i]))
+    end
+    H.assertEq(VC:NotePeerVersion(nil, "GUILD"), false, "nil version rejected")
+    H.assertTrue(not VC:IsUpdateAvailable(), "flag stays clear")
+end
+
+function tests.keeps_highestSeenVersion()
+    reset()
+    VC:NotePeerVersion("3.2.0", "GUILD")
+    H.assertEq(VC:NotePeerVersion("3.1.5", "PARTY"), false, "a lower peer never lowers the notice")
+    H.assertEq(VC:GetAvailableVersion(), "3.2.0")
+    H.assertEq(VC:NotePeerVersion("3.10.0", "RAID"), true, "3.10.0 ranks above 3.2.0")
+    H.assertEq(VC:GetAvailableVersion(), "3.10.0")
+end
+
+function tests.optOut_hidesNoticeWithoutForgetting()
+    reset()
+    VC:NotePeerVersion("3.2.0", "GUILD")
+    env.EasyFind.db.updateNotify = false
+    H.assertTrue(not VC:IsUpdateAvailable(), "opting out hides the notice")
+    env.EasyFind.db.updateNotify = true
+    H.assertEq(VC:GetAvailableVersion(), "3.2.0", "re-enabling restores what was heard")
+end
+
+-- A hello that carries a version: noted, and answered only by a newer peer.
+function tests.helloCarriesVersionAndOnlyNewerReplies()
+    reset()
+    local sent = {}
+    env.C_ChatInfo.SendAddonMessage = function(_, payload) sent[#sent + 1] = payload end
+    VC:Initialize()
+    local frame = frames[#frames]
+    local function hear(payload) frame:GetScript("OnEvent")(frame, "CHAT_MSG_ADDON", "EasyFindVer", payload, "GUILD", "Peer") end
+    hear("1\tH\t3.1.0")
+    env._clock:advance(6)
+    H.assertEq(#sent, 0, "same version: no reply")
+    hear("1\tH\t3.0.0")
+    hear("1\tV\t3.1.0")
+    env._clock:advance(6)
+    H.assertEq(#sent, 0, "a reply at our version came first: ours is dropped")
+    hear("1\tH")
+    env._clock:advance(6)
+    H.assertEq(sent[1], "1\tV\t3.1.0", "a bare hello still gets our version")
+    hear("1\tH\t3.2.0")
+    H.assertEq(VC:GetAvailableVersion(), "3.2.0", "a newer hello lights the notice")
+end
+
+local function Wire()
+    local sent = {}
+    env.C_ChatInfo.SendAddonMessage = function(_, payload) sent[#sent + 1] = payload end
+    VC:Initialize()
+    local frame = frames[#frames]
+    return sent, function(payload, channel)
+        frame:GetScript("OnEvent")(frame, "CHAT_MSG_ADDON", "EasyFindVer", payload, channel or "GUILD", "Peer")
+    end
+end
+
+-- Released extensions ride with the version: an EasyFind_ addon with a
+-- CurseForge project of its own, never core's companions or an unreleased one.
+function tests.releasedExtensionsGoOutWithTheVersion()
+    reset()
+    addons[1] = GPS
+    addons[2] = { name = "EasyFind_Calc", Version = "3.1.0" }
+    addons[3] = { name = "EasyFind_Fishing", Version = "0.1.0" }
+    local sent = Wire()
+    VC:SendHelloTo("GUILD")
+    H.assertEq(sent[#sent], "1\tH\t3.1.0\tGPS=1.1.0")
+end
+
+-- A newer EasyFind and a newer copy of an installed extension are each said
+-- once a session in chat; one not installed is not.
+function tests.newerVersionsAreSaidOnceInChat()
+    reset()
+    addons[1] = GPS
+    local _, hear = Wire()
+    hear("1\tV\t3.2.0\tGPS=1.2.0,Chat=9.0.0")
+    env._clock:advance(1.5)
+    H.assertEq(#printed, 2, table.concat(printed, " | "))
+    H.assertTrue(printed[1]:find("EasyFind v3.2.0 out, have v3.1.0", 1, true) ~= nil, printed[1])
+    H.assertTrue(printed[2]:find("EasyFind [GPS] v1.2.0 out, have v1.1.0", 1, true) ~= nil, printed[2])
+    hear("1\tV\t3.3.0\tGPS=1.3.0")
+    env._clock:advance(1.5)
+    H.assertEq(#printed, 2, "once a session")
+    H.assertEq(VC:GetAvailableVersion(), "3.3.0", "the list still shows the newest")
+end
+
+function tests.optOut_saysNothingInChat()
+    reset()
+    addons[1] = GPS
+    env.EasyFind.db.updateNotify = false
+    local _, hear = Wire()
+    hear("1\tV\t3.2.0\tGPS=1.2.0")
+    env._clock:advance(1.5)
+    H.assertEq(#printed, 0)
+end
+
+-- A peer with the same EasyFind but a newer extension answers a hello; an
+-- old client's reply (no list) and a whisper tell nothing about extensions.
+function tests.aNewerExtensionIsAnswered()
+    reset()
+    addons[1] = GPS
+    local sent, hear = Wire()
+    hear("1\tH\t3.1.0\tGPS=1.1.0")
+    env._clock:advance(6)
+    H.assertEq(#sent, 0, "same versions: no reply")
+    hear("1\tH\t3.1.0\tGPS=1.0.0")
+    env._clock:advance(6)
+    H.assertEq(sent[#sent], "1\tV\t3.1.0\tGPS=1.1.0", "our newer GPS answers")
+    hear("1\tV\t3.1.0")
+    H.assertEq(VC:NotePeerExtensions("GPS=2.0.0", "WHISPER"), false, "a whisper is dropped")
+    env._clock:advance(1.5)
+    H.assertEq(#printed, 0)
+end
+
+local pass, fail, failures = H.runSuite("VersionCheck", tests)
+return { pass = pass, fail = fail, failures = failures }

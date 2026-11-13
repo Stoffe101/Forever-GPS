@@ -1,0 +1,520 @@
+local _, ns = ...
+
+local Search = ns.Search
+local Tooltips = ns.ResultTooltips
+local L = ns.L
+local sformat, mfloor = string.format, math.floor
+
+local CreateFrame = CreateFrame
+local BattlePetTooltip = BattlePetTooltip
+local GameTooltip = GameTooltip
+local UIParent = UIParent
+local IsModifiedClick = IsModifiedClick
+local GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
+local unearnedTooltip
+
+-- Row tooltips (GameTooltip + the unearned message) are UIParent-level, so they
+-- don't inherit the search-bar scale. Match it, remembering the base scale and
+-- restoring it on hide (GameTooltip is shared, so its scale must be put back).
+local function ApplySearchTooltipScale(tooltip)
+    if not tooltip._efScaleHooked then
+        tooltip._efScaleHooked = true
+        tooltip:HookScript("OnHide", function(self)
+            if self._efBaseScale then
+                self:SetScale(self._efBaseScale)
+                self._efBaseScale = nil
+            end
+        end)
+    end
+    -- Set every time, scale 1 included: a tooltip re-owned while up (the
+    -- client no longer hides it on ANCHOR_PRESERVE) still wears the last
+    -- showing's fit-shrunk scale, and a fit from that shrank it again at
+    -- every re-hover (retail, 2026-11-02).
+    local s = (EasyFind.db and EasyFind.db.uiSearchScale) or 1.0
+    if not tooltip._efBaseScale then
+        tooltip._efBaseScale = tooltip:GetScale() or 1.0
+    end
+    tooltip:SetScale(tooltip._efBaseScale * s)
+end
+Tooltips.ApplySearchTooltipScale = ApplySearchTooltipScale
+
+-- Row tooltips anchor to the search/results panel's outside edge
+-- (whichever side has more screen room), never at the cursor: a
+-- cursor-anchored tooltip covers the very results being scanned, and
+-- gear tooltips with their item-compare frame doubled in width are
+-- worst of all.
+local EDGE_GAP = 8
+local EDGE_FIT_MIN_SCALE = 0.55
+
+-- Place any frame against the panel's outside edge (whichever side has
+-- more screen room). Returns false when the panel isn't measurable.
+function Tooltips:PlaceAtPanelEdge(frame, fallbackOwner)
+    frame:ClearAllPoints()
+    frame._efEdgePanel = nil
+
+    local panel = (Search:GetResultsFrame() and Search:GetResultsFrame():IsShown()) and Search:GetResultsFrame()
+                  or (Search:GetSearchFrame() and Search:GetSearchFrame():IsShown()) and Search:GetSearchFrame()
+                  or fallbackOwner
+
+    local left = panel and panel:GetLeft()
+    local right = panel and panel:GetRight()
+    local top = panel and panel:GetTop()
+    local screenW = UIParent:GetWidth() or 0
+
+    if left and right and top and screenW > 0 then
+        -- panel:GetLeft()/GetRight() are in the panel's effective-scale space;
+        -- the search UI scales its frames (uiSearchScale/uiResultsScale), so
+        -- convert those edges to UIParent space before comparing to screenW.
+        -- Without this the room estimate is wrong at any non-1.0 scale and the
+        -- tooltip flips sides at the wrong window position (overlapping it).
+        local uiScale = UIParent:GetEffectiveScale() or 1
+        local ratio = uiScale > 0 and (panel:GetEffectiveScale() / uiScale) or 1
+        local roomRight = screenW - right * ratio
+        local roomLeft = left * ratio
+        if roomRight >= roomLeft then
+            frame:SetPoint("TOPLEFT", panel, "TOPRIGHT", EDGE_GAP, 0)
+            frame._efEdgeSide = "right"
+        else
+            frame:SetPoint("TOPRIGHT", panel, "TOPLEFT", -EDGE_GAP, 0)
+            frame._efEdgeSide = "left"
+        end
+        frame._efEdgePanel = panel
+        return true
+    end
+    return false
+end
+
+local function EdgeRoomFor(tooltip)
+    local panel = tooltip._efEdgePanel
+    if not panel then return end
+    -- Convert the panel edge to UIParent space (see PlaceAtPanelEdge) so the
+    -- room matches FitEdgeTooltip's UIParent-space width math at any UI scale.
+    local uiScale = UIParent:GetEffectiveScale() or 1
+    local ratio = uiScale > 0 and (panel:GetEffectiveScale() / uiScale) or 1
+    if tooltip._efEdgeSide == "right" then
+        local right = panel:GetRight()
+        if not right then return end
+        return (UIParent:GetWidth() or 0) - right * ratio - EDGE_GAP
+    end
+    local left = panel:GetLeft()
+    if not left then return end
+    return left * ratio - EDGE_GAP
+end
+
+-- The comparison manager anchors "Currently Equipped" toward screen
+-- center, which from our edge placement means directly onto the
+-- results. Re-anchor the compare frames on the outward side of the
+-- main tooltip and match its (possibly fit-shrunk) scale; restore
+-- their scale when they hide since they're shared frames.
+local function AnchorOneCompareOutward(compare, tooltip, side, scale, xOffset)
+    if not (compare and compare:IsShown()) then return xOffset end
+    if compare._efBaseScale == nil then
+        compare._efBaseScale = compare:GetScale() or 1.0
+    end
+    compare:SetScale(scale)
+    compare:ClearAllPoints()
+    -- Both compares anchor to the MAIN tooltip, never to each other:
+    -- Blizzard's comparison manager anchors ShoppingTooltip1 relative to
+    -- ShoppingTooltip2 in some layouts, so a persistent 2->1 dependency
+    -- from us turns their SetPoint into an anchor-cycle error.
+    if side == "right" then
+        compare:SetPoint("TOPLEFT", tooltip, "TOPRIGHT", 4 + xOffset, 0)
+    else
+        compare:SetPoint("TOPRIGHT", tooltip, "TOPLEFT", -(4 + xOffset), 0)
+    end
+    return xOffset + (compare:GetWidth() or 0) + 4
+end
+
+local function AnchorComparesOutward(tooltip)
+    local side = tooltip._efEdgePanel and tooltip._efEdgeSide
+    if not side then return end
+    local scale = tooltip:GetScale() or 1.0
+    local xOffset = AnchorOneCompareOutward(_G["ShoppingTooltip1"], tooltip, side, scale, 0)
+    AnchorOneCompareOutward(_G["ShoppingTooltip2"], tooltip, side, scale, xOffset)
+end
+
+-- Wide tooltips (gear with attached compare frames especially) exceed
+-- the side room; the screen clamp would push them back over the
+-- results. Shrink instead: scale down just enough that the tooltip
+-- plus any shown compare tooltips fit in the room, floored so text
+-- stays readable. Only ever shrinks within one showing, so growing
+-- content converges instead of oscillating; compare frames re-match
+-- the main tooltip's scale after every shrink.
+local function FitEdgeTooltip(tooltip)
+    local base = tooltip._efEdgeBaseScale
+    local room = base and EdgeRoomFor(tooltip)
+    if not room or room <= 0 then return end
+    local uiScale = UIParent:GetEffectiveScale()
+    if not uiScale or uiScale == 0 then return end
+    local total = (tooltip:GetWidth() or 0) * (tooltip:GetEffectiveScale() or 1)
+    local compare1, compare2 = _G["ShoppingTooltip1"], _G["ShoppingTooltip2"]
+    if compare1 and compare1:IsShown() then
+        total = total + (compare1:GetWidth() or 0) * (compare1:GetEffectiveScale() or 1)
+    end
+    if compare2 and compare2:IsShown() then
+        total = total + (compare2:GetWidth() or 0) * (compare2:GetEffectiveScale() or 1)
+    end
+    total = total / uiScale
+    if total <= 0 then return end
+    local fit = room / total
+    if fit >= 1 then return end
+    local target = base * fit
+    if target < base * EDGE_FIT_MIN_SCALE then target = base * EDGE_FIT_MIN_SCALE end
+    local current = tooltip:GetScale() or base
+    if target < current - 0.01 then
+        tooltip:SetScale(target)
+        AnchorComparesOutward(tooltip)
+    end
+end
+
+-- Blizzard's comparison manager re-anchors the shopping tooltips on its
+-- own schedule (late item data, refreshes, row-to-row hovers where the
+-- compare frame never hides), and whichever SetPoint runs last wins.
+-- Re-assert the outward layout after ANY of their re-anchors: hook the
+-- manager when present plus the frames' own SetPoint, with a reentry
+-- guard so our own anchoring doesn't recurse.
+local comparesReanchoring = false
+local function ReassertCompareAnchors()
+    if comparesReanchoring then return end
+    local tooltip = GameTooltip
+    if not (tooltip and tooltip._efEdgePanel and tooltip._efEdgeBaseScale) then return end
+    comparesReanchoring = true
+    AnchorComparesOutward(tooltip)
+    FitEdgeTooltip(tooltip)
+    comparesReanchoring = false
+end
+
+local compareGuardsInstalled = false
+local function InstallCompareGuards()
+    if compareGuardsInstalled then return end
+    compareGuardsInstalled = true
+    local manager = _G["TooltipComparisonManager"]
+    if manager and type(manager.AnchorShoppingTooltips) == "function" then
+        hooksecurefunc(manager, "AnchorShoppingTooltips", ReassertCompareAnchors)
+    end
+    local compare1, compare2 = _G["ShoppingTooltip1"], _G["ShoppingTooltip2"]
+    if compare1 then hooksecurefunc(compare1, "SetPoint", ReassertCompareAnchors) end
+    if compare2 then hooksecurefunc(compare2, "SetPoint", ReassertCompareAnchors) end
+end
+
+local function HookCompareTooltip(compare, tooltip)
+    if not compare or compare._efEdgeHooked then return end
+    compare._efEdgeHooked = true
+    -- Beside a row's tooltip the equipped item's compare shows only while
+    -- the compare key (Shift) is held, as Classic shows it: the client's
+    -- always-compare option doubled the width of every gear row's tooltip.
+    -- A compare hidden here is held: the manager counts it shown and never
+    -- shows it again for the key, so the tooltip's OnUpdate shows and
+    -- hides the held ones with the key itself.
+    compare:HookScript("OnShow", function(self)
+        if not tooltip._efEdgeBaseScale then return end
+        if not IsModifiedClick("COMPAREITEMS") then
+            tooltip._efCompareHeld = tooltip._efCompareHeld or {}
+            tooltip._efCompareHeld[self] = true
+            self:Hide()
+            return
+        end
+        ReassertCompareAnchors()
+    end)
+    compare:HookScript("OnHide", function(self)
+        if self._efBaseScale then
+            self:SetScale(self._efBaseScale)
+            self._efBaseScale = nil
+        end
+    end)
+end
+
+function Tooltips:AnchorRowTooltip(tooltip, ownerFrame)
+    -- ANCHOR_PRESERVE, not ANCHOR_NONE: the client's comparison manager
+    -- slides a tooltip whose compare frames do not fit beside it with
+    -- SetAnchorType(anchorType, slide, 0), and on ANCHOR_NONE that drops
+    -- the points set here, so the tooltip was up with no rectangle from
+    -- the second gear hover on (retail, measured). It
+    -- leaves ANCHOR_PRESERVE alone; FitEdgeTooltip keeps the compares on
+    -- the screen by scale.
+    tooltip:SetOwner(ownerFrame, "ANCHOR_PRESERVE")
+    ApplySearchTooltipScale(tooltip)
+    if not self:PlaceAtPanelEdge(tooltip, ownerFrame) then
+        -- Fallback when the panel isn't measurable.
+        tooltip:SetOwner(ownerFrame, "ANCHOR_RIGHT")
+        return
+    end
+    -- The scale restore on hide is owned by ApplySearchTooltipScale's
+    -- hook; seed its base so a fit-shrunk scale never leaks onto the
+    -- shared GameTooltip.
+    if not tooltip._efBaseScale then
+        tooltip._efBaseScale = tooltip:GetScale() or 1.0
+    end
+    tooltip._efEdgeBaseScale = tooltip:GetScale()
+    if not tooltip._efEdgeFitHooked then
+        tooltip._efEdgeFitHooked = true
+        tooltip:HookScript("OnSizeChanged", FitEdgeTooltip)
+        tooltip:HookScript("OnShow", FitEdgeTooltip)
+        tooltip:HookScript("OnHide", function(self)
+            self._efEdgePanel = nil
+            self._efEdgeBaseScale = nil
+            self._efCompareHeld = nil
+        end)
+        -- The held compares follow the compare key while the row's tooltip
+        -- is up (the key's edge reaches no event while the bar's box has
+        -- focus).
+        tooltip:HookScript("OnUpdate", function(self)
+            local held = self._efCompareHeld
+            if not (held and self._efEdgePanel) then return end
+            local want = IsModifiedClick("COMPAREITEMS")
+            for compare in pairs(held) do
+                if want ~= compare:IsShown() then compare:SetShown(want) end
+            end
+        end)
+        HookCompareTooltip(_G["ShoppingTooltip1"], tooltip)
+        HookCompareTooltip(_G["ShoppingTooltip2"], tooltip)
+        InstallCompareGuards()
+    end
+    FitEdgeTooltip(tooltip)
+end
+
+function Tooltips:GetUnearnedTooltip()
+    return unearnedTooltip
+end
+
+function Tooltips:CreateUnearnedTooltip()
+    unearnedTooltip = CreateFrame("Frame", "EasyFindUnearnedTooltip", UIParent)
+    unearnedTooltip:SetFrameStrata("TOOLTIP")
+    unearnedTooltip:SetFrameLevel(9999)
+    unearnedTooltip:SetClampedToScreen(true)
+
+    -- Same themed container the right-click context menu uses (DRY).
+    ns.StyleMenuPanel(unearnedTooltip)
+
+    local text = unearnedTooltip:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    text:SetPoint("CENTER", 0, 0)
+    text:SetText(L["CURRENCY_NOT_EARNED"])
+    -- The restyle below owns this color (gold on dark, accent on light).
+    text._efOwnColor = true
+    unearnedTooltip.text = text
+    -- Gold on the themed panel is unreadable on light fills; re-derived
+    -- on every show (the panel refills then too).
+    unearnedTooltip._efOnThemeRestyle = function(self)
+        local theme = ns.Results and ns.Results.GetActiveTheme and ns.Results:GetActiveTheme()
+        -- Shared tooltip color rule -- never gold on themed fills.
+        local r, g, b = ns.TooltipTextColor()
+        self.text:SetTextColor(r, g, b, 1)
+        self.text:SetShadowColor(0, 0, 0, (theme and theme.lightTheme) and 0 or 1)
+    end
+    unearnedTooltip:HookScript("OnShow", unearnedTooltip._efOnThemeRestyle)
+    unearnedTooltip._efOnThemeRestyle(unearnedTooltip)
+
+    local textWidth = text:GetStringWidth()
+    local textHeight = text:GetStringHeight()
+    unearnedTooltip:SetSize(textWidth + 20, textHeight + 16)
+
+    unearnedTooltip:Hide()
+end
+
+function Tooltips:ClearResultTooltips()
+    if unearnedTooltip then unearnedTooltip:Hide() end
+    if BattlePetTooltip then BattlePetTooltip:Hide() end
+    if GameTooltip then
+        local resultButtons = Search:GetResultButtons()
+        for i = 1, #resultButtons do
+            local row = resultButtons[i]
+            if row then
+                if row.toyTooltipTicker then
+                    row.toyTooltipTicker:Cancel()
+                    row.toyTooltipTicker = nil
+                end
+                if GameTooltip:IsOwned(row) then
+                    GameTooltip:Hide()
+                end
+            end
+        end
+    end
+    if ns.MapSearch and ns.MapSearch.ClearUIPreview then
+        ns.MapSearch:ClearUIPreview()
+    end
+end
+
+-- The text a clipboard history row's tooltip shows: line structure kept,
+-- markup flattened, cut well before the panel would run off the screen.
+local CLIP_TIP_MAX = 600
+function Tooltips.ClipTooltipText(text)
+    if type(text) ~= "string" then return "" end
+    local out = ns.Utils.ClipboardSafeText(text) or text
+    if #out > CLIP_TIP_MAX then
+        local cut = CLIP_TIP_MAX
+        while cut > 0 do
+            local b = out:byte(cut + 1)
+            if not b or b < 0x80 or b > 0xBF then break end
+            cut = cut - 1
+        end
+        out = out:sub(1, cut) .. "..."
+    end
+    return out
+end
+
+-- Put a result's OWN game tooltip on `tooltip`, the way Blizzard's chat
+-- links do: the mount, toy, pet, spell, item, macro target, currency, or
+-- achievement itself. The caller has already set the owner and anchor,
+-- and adds its own lines and shows afterwards. Returns true when the
+-- result had a tooltip of its own; false for results that are only a name
+-- (settings, panels, zones, outfits), which the caller titles itself.
+-- Field priority mirrors the row hover in Rows/Tooltips.lua (mounts carry
+-- both mountID and spellID and take the mount tooltip).
+-- A classic client's talent: its own tooltip, with the rank and next rank.
+-- MoP Classic's call takes no pet flag.
+function Tooltips:SetClassicTalent(tooltip, data)
+    if not (data and data.talentTab and data.talentID and tooltip.SetTalent) then return false end
+    if data.talentTier then
+        tooltip:SetTalent(data.talentID, false, data.talentGroup)
+    else
+        tooltip:SetTalent(data.talentID, false, false, data.talentGroup)
+    end
+    return true
+end
+
+-- A place or creature row (the map search's): the spot, what a trainer
+-- teaches (the row's line is cut short and gives way to its hint on
+-- hover), how far, how many spots fold into the row. An extension's lines
+-- (what it casts) follow.
+function Tooltips:SetMapRowTooltip(tooltip, data)
+    tooltip:SetText(data.name or "", 1, 1, 1)
+    local x, y = data.x, data.y
+    if x and y then
+        local spot = sformat("%.1f, %.1f", x * 100, y * 100)
+        tooltip:AddLine(data.zoneName and sformat(L["TT_PLACE_AT_FMT"], data.zoneName, spot) or spot, 1, 0.82, 0)
+    end
+    if data.teachesText and data.teachesText ~= "" then
+        tooltip:AddLine(sformat(L["TT_TEACHES_FMT"], data.teachesText), 1, 1, 1, true)
+    end
+    local near = data.mapNear
+    if near and near < math.huge then
+        tooltip:AddLine(sformat(L["TT_PLACE_AWAY_FMT"], sformat(L["GPS_UNIT_YD"], mfloor(near ^ 0.5 + 0.5))), 0.8, 0.8, 0.8)
+    end
+    if data.spotCount and data.spotCount > 1 then
+        tooltip:AddLine(sformat(L["TT_PLACE_SPOTS_FMT"], data.spotCount), 0.8, 0.8, 0.8)
+    end
+    return true
+end
+
+-- A boss row: the Adventure Guide's own tooltip where the journal holds
+-- the bosses; where our table stands in for it, what the boss drops.
+function Tooltips:SetBossTooltip(tooltip, data)
+    local caps = ns.Caps
+    if data.encounterID and caps and caps.journal and not caps.instanceTable then
+        tooltip:SetHyperlink(sformat("journal:1:%d:%d", data.encounterID, data.difficultyID or 14))
+        return true
+    end
+    tooltip:SetText(data.name or "", 1, 1, 1)
+    if data.lootCount and data.lootCount > 0 then
+        tooltip:AddLine(sformat(L["TT_BOSS_DROPS_FMT"], data.lootCount), 1, 0.82, 0)
+    end
+    return true
+end
+
+function Tooltips:SetGameTooltipForResult(tooltip, data)
+    if not (tooltip and data) then return false end
+    if data.category == "Boss" then return self:SetBossTooltip(tooltip, data) end
+    if data.mapSearchResult then return self:SetMapRowTooltip(tooltip, data) end
+    -- An extension's row: its own tooltip (a link's hover too).
+    local provider = ns.Extensions and ns.Extensions.ProviderOf and ns.Extensions.ProviderOf(data)
+    if provider and provider.tooltip then
+        local ok, filled = ns.Extensions.Run(provider.tooltip, data, tooltip)
+        return ok and filled == true
+    end
+    if data.mountID and data.spellID and tooltip.SetMountBySpellID then
+        tooltip:SetMountBySpellID(data.spellID)
+        return true
+    end
+    if data.toyItemID and tooltip.SetToyByItemID then
+        tooltip:SetToyByItemID(data.toyItemID)
+        return true
+    end
+    if data.petID then
+        if tooltip.SetCompanionPet then
+            tooltip:SetCompanionPet(data.petID)
+            return true
+        end
+        local link = C_PetJournal and C_PetJournal.GetBattlePetLink
+            and C_PetJournal.GetBattlePetLink(data.petID)
+        if link then
+            tooltip:SetHyperlink(link)
+            return true
+        end
+        return false
+    end
+    if data.itemID then
+        local isItemRow = data.catalogItem or data.category == "Bag" or data.category == "Bank"
+            or data.category == "Warband" or data.category == "Loot"
+            or (data.storedHolders and #data.storedHolders > 0)
+        if isItemRow then
+            local link = data.bagItemLink
+            if not link and data.category == "Loot" and ns.Database and ns.Database.GetLootItemLink then
+                link = ns.Database:GetLootItemLink(data)
+            end
+            if link then
+                tooltip:SetHyperlink(link)
+            else
+                tooltip:SetItemByID(data.itemID)
+            end
+            return true
+        end
+    end
+    if data.heirloomItemID then
+        tooltip:SetItemByID(data.heirloomItemID)
+        return true
+    end
+    if data.appearanceItemID then
+        local srcInfo = C_TransmogCollection and C_TransmogCollection.GetSourceInfo
+            and C_TransmogCollection.GetSourceInfo(data.appearanceItemID)
+        if srcInfo and srcInfo.itemID then
+            tooltip:SetItemByID(srcInfo.itemID)
+            return true
+        end
+        return false
+    end
+    if data.macroIndex and data.category == "Macro" then
+        local spellID
+        if GetMacroSpell then
+            local _, _, sid = GetMacroSpell(data.macroIndex)
+            spellID = sid
+        end
+        if spellID and tooltip.SetSpellByID then
+            tooltip:SetSpellByID(spellID)
+            return true
+        end
+        local itemName, itemLink
+        if GetMacroItem then itemName, itemLink = GetMacroItem(data.macroIndex) end
+        if not itemLink and itemName and GetItemInfo then
+            itemLink = select(2, GetItemInfo(itemName))
+        end
+        if itemLink then
+            tooltip:SetHyperlink(itemLink)
+            return true
+        end
+        return false
+    end
+    if Tooltips:SetClassicTalent(tooltip, data) then return true end
+    local spellID = data.spellID or data.professionRecipeID
+    if spellID then
+        if tooltip.SetSpellByID then
+            tooltip:SetSpellByID(spellID)
+        else
+            tooltip:SetHyperlink("spell:" .. spellID)
+        end
+        return true
+    end
+    if data.category == "Currency" and data.currencyID and tooltip.SetCurrencyByID then
+        tooltip:SetCurrencyByID(data.currencyID)
+        return true
+    end
+    local achID = data.achievementID
+    if not achID and data.titleID and ns.Database and ns.Database.GetTitleSourceAchievement then
+        achID = ns.Database:GetTitleSourceAchievement(data.titleID)
+    end
+    if achID and tooltip.SetAchievementByID then
+        tooltip:SetAchievementByID(achID)
+        return true
+    end
+    return false
+end

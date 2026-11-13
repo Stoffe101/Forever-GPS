@@ -1,0 +1,701 @@
+#!/usr/bin/env python3
+"""Assemble the one ForeverGPS addon folder from its parts.
+
+    python tools/assemble.py            # build/assembled/ForeverGPS
+    python tools/assemble.py --quiet
+
+The vendored addons stay byte-exact at their pins in addons/, where their own test
+suites run and upstream updates land. This builds what ships: one addon whose TOC
+loads their real files, in their real order, under Vendor/, followed by Forever-GPS.
+
+What one folder changes for them is written down here and nowhere else:
+
+  EDITS       exact replacements, each of which must match as often as it says, so
+              an upstream change cannot slip past unnoticed
+  paths       Interface\\AddOns\\EasyFind\\... moves under Vendor\\
+  namespaces  all files of one addon share one private table. EasyFind and GPS
+              already share theirs. The Questie extension's stays apart
+
+Companion apps are left out: they are a search bar's utilities, and nothing in
+navigation reaches them. EXCLUDED_PREFIXES lists the rest of what stays behind.
+
+Standard library only. It makes a local folder and publishes nothing.
+"""
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+ADDONS = ROOT / "addons"
+OUT = ROOT / "build" / "assembled" / "ForeverGPS"
+SCRIPT = Path(__file__).resolve()
+
+VENDORS = ("EasyFind", "EasyFind_GPS", "EasyFind_Questie")
+# Art and fonts that travel with the code. Everything else is copied because a TOC
+# names it.
+ASSET_SUFFIXES = {".tga", ".blp", ".ttf", ".otf", ".ogg", ".mp3", ".png"}
+EXCLUDED_PREFIXES = {
+    # The search bar's companions, its tutorial art, its development files.
+    "EasyFind": ("Apps/", "Onboarding/", "tests/", "API/", "Guide/Images/"),
+    "EasyFind_GPS": ("tests/",),
+    "EasyFind_Questie": ("tools/", "tests/"),
+}
+# Files a TOC lists that have no place in one folder.
+LEFT_OUT = {
+    # Asks the game about an addon called EasyFind, to check its version. There is none,
+    # and the version is the one built in.
+    "EasyFind_GPS": ("Guard.lua",),
+    # Tells players of a newer EasyFind, heard from guildmates. Every caller checks for
+    # it, and an update here is not theirs to announce.
+    "EasyFind": ("Core/VersionCheck.lua",),
+}
+LICENSE_FILES = ("LICENSE",)
+
+RULE = re.compile(r"\[(\w+)\s+([^\]]+)\]")
+PATHS = re.compile(r"Interface(\\\\|\\|/)AddOns\1(EasyFind(?:_GPS|_Questie)?)\1")
+
+# What keeps the game's quest pins out of our name: docs/TAINT.md has the reasoning.
+# A super-track change fires its event inside the call, which rebuilds the quest pins in
+# the caller's taint, even with the map closed once it has been opened. In a fight that
+# is the protected call refused. So every change to the game's waypoint and tracking goes
+# through one door, which holds it through a fight as well as an open map, skips one
+# that changes nothing, and leaves the native pins alone.
+TAINT_EDITS = [
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """function MapSearch.WaypointChange(kind, fn)
+    if WorldMapFrame and WorldMapFrame:IsShown() then
+        waypointWaits[kind] = fn
+        return
+    end
+    waypointWaits[kind] = nil
+    fn()
+end
+""",
+     """local changes = { ran = 0, heldInCombat = 0, heldUnderMap = 0, skipped = 0, mapTurns = 0, mapRefused = 0 }
+MapSearch.WaypointChanges = changes
+local function HoldFor()
+    if InCombatLockdown() then return "heldInCombat" end
+    if WorldMapFrame and WorldMapFrame:IsShown() then return "heldUnderMap" end
+    return nil
+end
+function MapSearch.WaypointChange(kind, fn)
+    local hold = HoldFor()
+    if hold then
+        changes[hold] = changes[hold] + 1
+        waypointWaits[kind] = fn
+        return
+    end
+    waypointWaits[kind] = nil
+    changes.ran = changes.ran + 1
+    fn()
+end
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """local function RunWaypointWaits()
+    for _, kind in ipairs(WAYPOINT_WAIT_ORDER) do
+        local fn = waypointWaits[kind]
+        waypointWaits[kind] = nil
+        if fn then fn() end
+    end
+end
+""",
+     """local function RunWaypointWaits()
+    if HoldFor() then return end
+    for _, kind in ipairs(WAYPOINT_WAIT_ORDER) do
+        local fn = waypointWaits[kind]
+        waypointWaits[kind] = nil
+        if fn then
+            changes.ran = changes.ran + 1
+            fn()
+        end
+    end
+end
+do
+    local afterCombat = CreateFrame("Frame")
+    afterCombat:RegisterEvent("PLAYER_REGEN_ENABLED")
+    afterCombat:SetScript("OnEvent", RunWaypointWaits)
+end
+
+-- The game's waypoint taken off, if it is still the one this was asked about: one
+-- waiting out a fight must not take a waypoint the player dropped meanwhile.
+function MapSearch.ClearGameWaypoint()
+    local was = C_Map.GetUserWaypoint and C_Map.GetUserWaypoint()
+    MapSearch.WaypointChange("clear", function()
+        local now = C_Map.GetUserWaypoint and C_Map.GetUserWaypoint()
+        if not now then return end
+        if was and was.position and now.position and (now.uiMapID ~= was.uiMapID
+            or math.abs(now.position.x - was.position.x) > 0.0001 or math.abs(now.position.y - was.position.y) > 0.0001) then
+            return
+        end
+        ClearUserWaypoint()
+    end)
+end
+
+-- The super-track, changed only when that changes something. With the beacon turned off
+-- it is only ever let go of, so a session with it off makes no refresh in our name.
+function MapSearch.TrackChange(on)
+    on = on and true or false
+    if on and MapSearch.beaconOff then return end
+    MapSearch.WaypointChange("track", function()
+        if on and MapSearch.beaconOff then return end
+        if (C_SuperTrack.IsSuperTrackingUserWaypoint() and true or false) == on then
+            changes.skipped = changes.skipped + 1
+            return
+        end
+        C_SuperTrack.SetSuperTrackedUserWaypoint(on)
+    end)
+end
+""", 1),
+    # Upstream's own door to the game's map (5.3.0): counted for /fgps diag, never to the
+    # map it is already on, and not at all under the game's Gamepad UI.
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """function MapSearch.TurnMap(mapID)
+    if not (mapID and WorldMapFrame) then return false end
+    if InCombatLockdown() then
+        turnAfterFight = mapID
+""",
+     """function MapSearch.TurnMap(mapID)
+    if not (mapID and WorldMapFrame) then return false end
+    if ForeverGPSPreflight.GamepadUI() or WorldMapFrame:GetMapID() == mapID then return false end
+    local counts = MapSearch.WaypointChanges
+    if InCombatLockdown() then
+        if counts then counts.mapRefused = counts.mapRefused + 1 end
+        turnAfterFight = mapID
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """    if OpenWorldMap then
+        OpenWorldMap(mapID)""",
+     """    if counts then counts.mapTurns = counts.mapTurns + 1 end
+    if OpenWorldMap then
+        OpenWorldMap(mapID)""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """    if WAYPOINTS then MapSearch.WaypointChange("track", function() C_SuperTrack.SetSuperTrackedUserWaypoint(on) end) end
+""",
+     """    if WAYPOINTS then MapSearch.TrackChange(on) end
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     'MapSearch.WaypointChange("clear", function() if HasUserWaypoint() then ClearUserWaypoint() end end)',
+     "MapSearch.ClearGameWaypoint()", 1),
+    # The native pin stays as the game draws it: a second mark under ours is a small price
+    # for writing nothing onto a pooled pin of the game's.
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """local function SyncGameWaypointPin()
+    local mx, my
+""",
+     """local function SyncGameWaypointPin()
+    do return end
+    local mx, my
+""", 1),
+    ("EasyFind", "MapSearch/Navigation.lua",
+     """        if WAYPOINTS then
+            since = 0.05
+            pinWatch:SetScript("OnUpdate", WatchPins)
+        end
+""", "", 1),
+    # What a native pin's scale was, held here rather than on the pin.
+    ("EasyFind", "MapSearch/Pins.lua",
+     """local highlightedNativePin = nil
+""",
+     """local highlightedNativePin = nil
+local nativePinScales = setmetatable({}, { __mode = "k" })
+""", 1),
+    ("EasyFind", "MapSearch/Pins.lua",
+     """    if p._easyfindOriginalScale and p.SetScale then
+        pcall(p.SetScale, p, p._easyfindOriginalScale)
+    end
+    p._easyfindOriginalScale = nil
+""",
+     """    if nativePinScales[p] and p.SetScale then
+        pcall(p.SetScale, p, nativePinScales[p])
+    end
+    nativePinScales[p] = nil
+""", 1),
+    ("EasyFind", "MapSearch/Pins.lua",
+     """        pin._easyfindOriginalScale = pin._easyfindOriginalScale or (pin:GetScale() or 1)
+        pcall(pin.SetScale, pin, pin._easyfindOriginalScale * nativePinScale)
+""",
+     """        nativePinScales[pin] = nativePinScales[pin] or (pin:GetScale() or 1)
+        pcall(pin.SetScale, pin, nativePinScales[pin] * nativePinScale)
+""", 1),
+    ("EasyFind_GPS", "GPS.lua", '    if C_Map.ClearUserWaypoint then GPS.GamePinChange("clear", C_Map.ClearUserWaypoint) end\n',
+     "    if ns.MapSearch and ns.MapSearch.ClearGameWaypoint then ns.MapSearch.ClearGameWaypoint() end\n", 2),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+        GPS.GamePinChange("track", function() C_SuperTrack.SetSuperTrackedUserWaypoint(on) end)
+    end
+""",
+     """    local MS = ns.MapSearch
+    if MS and MS.TrackChange and C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then MS.TrackChange(on) end
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    local ST = C_SuperTrack
+    if ST and ST.IsSuperTrackingQuest and ST.IsSuperTrackingQuest() and ST.SetSuperTrackedQuestID then
+""",
+     """    local ST = C_SuperTrack
+    if ns.MapSearch and ns.MapSearch.beaconOff then return end
+    if ST and ST.IsSuperTrackingQuest and ST.IsSuperTrackingQuest() and ST.SetSuperTrackedQuestID then
+""", 1),
+    # The beacon coming back, for the step under way.
+    ("EasyFind_GPS", "GPS.lua", "local function ToggleRouteTracking()\n",
+     """function GPS.RetrackActive()
+    local route = Route()
+    if route and not route.arrived and not route.untracked then TrackStep(route.active or 1) end
+end
+
+local function ToggleRouteTracking()
+""", 1),
+    # The GPS is always here, so nothing reached this: the only setters left outside the door.
+    ("EasyFind_Questie", "Quests.lua",
+     """    elseif C_Map.CanSetUserWaypointOnMap and C_Map.CanSetUserWaypointOnMap(dest.mapID) then
+        C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(dest.mapID, dest.x, dest.y))
+        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+    end
+""",
+     """    end
+""", 1),
+]
+
+# What a planning slice's time goes on: docs/PERFORMANCE.md has the measurements. Unpacking
+# a tile cannot be split, and a slice already part spent ran on past its budget by all of it.
+# So a slice with little of its budget left hands the unpacking to the next one. What the plan does
+# after the engine's slice, the collector and the finishing, is measured as well: both land
+# in the same frame, and neither was in the figure players see.
+PLANNING_EDITS = [
+    ("EasyFind_GPS", "Nav.lua",
+     """    local method = Enum and Enum.CompressionMethod and Enum.CompressionMethod.Deflate or 0
+    return E.DecompressString(E.DecodeBase64(s), method)
+""",
+     """    local method = Enum and Enum.CompressionMethod and Enum.CompressionMethod.Deflate or 0
+    if Nav.yieldCo and Nav.sliceEnd and corunning() == Nav.yieldCo and debugprofilestop() > Nav.sliceEnd - (Nav.sliceRoom or 0) then coyield() end
+    local started = debugprofilestop()
+    local raw = E.DecompressString(E.DecodeBase64(s), method)
+    Nav.unpackedMs = (Nav.unpackedMs or 0) + debugprofilestop() - started
+    return raw
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if Nav then Nav.sliceEnd = sliceStart + (GPS.PlanBudget and GPS.PlanBudget() or (GPS.planning and PLAN_BUDGET_MS or PLAN_BUDGET_BACK_MS)) end
+""",
+     """    if Nav then
+        local budget = GPS.PlanBudget and GPS.PlanBudget() or (GPS.planning and PLAN_BUDGET_MS or PLAN_BUDGET_BACK_MS)
+        Nav.sliceEnd, Nav.sliceRoom, Nav.unpackedMs = sliceStart + budget, budget / 3, 0
+    end
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if GPS.OnPlanSlice then GPS.OnPlanSlice(debugprofilestop() - sliceStart) end
+""",
+     """    if GPS.OnPlanSlice then GPS.OnPlanSlice(debugprofilestop() - sliceStart, Nav and Nav.unpackedMs or 0) end
+    local collecting = debugprofilestop()
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    if grew > 0 then ns.Utils.GCStep(1) end
+    if coroutine.status(co) ~= "dead" or Planner.co ~= co then return end
+""",
+     """    if grew > 0 then ns.Utils.GCStep(1) end
+    if GPS.OnPlanCollect then GPS.OnPlanCollect(debugprofilestop() - collecting) end
+    if coroutine.status(co) ~= "dead" or Planner.co ~= co then return end
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    done(a, b, c)
+    if not quiet then Refresh() end
+    Planner.ReleaseLater()
+""",
+     """    local finishing = debugprofilestop()
+    done(a, b, c)
+    if not quiet then Refresh() end
+    if GPS.OnPlanFinish then GPS.OnPlanFinish(debugprofilestop() - finishing) end
+    Planner.ReleaseLater()
+""", 1),
+    # A word being typed only narrows the last answer: what did not hold for "mai" cannot
+    # hold for "mail". The first letters read every creature and object; the rest do not.
+    ("EasyFind_Questie", "Quests.lua",
+     """        local q, hits = text:lower(), {}
+        for i = 1, world.n do
+            local at = world.names[i]:find(q, 1, true)
+            if at then hits[#hits + 1] = { i = i, at = at == 1 and 0 or 1, len = #world.names[i] } end
+        end
+""",
+     """        local q, hits, kept = text:lower(), {}, {}
+        local pool = world.lastText and q:sub(1, #world.lastText) == world.lastText and world.lastKept or nil
+        for k = 1, pool and #pool or world.n do
+            local i = pool and pool[k] or k
+            local at = world.names[i]:find(q, 1, true)
+            if at then
+                kept[#kept + 1] = i
+                hits[#hits + 1] = { i = i, at = at == 1 and 0 or 1, len = #world.names[i] }
+            end
+        end
+        world.lastText, world.lastKept = q, kept
+""", 1),
+]
+
+# A destination outlives its route: docs/LIFECYCLE.md. The engine rerouted a walk gone astray
+# and a crossing to the wrong continent, and nothing else, so another flight, a boat or a
+# teleport on the same continent left it waiting on one step for good. Forever-GPS's
+# Core/Continuity.lua is asked first, each second.
+CONTINUITY_EDITS = [
+    # The reroute, for Core/Continuity.lua to start the moment the planner is free.
+    ("EasyFind_GPS", "GPS.lua",
+     """function GPS.Rerouted(route, via, steps, total, advice)
+""",
+     """GPS.Reroute = Reroute   -- Forever-GPS: Core/Continuity.lua starts it once the planner is free
+
+function GPS.Rerouted(route, via, steps, total, advice)
+""", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     """    local ci, px, py = PlayerWorldPos()
+    if not ci then return end
+    -- Backtracked or wandered off: the route starts over from here.
+""",
+     """    local ci, px, py = PlayerWorldPos()
+    if not ci then return end
+    if GPS.OffPlan and not planned then
+        local off = GPS.OffPlan(route, step, ci, px, py)
+        if off == "wait" then return end
+        if off == "reroute" then
+            offRoute.ticks, offRoute.at = 0, GetTime()
+            Reroute(route)
+            return
+        end
+    end
+    -- Backtracked or wandered off: the route starts over from here.
+""", 1),
+]
+
+# One launcher: Forever-GPS's. EasyFind made its own minimap button, a broker launcher (which
+# button gatherers turn into a LibDBIcon button) and an addon-compartment entry for each of
+# its apps, the GPS among them. In one folder each opened a search bar that stays hidden.
+LAUNCHER_EDITS = [
+    ("EasyFind", "Core/Main.lua",
+     """        if ns.RegisterDataBroker then ns.RegisterDataBroker() end
+        if ns.RegisterMinimapIcon then ns.RegisterMinimapIcon() end
+        if EasyFind.db.showMinimapButton then
+            EasyFind:UpdateMinimapButton()
+        end
+""",
+     """        -- Forever-GPS has the one launcher: nothing of EasyFind's is registered.
+""", 1),
+    ("EasyFind", "Core/Main.lua",
+     """function EasyFind:UpdateMinimapButton()
+""",
+     """function EasyFind:UpdateMinimapButton()
+    do
+        if minimapButton then minimapButton:Hide() end
+        return
+    end
+""", 1),
+    ("EasyFind", "Search/ExtensionButtons.lua",
+     """function ExtensionButtons:RegisterLaunchSurfaces()
+    if registeredSurfaces then return end
+""",
+     """function ExtensionButtons:RegisterLaunchSurfaces()
+    do return end
+    if registeredSurfaces then return end
+""", 1),
+]
+
+# Money in the search, not after it: docs/TRAVEL_COSTS.md. A flight leg weighs its fare at
+# the player's rate for the money ways, and a hearth weighs its cooldown, so the engine
+# finds the trade-off itself. With neither set, both add nothing and routes are as before.
+ECONOMY_EDITS = [
+    ("EasyFind_GPS", "Route.lua",
+     """            local pen = Avoided("taxi")
+            if not nodes[ib].unknown then""",
+     """            local pen = Avoided("taxi")
+            local farePen = Route.FarePenalty
+            if not nodes[ib].unknown then""", 1),
+    ("EasyFind_GPS", "Route.lua",
+     """                tinsert(legs[ia], { to = ib, sec = measured and measured(a, b) or sec, pen = pen })""",
+     """                tinsert(legs[ia], { to = ib, sec = measured and measured(a, b) or sec, pen = pen + (farePen and farePen(a, b, yd, avoid) or 0) })""", 1),
+    ("EasyFind_GPS", "Route.lua",
+     """                tinsert(legs[ib], { to = ia, sec = measured and measured(b, a) or sec, pen = pen })""",
+     """                tinsert(legs[ib], { to = ia, sec = measured and measured(b, a) or sec, pen = pen + (farePen and farePen(b, a, yd, avoid) or 0) })""", 1),
+    ("EasyFind_GPS", "Route.lua",
+     """                                     pen = Avoided("teleport"), ability = a })""",
+     """                                     pen = Avoided("teleport") + (a.bind and Route.HearthReserve and Route.HearthReserve(avoid) or 0),
+                                     ability = a })""", 1),
+]
+
+# (addon, file, old, new, how many times). {version} is that addon's own.
+# WoW Forever's Gamepad UI (docs/CONTROLLER.md, "The game's Gamepad UI"). Its focus and
+# binding bookkeeping (Blizzard_GamepadSharedUtility, Blizzard_GamepadSmartNavigation) runs
+# inside whatever execution shows a menu, a popup or a panel, or makes a frame under an open
+# panel. Done by addon code, that bookkeeping is written tainted, and Blizzard's restricted
+# SetPreferredGamepadInteractTarget() is then blocked at every target change, blamed on us.
+# While the Gamepad UI is on, each of these stands aside: no entry added to the game's menus,
+# no menu of our own built with the game's menu system, no panel opened or closed from our
+# code, nothing drawn on the game's world map. With keyboard and mouse nothing changes.
+GAMEPAD = "ForeverGPSPreflight.GamepadUI()"
+GAMEPAD_EDITS = [
+    # The map tab and everything it makes on the world map, as when the player turns it off.
+    ("EasyFind", "MapSearch/MapTab.lua",
+     "local function IsMapSearchEnabled()\n    return not (EasyFind and EasyFind.db and EasyFind.db.enableMapSearch == false)\nend",
+     "local function IsMapSearchEnabled()\n    if " + GAMEPAD + " then return false end\n"
+     "    return not (EasyFind and EasyFind.db and EasyFind.db.enableMapSearch == false)\nend", 1),
+    # Context menus made with the game's menu system: their fallbacks run instead.
+    ("EasyFind", "MapSearch/MapTab.lua",
+     "    if not (MenuUtil and MenuUtil.CreateContextMenu) then return false end",
+     "    if " + GAMEPAD + " or not (MenuUtil and MenuUtil.CreateContextMenu) then return false end", 2),
+    ("EasyFind_GPS", "GPS.lua",
+     "    if not (MenuUtil and MenuUtil.CreateContextMenu) then return false end",
+     "    if " + GAMEPAD + " or not (MenuUtil and MenuUtil.CreateContextMenu) then return false end", 1),
+    # Entries added to the game's own menus (Menu.ModifyMenu): the menu opens as the game's.
+    ("EasyFind_GPS", "QuestDirections.lua", "local function AddDirections(root, questID)\n",
+     "local function AddDirections(root, questID)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind_GPS", "QuestDirections.lua", "    local function AddUnitDirections(root, contextData)\n",
+     "    local function AddUnitDirections(root, contextData)\n        if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind", "Search/NoteMenus.lua", "local function AddMakeNote(_, root, contextData)\n",
+     "local function AddMakeNote(_, root, contextData)\n    if " + GAMEPAD + " then return end\n", 1),
+    # The game's panels, opened or closed from our code.
+    ("EasyFind_GPS", "GPS.lua",
+     "if WorldMapFrame and WorldMapFrame:IsShown() and HideUIPanel then HideUIPanel(WorldMapFrame) end",
+     "if not " + GAMEPAD + " and WorldMapFrame and WorldMapFrame:IsShown() and HideUIPanel then HideUIPanel(WorldMapFrame) end", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     "if WorldMapFrame and WorldMapFrame:IsShown() and ToggleWorldMap then ToggleWorldMap() end",
+     "if not " + GAMEPAD + " and WorldMapFrame and WorldMapFrame:IsShown() and ToggleWorldMap then ToggleWorldMap() end", 1),
+    ("EasyFind_GPS", "QuestDirections.lua", "local function OpenLog(questID)\n",
+     "local function OpenLog(questID)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind_Questie", "Quests.lua", "local function AbandonPrompt(id)\n",
+     "local function AbandonPrompt(id)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind_Questie", "Quests.lua", "local function OpenQuestLog(id)\n",
+     "local function OpenQuestLog(id)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind", "Search/Openers.lua", "local function SecureShowUIPanel(frame)\n",
+     "local function SecureShowUIPanel(frame)\n    if " + GAMEPAD + " then return false end\n", 1),
+    ("EasyFind", "MapSearch/MapTab.lua", "if ToggleWorldMap then ToggleWorldMap() end",
+     "if ToggleWorldMap and not " + GAMEPAD + " then ToggleWorldMap() end", 3),
+    ("EasyFind", "MapSearch/UINavigation.lua", "if not WorldMapFrame or not WorldMapFrame:IsShown() then",
+     "if (not WorldMapFrame or not WorldMapFrame:IsShown()) and not " + GAMEPAD + " then", 2),
+    ("EasyFind", "MapSearch/UINavigation.lua",
+     "if not (WorldMapFrame and WorldMapFrame:IsShown()) then ToggleWorldMap() end",
+     "if not (WorldMapFrame and WorldMapFrame:IsShown()) and not " + GAMEPAD + " then ToggleWorldMap() end", 1),
+    # Dungeon entrance pins, made on the world map as it shows.
+    ("EasyFind", "MapSearch/InstancePins.lua",
+     "local function Canvas()\n    local sc = WorldMapFrame and WorldMapFrame.ScrollContainer\n",
+     "local function Canvas()\n    if " + GAMEPAD + " then return nil end\n    local sc = WorldMapFrame and WorldMapFrame.ScrollContainer\n", 1),
+    # The route drawn on the game's world map: frames made under an open panel. The minimap,
+    # the HUD and Forever-GPS's own route map still show it.
+    ("EasyFind_GPS", "Preview.lua", "local function Canvas()\n    return WorldMapFrame",
+     "local function Canvas()\n    if " + GAMEPAD + " then return nil end\n    return WorldMapFrame", 1),
+    ("EasyFind_GPS", "Preview.lua", "    local canvas = Canvas()\n    return { x * canvas:GetWidth(), -y * canvas:GetHeight() }",
+     "    local canvas = Canvas()\n    if not canvas then return nil end\n    return { x * canvas:GetWidth(), -y * canvas:GetHeight() }", 1),
+]
+
+EDITS = [
+    # Settled the moment it has its settings, before anything reads them, in a way that
+    # cannot depend on which frame hears ADDON_LOADED first.
+    ("EasyFind", "Core/Main.lua", "    EasyFind.db = EasyFindDB\n    -- The profile this character",
+     "    EasyFind.db = EasyFindDB\n    ForeverGPSPreflight.Settle(EasyFindDB)\n    -- The profile this character", 1),
+    # Two seconds after login it loads every spell, toy, mount and setting for its search
+    # bar. That bar stays hidden here and navigation reads none of it.
+    ("EasyFind", "Core/Main.lua", "    if ns.Database and ns.Utils and ns.Utils.SafeAfter then\n        ns.Utils.SafeAfter(2, function()",
+     "    if EasyFind.db.visible ~= false and ns.Database and ns.Utils and ns.Utils.SafeAfter then\n        ns.Utils.SafeAfter(2, function()", 1),
+    # An EasyFind page in the game's addon settings, opening a panel that is not here.
+    ("EasyFind", "Core/Main.lua", "local regOk, regErr = xpcall(RegisterBlizzardOptionsStub, ErrorHandler)",
+     "local regOk, regErr = true, nil", 1),
+    # Its version is its own, not the folder's: its upgrade notes compare against it.
+    ("EasyFind", "Core/Main.lua", 'ns.version = C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")',
+     'ns.version = "{version}"', 1),
+    # The GPS is here whatever the addon list says. These decide whether EasyFind
+    # thinks it has a GPS at all.
+    ("EasyFind", "Search/Modules.lua", "function ns.IsCompanionLoadable(name)\n",
+     'function ns.IsCompanionLoadable(name)\n    if name == "EasyFind_GPS" or name == "EasyFind_Questie" then return true end\n', 1),
+    ("EasyFind", "Core/Extensions.lua", "local function Installed(addon) return C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon) end",
+     'local function Installed(addon) return addon == "EasyFind_GPS" or addon == "EasyFind_Questie" '
+     "or (C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon)) end", 1),
+] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS + LAUNCHER_EDITS + ECONOMY_EDITS + GAMEPAD_EDITS
+
+# Its own table, not EasyFind's: it has an L of its own, among others.
+QUESTIE_HEADER = ("local _, ns = ...", "local _, shared = ...\nlocal ns = shared.QuestieExtension")
+QUESTIE_NAMESPACE = """-- Generated by tools/assemble.py. The Questie extension was an addon with a private
+-- table. In one addon every file shares one, so it keeps a table of its own inside it.
+local _, shared = ...
+shared.QuestieExtension = {}
+"""
+
+
+def allowed_on_forever(rules: str) -> bool:
+    for kind, value in RULE.findall(rules):
+        if kind == "AllowLoadGameType" and "camelot" not in value:
+            return False
+    return True
+
+
+def toc_entries(text: str) -> list[tuple[str, str]]:
+    """(file, rules) for each file line."""
+    out = []
+    for line in text.replace("\r", "").split("\n"):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = re.match(r"^(.*?)\s+(\[.*\])$", stripped)
+        file, rules = (match.group(1), match.group(2)) if match else (stripped, "")
+        out.append((file.replace("\\", "/"), rules))
+    return out
+
+
+def metadata(text: str) -> dict[str, str]:
+    return dict(re.findall(r"^##\s*([\w-]+):\s*(.*?)\s*$", text.replace("\r", ""), re.M))
+
+
+def locale_only(rules: str) -> str:
+    """The rules a line keeps: only Forever's lines are left, so a game type says nothing."""
+    return " ".join(f"[{kind} {value}]" for kind, value in RULE.findall(rules) if kind != "AllowLoadGameType")
+
+
+def rewrite_paths(text: str) -> str:
+    return PATHS.sub(lambda m: f"Interface{m[1]}AddOns{m[1]}ForeverGPS{m[1]}Vendor{m[1]}{m[2]}{m[1]}", text)
+
+
+class Assembly:
+    def __init__(self) -> None:
+        self.files: dict[str, object] = {}     # path in the folder -> bytes, or a Path to copy as it is
+        self.problems: list[str] = []
+        self.applied: dict[tuple, int] = {}
+        self.versions: dict[str, str] = {}
+
+    def vendor(self, addon: str) -> list[str]:
+        base = ADDONS / addon
+        toc = (base / f"{addon}.toc").read_text(encoding="utf-8")
+        version = metadata(toc).get("Version", "?")
+        self.versions[addon] = version
+        lines: list[str] = []
+        listed = set()
+        for file, rules in toc_entries(toc):
+            if not allowed_on_forever(rules) or file in LEFT_OUT.get(addon, ()):
+                continue
+            path = base / file
+            if not path.exists():
+                self.problems.append(f"{addon}: its TOC lists missing {file}")
+                continue
+            listed.add(file)
+            kept = locale_only(rules)
+            lines.append(f"Vendor/{addon}/{file}" + (f" {kept}" if kept else ""))
+            self.add_source(addon, file, path, version)
+        skip = EXCLUDED_PREFIXES.get(addon, ())
+        for path in sorted(base.rglob("*")):
+            rel = path.relative_to(base).as_posix()
+            if path.is_file() and path.suffix.lower() in ASSET_SUFFIXES and not rel.startswith(skip):
+                self.files[f"Vendor/{addon}/{rel}"] = path
+        for name in LICENSE_FILES:
+            self.files[f"Vendor/{addon}/{name}"] = base / name
+        return lines
+
+    def add_source(self, addon: str, file: str, path: Path, version: str) -> None:
+        text = path.read_bytes().decode("utf-8")
+        for edit in EDITS:
+            if edit[0] == addon and edit[1] == file:
+                old, new, want = edit[2], edit[3].replace("{version}", version), edit[4]
+                self.applied[edit[:3]] = text.count(old)
+                if text.count(old) != want:
+                    self.problems.append(f"{addon}/{file}: expected {want} of {old!r}, found {text.count(old)}")
+                text = text.replace(old, new)
+        if addon == "EasyFind_Questie" and QUESTIE_HEADER[0] in text:
+            text = text.replace(QUESTIE_HEADER[0], QUESTIE_HEADER[1], 1)
+        self.files[f"Vendor/{addon}/{file}"] = rewrite_paths(text).encode("utf-8")
+
+    def own(self) -> list[str]:
+        base = ADDONS / "ForeverGPS"
+        toc = (base / "ForeverGPS.toc").read_text(encoding="utf-8")
+        lines = []
+        for file, rules in toc_entries(toc):
+            lines.append(file + (f" {rules}" if rules else ""))
+        for path in sorted(base.rglob("*")):
+            if path.is_file() and path.name != "ForeverGPS.toc":
+                self.files[path.relative_to(base).as_posix()] = path
+        return lines
+
+    def manifest(self) -> bytes:
+        rows = "".join(f'    {{ name = "{a}", version = "{self.versions[a]}" }},\n' for a in VENDORS)
+        return ("-- Generated by tools/assemble.py: what is under Vendor/, for reports.\n"
+                f"ForeverGPS.VENDOR = {{\n{rows}}}\n").encode("utf-8")
+
+    def toc(self, vendor_lines: list[str], own_lines: list[str]) -> bytes:
+        text = (ADDONS / "ForeverGPS" / "ForeverGPS.toc").read_text(encoding="utf-8").replace("\r", "")
+        head = [line for line in text.split("\n") if line.startswith("##")]
+        # Preflight runs before anything: it is first to hear the saved variables.
+        first = [line for line in own_lines if line.startswith("Core/Preflight.lua")]
+        rest = [line for line in own_lines if not line.startswith("Core/Preflight.lua")]
+        namespace = [line for line in rest if line.startswith("Core/Namespace.lua")]
+        rest = [line for line in rest if not line.startswith("Core/Namespace.lua")]
+        body = first + vendor_lines + namespace + ["Core/Vendor.lua"] + rest
+        return ("\n".join(head) + "\n\n" + "\n".join(body) + "\n").encode("utf-8")
+
+    def verify(self) -> None:
+        for edit in EDITS:
+            if edit[:3] not in self.applied:
+                self.problems.append(f"{edit[0]}/{edit[1]}: declared edit never ran")
+        toc = self.files["ForeverGPS.toc"]
+        if b"\r" in toc:
+            self.problems.append("the merged TOC has a carriage return")
+        for file, _ in toc_entries(toc.decode("utf-8")):
+            if file not in self.files:
+                self.problems.append(f"the merged TOC lists missing {file}")
+        names = [file for file, _ in toc_entries(toc.decode("utf-8"))]
+        if len(names) != len(set(names)):
+            self.problems.append("the merged TOC lists a file twice")
+        for key, value in self.files.items():
+            if key.endswith(".lua") and isinstance(value, bytes):
+                for bad in PATHS.finditer(value.decode("utf-8")):
+                    self.problems.append(f"{key}: a path escaped: {bad.group(0)}")
+
+
+def build() -> Assembly:
+    a = Assembly()
+    lines: list[str] = []
+    for addon in VENDORS:
+        if addon == "EasyFind_Questie":
+            a.files["Vendor/EasyFind_Questie/Namespace.lua"] = QUESTIE_NAMESPACE.encode("utf-8")
+            lines.append("Vendor/EasyFind_Questie/Namespace.lua")
+        lines.extend(a.vendor(addon))
+    own = a.own()
+    a.files["Core/Vendor.lua"] = a.manifest()
+    a.files["ForeverGPS.toc"] = a.toc(lines, own)
+    a.verify()
+    return a
+
+
+def write(a: Assembly) -> tuple[int, int]:
+    """Writes what changed, removes what no longer belongs. Returns (written, total)."""
+    written = 0
+    for key, value in a.files.items():
+        target = OUT / key
+        data = value if isinstance(value, bytes) else None
+        if data is None:
+            source: Path = value  # type: ignore[assignment]
+            if target.exists() and target.stat().st_size == source.stat().st_size \
+                    and target.stat().st_mtime >= source.stat().st_mtime:
+                continue
+            data = source.read_bytes()
+        elif target.exists() and target.read_bytes() == data:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        written += 1
+    keep = {(OUT / key).resolve() for key in a.files}
+    for path in sorted(OUT.rglob("*"), reverse=True):
+        if path.is_file() and path.resolve() not in keep:
+            path.unlink()
+        elif path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
+    return written, len(a.files)
+
+
+def main(argv: list[str]) -> int:
+    assembly = build()
+    if assembly.problems:
+        for problem in assembly.problems:
+            print("FAIL", problem)
+        return 1
+    OUT.mkdir(parents=True, exist_ok=True)
+    written, total = write(assembly)
+    if "--quiet" not in argv:
+        size = sum(p.stat().st_size for p in OUT.rglob("*") if p.is_file())
+        print(f"{OUT.relative_to(ROOT).as_posix()}: {total} files ({written} updated), {size / 1e6:.1f} MB")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

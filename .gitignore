@@ -1,7 +1,9 @@
 build/
 dist/
+.playwright-mcp/
 __pycache__/
 *.pyc
 *.zip
 .vscode/
 .idea/
+nul

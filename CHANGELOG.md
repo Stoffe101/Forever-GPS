@@ -1,0 +1,256 @@
+# Changelog
+
+## 2.7.0 (unreleased, not yet tested in the game or on a controller)
+
+### WoW Forever's own Gamepad UI
+
+Testers using the game's built-in controller interface (Options, Gamepad, "Enable Gamepad UI") saw "Forever-GPS has been blocked from an action only available to the Blizzard UI", again and again, as they do with other addons. The reason, from the Forever client's own UI code: that interface keeps its focus and button bookkeeping in shared tables, which anything an addon does to the game's menus, popups, panels or open world map writes in the addon's name; from then on Blizzard's restricted `SetPreferredGamepadInteractTarget()` is blocked at every target change. [docs/CONTROLLER.md](docs/CONTROLLER.md#the-games-gamepad-ui)
+
+- **While the Gamepad UI is on, Forever-GPS stands aside** from everything that would do that: nothing drawn on the game's world map (the journey shows on Forever-GPS's own route map), no entries added to the game's quest, tracker and unit menus, no menus built with the game's menu system, no game window opened or closed from addon code, no popup. It follows the setting live. With keyboard and mouse nothing changes.
+- **`/fgps pad`** copies a controller report for bug reports: the Gamepad UI state, the controller, the buttons Forever-GPS holds, and every blocked action the game reported this session, with its function.
+
+### Controller
+
+- **Left and right stay on the row, up and down keep to the column**, as console menus move. Right of "+" on the journey is now Start navigation, not Hearth on the row above.
+- **The route map works with the controller**: the D-pad moves between its buttons (next map, the whole route, your position, Start navigation, close) and its marks; LB and RB step through the route, X shows all of it, B closes.
+- A test walks every page at two screen sizes, about 4,600 button presses, and fails on any control that cannot be reached or any move that leaves its row.
+
+### Updated upstream
+
+- **EasyFind 5.3.0, EasyFind GPS 1.6.0, EasyFind Questie 1.3.0.** Their map fixes (opening the world map after a route no longer raises errors), WoW Forever portals that are not there no longer used, zeppelin docks named, lifts and the caves under Thunder Bluff walked properly, Directions from a group member's portrait, a quest's giver and ender in its tooltip, and more. Forever-GPS's own changes to them were merged three ways, and its taint protections kept where upstream does not have them yet.
+
+### Maintenance
+
+- **Upstream watch** (`tools/upstream_watch.py`, a workflow twice a day once on `main`): new EasyFind releases are merged, tested and packaged into a draft pull request automatically; Questie's releases are checked against what Forever-GPS reads; the reused MIT sources and the WoW Forever client's builds and API are watched. Nothing is merged, released or installed without approval. [docs/UPSTREAM.md](docs/UPSTREAM.md#watching-upstream)
+- **Artifact cleanup** (`tools/artifacts.py`, a weekly workflow, listing by default).
+- Client build 1.60.1.70938 is live; its UI code was compared with 70790 (verified in the game): no change to the controller code since 70862, one new profession API. Not yet played with Forever-GPS.
+
+
+## 2.6.0 (unreleased, not yet tested in the game or on a controller)
+
+Forever-GPS with a controller, on a PC or a Steam Deck. [docs/CONTROLLER.md](docs/CONTROLLER.md)
+
+### Added
+
+- **Every page by controller:** search and results, routes and their alternatives, the route map, saved places, Your Quests and the Quest Explorer, trips, all five Professions views, lists, prices and settings. The D-pad moves a visible selection; A selects, B goes back, Y searches, the shoulders change page and the triggers change view.
+- **Customize Controls** (Settings, Controller): change any button by pressing it, with a modifier if you like. A button already in use offers Swap, Replace or Cancel; the game's own use of a button is named. Undo, Reset one, Reset all, and layouts for Steam Deck, Xbox, PlayStation and Minimal.
+- **Profiles:** as many as you like, named, duplicated, renamed and deleted. One for the handheld layout and one for desktop, switched by themselves, and a per-character choice.
+- **An on-screen keyboard** for the search, the Quest Explorer and profile names. Y searches at once and selects the first result.
+- **Handheld layout** for 1280×800: larger, one column, the buttons named at the foot, and a compact navigation display that the controller can place.
+- **A short introduction** the first time a controller is used, skippable.
+- **Open from anywhere** with one button, only if you allow it.
+- Feel settings: a held direction's repeat, highlight strength, a soft click, the left stick.
+
+### Safe by design
+
+- The buttons are Forever-GPS's only while its window is open. In combat they are the game's at once, and come back afterwards.
+- Your saved key bindings are never changed. Mouse and keyboard work as before.
+- No dependency. Easy Controller and ConsolePort keep working beside it.
+
+### Changed
+
+- The search box no longer takes the keyboard when the window opens with a controller in use.
+
+### Fixed
+
+- **The open-from-anywhere button worked in combat**, opening or closing Forever-GPS instead of doing what the game uses it for. It is now the game's for the whole fight, like every other button, and comes back after.
+- **A game button chosen for it was taken before you agreed**, if you had agreed for an earlier button. Now nothing is saved or bound until you answer, and agreement belongs to one button: changing it, switching profile or Undo never carries it to another.
+- **Closing the window while it waited for a press** left it listening, and after ten seconds took the window's buttons back with the window closed, so the D-pad went to Forever-GPS while playing. The wait, and any open question, now end with the window, with a disconnected controller, and with combat; a reload leaves nothing unanswered saved.
+- Counts of one read as one: "About 1 craft", "1 item priced", "1 misses a reagent price", "1 trainer known to teach it" and the like, instead of "1 crafts".
+
+## 2.5.0 (installed in the game on 2026-11-11 and confirmed working)
+
+Fixes for what 2.4 did in the real game, found from the player's BugSack and saved data. [docs/REALCLIENT.md](docs/REALCLIENT.md)
+
+### Fixed
+
+- **Profit and Skill up never showed anything in the game.** The item functions they called (`GetItemCount`, `GetItemInfo`) do not exist in WoW Forever. Every figure raised an error, and the page stayed as it was. Items are now asked for the way this client has them.
+- **Merchant prices were never learned**, for the same reason.
+- **Professions rows could overlap.** They were measured at one width and drawn at another, at fixed heights. Rows are now as tall as their text, measured as drawn, and checked again once drawn. A card's button no longer covers its text.
+- **A plan could stay on "working it out" for good.** A plan now finishes, fails with its reason, or is given up after 10 seconds without progress. Each of those offers to try again.
+- **Class and pet trainers** were kept as if they were profession trainers.
+- **Accepting a quest** on a route without stops raised an error (seen in 2.2).
+
+### Added
+
+- **Prices that update by themselves.** Opening an auction house asks for a full scan when the server allows it, and searches the items you need while it does not. It keeps out of other addons' way, and stops when you search yourself. Settings, Prices.
+- **Unpriced recipes are shown**, with the reagent that has no price, and a summary of what is missing. The page offers to refresh those prices at the auction house.
+- **Make 1, 5 or 10** on Profit, priced for the quantity.
+- **Clear loading states:** reading recipes, working out a plan (with progress), partial plans that say how far they got and why, and failures that say so.
+- **The page remembers** your profession, view, sort, filters and mode.
+- **`/fgps report`** now covers professions, recipe reading, item lookups, the Professions page and automatic prices, with no character or realm names.
+
+### Changed
+
+- CI installs its tools from the runner's own package mirror and retries network failures. A tool that cannot be installed fails the job.
+
+## 2.4.0 (installed in the game on 2026-11-11; its profession pages failed there, fixed in 2.5.0)
+
+Built on open-source work where it was stronger than this project's own: CraftProfit's measured auction house scanner, ForeverNet's quantity pricing, and profit's recipe data from the game client, all MIT. [docs/REUSE.md](docs/REUSE.md), [THIRD_PARTY.md](THIRD_PARTY.md)
+
+### Fixed
+
+- **A reroute could wait up to a second for nothing.** After a jump, the reroute waited for any plan still running, then for the engine's next once-a-second check. It now starts the moment the planner is free. This was the cause of an intermittent CI failure, and tests now cover it at three machine speeds.
+- **Trainers mixed professions.** A trainer known to teach Expert Alchemy was taken to teach Expert Tailoring too, since both rank up to 225. Ranks are now kept per profession and rank, and come from numbers rather than words.
+- **The trainer window's current shape was misread.** Its rank service and level are now read whichever shape the client has.
+- **The auction scan could read a half-arrived scan.** The client sends hundreds of updates for one scan. The scan now waits for them to stop, has time limits, and never leaves a scan running.
+- **Bag reagents counted as free for every craft.** They are now used once across a plan or list.
+- **A fare never seen read as nothing.** It now reads "fare unknown".
+
+### Added
+
+- **Navigation states and reasons:** "Recalculating from where you landed" and similar. A plan that fails is retried after 6 seconds, then twice as long each time. Frequent reroutes pause for a moment instead of looping.
+- **Plan from somewhere else:** search `from Ironforge to Booty Bay`. The route waits at its start until you get there.
+- **Why this way:** each route says what it was chosen for, against the quickest.
+- **A fuller `/fgps report`:** the navigation state, retries, the price scan and the trainer window shape.
+- **Prices for a quantity:** buying forty walks up the price tiers, and a merchant's stock is used where cheaper. Too few listed is said, never priced lower.
+- **Fresher prices for a list:** each reagent searched on its own, while the auction house is open.
+- **Skill-up:**
+  - The game's own skill ranges for 2,486 recipes.
+  - Recipes still to learn, with what learning them costs.
+  - Expected and safer craft counts, and what to buy.
+  - Short climbs are solved exactly, long ones within a fraction of a percent in tests.
+- **Profit:** cost, money needed now, sale if it sells, what a merchant pays, and margin, all kept apart. Filters, and a sort by what a merchant gives back.
+- **Lists:**
+  - Make or buy each reagent.
+  - What a batch leaves over.
+  - Copy as text.
+  - Which of your other characters can make a reagent.
+- **Price history and alerts:** a point a day for two weeks, for items you use. `/fgps alert <item> <price>` tells you when new prices fall to it. Nothing is ever bought.
+
+## 2.3.0 (unreleased, not yet tested in the game)
+
+### Fixed
+
+- **Navigation no longer sticks when you go another way.** Waiting for a boat, a flight or a hearth, taking a different flight, boat or teleport on the same continent left the GPS on that step for good. It now follows a flight it did not plan, plans nothing while flying, and plans again from where you land or arrive. The destination and a trip's remaining stops are kept, and a failed plan is retried. [docs/LIFECYCLE.md](docs/LIFECYCLE.md)
+- **One launcher.** EasyFind's own minimap button, broker launcher and compartment entries are gone from the folder. Each opened a search bar that stays hidden.
+
+### Added
+
+- **Travel costs.** Fares learned from flight masters, shown beside every route. **Best value** and **Cheapest** weigh money against time in the search itself, at a rate you set, within limits you set. [docs/TRAVEL_COSTS.md](docs/TRAVEL_COSTS.md)
+- **Hearthstone:** where it is bound, whether it is ready, how sure the landing is, and a minimum time it must save before it is used.
+- **Professions tab.** Your professions and next rank, the cheapest way up with training steps, recipes ranked by profit, lists with combined reagents, and prices from your own auction house scans. Trainers are ranked by what their own window said they teach. No other addon needed. [docs/PROFESSIONS.md](docs/PROFESSIONS.md)
+
+### Changed
+
+- The Quests tab is called Quests.
+
+## 2.2.0 (since installed in the game, not yet confirmed there)
+
+### Fixed
+
+- **The map taint error, in the code.** `ADDON_ACTION_BLOCKED` on `Button:SetPassThroughButtons()`. The game's source shows quest pins refresh on a super-track change even with the map closed, once it has been opened, so waiting for the map to close protected nothing. Every change to the game's waypoint and tracking now goes through one door that also holds through a fight, and skips what changes nothing. **This has not been retested in the game.** [docs/TAINT.md](docs/TAINT.md) has the findings, what remains, and how to check.
+- Forever-GPS's windows were in `UISpecialFrames`, which taints the game's window closing for the session. Escape now uses a temporary binding.
+- Native pins are no longer written to.
+- Carrying saved data over embedded all 1.36 MB of EasyFind's file, to load at every login, for 739 bytes that were wanted.
+
+### Changed
+
+- **The game's map is the player's.** Forever-GPS no longer opens or turns it. **Show on map** opens the **route map**, a window of our own that also works in a fight. A preview still draws over the game's map when you open it yourself.
+- A planning slice with little budget left hands unpacking to the next one, which cuts the worst frames.
+
+### Added
+
+- **Quest Explorer:** **Find quests** beside Your quests. Search every quest Questie knows, browse by zone, filter by what this character can do, and see what can be picked up near you by travel time. A quest shows its status, starters, turn-in, requirements, what comes first, and its chain as a timeline. Directions go to the start or to the first missing prerequisite, with alternatives left to you. [docs/QUEST_EXPLORER.md](docs/QUEST_EXPLORER.md)
+- **Quest circuits with pickups,** in the right order: picked up before it is worked on, and a prerequisite handed in before the next is picked up.
+- A turn-in names what it opens, as an offer.
+- A beacon switch: **Settings, Map, Show the game's beacon in the world**.
+- `/fgps quest [name or id]`.
+- `/fgps diag` separates time asked from work done, and says what filled planning's busiest frame and where search spent its time. It also counts changes made to the game's waypoint and those held back.
+
+## 2.1.0 (not yet tested in the game when written, since run in the client)
+
+### Changed
+
+- **One folder.** Forever-GPS installs as a single `ForeverGPS` addon: 389 files and 25 MB, down from 14 folders, 456 files and 41 MB. EasyFind, EasyFind GPS and the Questie extension are built into it under `Vendor/`. The ten companion apps served EasyFind's search bar and are gone. Questie and TomTom stay separate and optional.
+- **Planning stops doing work that cannot change the answer.** A way is settled without a plan when nothing reaches the place at all, when the fastest uses no transport for Overland to leave out, when it touches no dangerous ground for Safer to go around, or when the walk is too short to compare. Starting drops the rest of the comparison.
+- The plan budget follows the frame rate, so a slow machine waits about as long as a fast one, and quick navigation starts on the first answer.
+- EasyFind's search bar no longer loads its spells, toys, mounts and settings at login, since it stays hidden and navigation reads none of them.
+- Reopening the window after starting a journey shows that journey, not the old search.
+
+### Added
+
+- **Home leads with what matters:** the journey under way, or one stopped short to pick up again, then suggestions: quests ready to hand in, things to do close by, flight paths to learn, the way back to your hearth.
+- **Plan a circuit:** everything close by becomes a Quest Circuit in one click.
+- **Saved trips,** and a trip list that survives a reload.
+- **Instance quests** route to the entrance instead of stopping at "no route".
+- **Journey summaries:** an arrival says how long it took, and journeys are logged against what was planned.
+- **History:** places you go often rise above plain recents.
+- **Search:** `my trainer`, `flights to learn`, more of what players call things, and coordinates as people write them (`56.1/47.2`, `56 47 Westfall`, `/way 56 47`).
+- **Directions to your target,** with a key binding and `/fgps target`. `/fgps resume` picks up a stopped journey.
+- **Map:** the ways not chosen show faintly under the chosen one, hovering a step lights it, and a journey across continents can be stepped through from the banner.
+- **HUD:** outlined text for bright ground, and a sound on arrival.
+- A **high contrast** theme.
+- `/fgps diag` reports a plan's busiest frame beside its total. That total is time across many frames, not a freeze.
+- `tools/install_local.py` and `tools/migrate_saved.py`, which move an install across without losing anything.
+
+### Removed
+
+- The settings for EasyFind's own search bar and for restoring it. There is no separate EasyFind left to restore.
+- EasyFind's update notices, which would have told players to update something that is no longer installed separately.
+- The ten companion apps: calculator, clipboard, snippets, quicklists, item and icon browsers, EasyFind's options, tutorial, settings search and guide. None served navigation.
+
+### Fixed
+
+- Reports and diagnostics no longer ask the game about addons that are not installed.
+- Phrases typed in full, such as `auction house`, were doubled when read.
+- Rides are labeled on the map, and marks keep their size as the map zooms.
+
+## 2.0.0 (unreleased, not yet tested in the game)
+
+### Added
+
+- **Map preview**: a journey on the world map before it starts, following the ground, with labeled rides, a focus on any step, and a fit and a return-to-player button. It starts nothing and touches no route under way. Across continents the legs stand apart, joined by marks, with no line through the world.
+- **Search**: what players call things, `nearest` and `any`, spelling correction that says what it did, boats and zeppelins as places to go, and Questie's creatures and objects read at run time from the installed addon. A row for many places moves to the quickest, passing over enemy towns.
+- **Quest browser**: filters, grouping by zone, status or distance, and an offer of what comes next when an objective is done, without touching any other route.
+- **Trips and Quest Circuit**: up to eight stops ordered from real travel times, with turn-ins after what they are for, followed by EasyFind GPS's own multi-stop engine. Skip a stop, reorder, and finished objectives drop out.
+- **Transport**: waiting, aboard and riding read differently, a departure shows only when a real ride has timed that loop, and a reroute says why, naming a ride that went elsewhere.
+- **HUD 2.0**: compact, standard and detailed sizes, background opacity, text size, arrow style, the next turn, reduced motion, and hiding while riding. The arrow eases and the time left glides.
+- **Settings** in eight groups, with sliders drawn in full.
+- **Quick navigation** (`/fgps go`, a key binding), a **minimap button**, saved spots (`/fgps save`), a sanitized line to share (`/fgps share`), and a copyable report (`/fgps report`).
+- **Comparison**: each way says how it differs in time, transport, walking and hazards, and ways that came out the same stop being offered as a choice.
+- **Confidence**: Fully mapped, Partially estimated or Estimated, with no percentages.
+- **Risk**: contested ground, drops and dangerous approaches named. Never a claim of safety from players.
+- Golden-path and property tests, a Lua 5.1 syntax job, repository validation, and renders of every state at six screens.
+
+### Fixed
+
+See [docs/LIFECYCLE.md](docs/LIFECYCLE.md) for each with its effect.
+
+- Safer routes losing their settings on start and after a reload, which stopped off-route detection.
+- Trips losing their stops on a reroute, and doubling back round stops already reached.
+- Starting while the other ways were still planning leaving the walking grid on the wrong settings.
+- 1.0.0 writing EasyFind's arrow setting, and first run overriding existing EasyFind users. Both are undone, and what first run changes can be restored from Settings.
+- News lines vanishing with the HUD at the end of a route.
+- Slider thumbs left to the client.
+
+### Changed in vendored code
+
+See [docs/UPSTREAM.md](docs/UPSTREAM.md) for detail.
+
+- EasyFind GPS: a route rebuilt keeps its stops and goes on from those still ahead.
+- EasyFind: search rows carry every instance, not just the nearest.
+- EasyFind Questie: a run-time index of Questie's creatures and objects, built in slices.
+
+## 1.0.0 (first version, unreleased)
+
+### Added
+
+- **Search**: places, zones, NPCs, trainers, services, dungeons, raids, coordinates and your map pin, with zone, type, hostile marks and travel times. Searches for a kind of thing are ordered by travel time.
+- **From Your Quests**: the quest log with progress, every unfinished objective selectable, spawn areas with the closest by travel time leading, turn-ins, and an honest message when no location is known. Works with Questie, and falls back to the game's marker without it.
+- **Journey panel**: Fastest, Safer and Roads routes compared, identical ones merged; every step with its time and wait; risk labels with their reasons and limits; avoid toggles; favorites and recents.
+- **HUD**: instruction, distance, time left, step count, next step and progress; an arrow following the walk; ride-aware; a one-click hearth; movable and scalable.
+- Quest-aware routes that stop when the quest is abandoned or the objective finished.
+- Optional TomTom mirroring, with exactly one arrow in use at a time.
+- Obsidian, Glacier and Parchment themes.
+- A one-column layout for small screens at large UI scales.
+- `/fgps` commands, key bindings and `/fgps diag`.
+- A private packaging script, pin verification, CI, regression tests and a fake client running the real stack.
+
+### Changed in vendored code
+
+See [docs/UPSTREAM.md](docs/UPSTREAM.md) for detail.
+
+- EasyFind GPS: `N.SpotsOf` and `N.ReactionOf` added.
+- EasyFind GPS: **fixed** `Jumps.ShopTip` leaving the walking grid at an unlimited drop height, which silently stopped off-route detection and could draw walks over lethal drops.
+- EasyFind Questie: `isReady` and `questSpots` actions added.

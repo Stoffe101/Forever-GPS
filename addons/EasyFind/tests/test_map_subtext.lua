@@ -1,0 +1,68 @@
+-- Tests for a map row's subtext (Search/Results/RowText.lua): its kind, then
+-- the place it is in.
+
+local H = require("Harness")
+local env = H.newEnv()
+env._G = env
+env.ZONE, env.CONTINENT, env.LFG_TYPE_DUNGEON, env.WORLD_MAP = "Zone", "Continent", "Dungeon", "Map"
+env.MINIMAP_TRACKING_FLIGHTMASTER = "Flight Master"
+env.Enum = env.Enum or {}
+env.Enum.UIMapType = env.Enum.UIMapType or { Continent = 2, Zone = 3 }
+local ns = H.newNs(env)
+ns.Utils.sformat = ns.Utils.sformat or string.format
+H.loadModule("Search/Results/RowText.lua", env, ns)
+local Text = ns.ResultText
+
+local tests = {}
+
+function tests.addonSettingRows_nameTheirAddonThenThePage()
+    H.assertEq(Text:GetFlatSubtext({ addon = "EasyFind", path = { "EasyFind Settings", "Search" } }), "EasyFind: Search")
+    H.assertEq(Text:GetFlatSubtext({ addon = "TomTom", path = { "TomTom Settings" } }), "TomTom")
+    H.assertEq(Text:GetFlatSubtext({ addon = "TomTom" }), "TomTom")
+    H.assertEq(Text:GetFlatSubtext({ path = { "Game Settings", "Interface" } }), "Interface")
+end
+
+function tests.mapRows_leadWithTheirKind()
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "npc", zoneName = "Elwynn Forest" }),
+        "MAP_KIND_NPC: Elwynn Forest")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "zone", pathPrefix = "Azeroth > Eastern Kingdoms" }),
+        "Zone: Eastern Kingdoms")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "dungeon", zoneName = "Westfall" }),
+        "Dungeon: Westfall")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "flightmaster", zoneName = "Stormwind City" }),
+        "Flight Master: Stormwind City")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "prof_blacksmithing", zoneName = "Ironforge" }),
+        "MAP_KIND_PROF_TRAINER: Ironforge")
+end
+
+-- A weapon master's row names its weapons after its place.
+function tests.weaponMasters_listTheirWeapons()
+    ns.L["NPC_SUBTEXT_TEACHES_FMT"] = "%s; teaches %s"
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "trainer", zoneName = "Stormwind City",
+        teachesText = "One-Handed Swords, Daggers" }), "Stormwind City; teaches One-Handed Swords, Daggers")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "trainer", teachesText = "Daggers" }), "Daggers")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "trainer", zoneName = "Ironforge", teachesText = "" }),
+        "Ironforge", "no names resolved: the place alone")
+end
+
+function tests.mapRows_withoutAPlace_showTheKindAlone()
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "zone", zoneMapType = 2 }), "Continent")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "npc" }), "MAP_KIND_NPC")
+end
+
+function tests.mapRows_ofAnUnnamedKind_keepThePlace()
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "lorewalker", zoneName = "Valdrakken" }),
+        "Valdrakken")
+end
+
+-- A list of a kind of place (repair) comes nearest first: how far leads.
+function tests.mapRows_ofAKindQuery_leadWithHowFar()
+    ns.L["GPS_UNIT_YD"] = "%d yd"
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "npc", zoneName = "Orgrimmar",
+        nearYards = 119.6 }), "120 yd, MAP_KIND_NPC: Orgrimmar")
+    H.assertEq(Text:GetFlatSubtext({ mapSearchResult = true, category = "npc", zoneName = "Orgrimmar" }),
+        "MAP_KIND_NPC: Orgrimmar", "no distance: as before")
+end
+
+local pass, fail, failures = H.runSuite("MapSubtext", tests)
+return { pass = pass, fail = fail, failures = failures }

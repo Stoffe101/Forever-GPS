@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  upstream-pins:
+    name: Vendored code matches its pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify every vendored file against UPSTREAM.lock.json
+        run: python3 tools/upstream.py verify
+      - name: Verify reused MIT files against third_party/THIRD_PARTY.lock.json
+        run: python3 tools/third_party.py verify
+      - name: The upstream watch and artifact rules, against a pretend GitHub
+        run: python3 tools/tests/test_automation.py
+
+  repository:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: TOC, textures, licenses and notices, version, stray paths
+        run: python3 tools/validate.py
+
+  syntax:
+    name: Lua 5.1 syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # From the runner's package mirror, tried again on network failures (tools/ci/install_lua.sh).
+      - name: Install Lua 5.1
+        run: bash tools/ci/install_lua.sh lua5.1
+      - name: Compile every Forever-GPS file with the game's Lua version
+        run: |
+          luac5.1 -v
+          find addons/ForeverGPS tools -name '*.lua' -print0 | xargs -0 -n1 luac5.1 -p
+
+  luacheck:
+    name: Luacheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install luacheck
+        run: bash tools/ci/install_lua.sh lua-check
+      - name: Lint Forever-GPS's own code
+        run: |
+          luacheck --version
+          luacheck addons/ForeverGPS --no-color -q
+
+  tests:
+    name: Tests (EasyFind, GPS, Questie, Forever-GPS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.4
+        run: bash tools/ci/install_lua.sh lua5.4
+      - name: Run every suite
+        run: |
+          lua5.4 -v
+          LUA=lua5.4 python3 tools/run_tests.py
+
+  package:
+    name: Package builds and validates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Validation only. The package is built and discarded here, never uploaded:
+      # this project is for private use and publishes no builds.
+      - name: Build and verify the Forever package
+        run: python3 tools/package.py

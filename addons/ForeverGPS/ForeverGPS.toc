@@ -1,0 +1,76 @@
+## Interface: 16001
+## Title: Forever-GPS
+## Notes: Search anywhere in Azeroth, inspect the journey, and follow it.
+## Author: Stoffe101
+## Version: 2.7.0
+## OptionalDeps: Questie, QuestieDB, TomTom
+## SavedVariables: ForeverGPSDB, EasyFindDB, EasyFindQuestieDB
+## SavedVariablesPerCharacter: ForeverGPSCharDB, EasyFindCharDB
+## IconTexture: Interface\AddOns\ForeverGPS\Art\logo
+## AddonCompartmentFunc: ForeverGPS_OnCompartmentClick
+## Category: Map
+## DefaultState: enabled
+
+Core/Preflight.lua
+Core/Imported.lua
+Core/Namespace.lua
+Locales/enUS.lua
+Core/Compat.lua
+Core/Format.lua
+Core/Metrics.lua
+Core/Settings.lua
+Core/Bridge.lua
+Core/Kinds.lua
+Core/Eta.lua
+Core/Risk.lua
+Core/Fares.lua
+Core/Hearth.lua
+Core/Planner.lua
+Core/Saved.lua
+Core/Quests.lua
+Core/QuestDB.lua
+Core/QuestTargets.lua
+Core/QuestStatus.lua
+Core/QuestIndex.lua
+Core/QuestChain.lua
+Core/Search.lua
+Core/Journey.lua
+Core/Continuity.lua
+Core/Trip.lua
+Core/QuestBrowse.lua
+Data/Recipes.lua
+Core/Professions.lua
+Core/Market.lua
+Core/MarketSearch.lua
+Core/Quote.lua
+Core/AutoPrices.lua
+Core/Crafting.lua
+Core/Alts.lua
+Core/PriceHistory.lua
+Core/Trainers.lua
+Core/Suggest.lua
+Core/TomTom.lua
+Core/Diagnostics.lua
+Core/Pad.lua
+UI/Theme.lua
+UI/Kit.lua
+UI/List.lua
+UI/Focus.lua
+UI/PadKeyboard.lua
+UI/RouteMap.lua
+UI/MapPreview.lua
+UI/RoutePanel.lua
+UI/SearchView.lua
+UI/ExplorerView.lua
+UI/QuestDetail.lua
+UI/QuestsView.lua
+UI/TripView.lua
+UI/ProfessionsView.lua
+UI/CopyBox.lua
+UI/PadSettings.lua
+UI/Settings.lua
+UI/MainWindow.lua
+UI/HUD.lua
+UI/Quick.lua
+UI/MinimapButton.lua
+Commands.lua
