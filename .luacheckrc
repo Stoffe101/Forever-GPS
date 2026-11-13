@@ -28,4 +28,6 @@ read_globals = {
     -- The controller (Core/Pad.lua; docs/CONTROLLER.md lists where Blizzard's code uses each).
     "C_GamePad", "SetOverrideBindingClick", "SetOverrideBinding", "ClearOverrideBindings", "GetBindingAction", "GetBindingText",
     "IsKeyDown", "IsControlKeyDown", "IsAltKeyDown", "RegisterStateDriver", "GetPhysicalScreenSize",
+    -- WoW Forever's own Gamepad UI style (Core/Preflight.lua).
+    "C_InputInterfaceStyle",
 }

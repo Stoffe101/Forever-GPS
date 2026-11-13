@@ -23,6 +23,21 @@ end
 
 ForeverGPSPreflight = { old = OldAddons(), folders = OLD_FOLDERS }
 
+-- WoW Forever's own Gamepad UI (Options, Gamepad, "Enable Gamepad UI"): Blizzard's
+-- Blizzard_Gamepad* modules, which keep their focus and binding bookkeeping in shared
+-- tables. Whatever an addon does that runs that bookkeeping in its own execution (adds an
+-- entry to a Blizzard menu, opens its own Blizzard-style menu or popup, opens or closes a
+-- Blizzard panel, makes a frame under an open Blizzard panel) taints it, and from then on
+-- Blizzard's own restricted SetPreferredGamepadInteractTarget() is blocked and blamed on
+-- that addon, again at every target change. While it is on, everything of ours that would
+-- do that stands aside: docs/CONTROLLER.md, "The game's Gamepad UI".
+-- Read only: asking the style taints nothing.
+function ForeverGPSPreflight.GamepadUI()
+    local api, kinds = C_InputInterfaceStyle, Enum and Enum.InputDeviceInterfaceType
+    if not (api and api.GetCurrentStyle and kinds and kinds.Gamepad ~= nil) then return false end
+    return api.GetCurrentStyle() == kinds.Gamepad
+end
+
 -- Adds what is missing, and leaves what is already there: nothing newer is overwritten.
 local function Fill(into, from)
     for key, value in pairs(from) do

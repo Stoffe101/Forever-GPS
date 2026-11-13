@@ -58,9 +58,15 @@ local function FrameOf(c)
     return c.frame
 end
 
+local noted
 local function Show()
     local r = Ring()
     local frame = FrameOf(cur)
+    -- A move of the focus, for the controller report.
+    if frame ~= noted and FG.Pad and FG.Pad.Note then
+        noted = frame
+        FG.Pad.Note("focus", frame and (frame:GetName() or frame:GetObjectType()) or "none")
+    end
     local strength = FG.Pad and FG.Pad.Settings().highlight or "strong"
     if not (frame and Visible(frame) and FG.Pad and FG.Pad.InUse() and strength ~= "off") then return r:Hide() end
     local pad = strength == "strong" and 3 or 1
@@ -104,28 +110,73 @@ local function Center(frame)
     return (l + w / 2) * s, (b + h / 2) * s, w * s, h * s
 end
 
--- The nearest candidate in a direction: along it counts once, across it twice.
+-- A frame's edges on screen: left, right, bottom, top.
+local function Edges(frame)
+    local x, y, w, h = Center(frame)
+    if not x then return nil end
+    return x - w / 2, x + w / 2, y - h / 2, y + h / 2
+end
+
+-- The gap between two spans, 0 when they overlap.
+local function Gap(a1, a2, b1, b2)
+    return math.max(0, b1 - a2, a1 - b2)
+end
+
+-- The nearest candidate in a direction, the way the eye reads a page (the "beam" rule of
+-- television and console interfaces):
+--
+--   - left and right stay on the row: anything overlapping the focus's row that way wins
+--     over anything above or below it, however near that is;
+--   - up and down keep to the column: a control straight below wins, unless another lies
+--     wholly nearer than it;
+--   - otherwise, edge to edge: the gap along the direction once, the gap across it twice,
+--     and how far the centres are apart across it, a little.
+--
+-- So a wide button beside the focus is next, though its centre is far off, and a column of
+-- tabs is not walked when the row has something that way.
 local DIRS = { up = { 0, 1 }, down = { 0, -1 }, left = { -1, 0 }, right = { 1, 0 } }
 local function Nearest(from, candidates, dir)
     local fx, fy = Center(from)
     if not fx then return candidates[1] end
+    local fl, fr, fb, ft = Edges(from)
     local d = DIRS[dir]
-    local best, bestScore
+    local horizontal = d[1] ~= 0
+    local best, bestScore, bestFar
+    local beam, beamScore, beamNear
     for _, c in ipairs(candidates) do
         if c.frame ~= from then
             local x, y = Center(c.frame)
             if x then
+                local l, r, b, t = Edges(c.frame)
                 local dx, dy = x - fx, y - fy
-                local along = dx * d[1] + dy * d[2]
-                local across = math.abs(dx * d[2]) + math.abs(dy * d[1])
-                if along > 1 then
-                    local score = along + across * 2
-                    if not bestScore or score < bestScore then best, bestScore = c, score end
+                -- Its centre must lie that way.
+                if dx * d[1] + dy * d[2] > 1 then
+                    local along, far, across, offset, overlap
+                    if horizontal then
+                        along = d[1] > 0 and math.max(0, l - fr) or math.max(0, fl - r)
+                        far = d[1] > 0 and (r - fr) or (fl - l)
+                        across, offset = Gap(fb, ft, b, t), math.abs(dy)
+                        overlap = math.min(ft, t) - math.max(fb, b)
+                    else
+                        along = d[2] > 0 and math.max(0, b - ft) or math.max(0, fb - t)
+                        far = d[2] > 0 and (t - ft) or (fb - b)
+                        across, offset = Gap(fl, fr, l, r), math.abs(dx)
+                        overlap = math.min(fr, r) - math.max(fl, l)
+                    end
+                    if overlap > 1 then
+                        local score = along + offset * 0.1
+                        if not beamScore or score < beamScore then beam, beamScore, beamNear = c, score, along end
+                    else
+                        local score = along + across * 2 + offset * 0.1
+                        if not bestScore or score < bestScore then best, bestScore, bestFar = c, score, far end
+                    end
                 end
             end
         end
     end
-    return best
+    if not beam then return best end
+    if horizontal or not best or beamNear < bestFar then return beam end
+    return beamScore <= bestScore and beam or best
 end
 
 -- ==== the surfaces ==========================================================
@@ -444,22 +495,25 @@ end
 -- shows all of it, down the player's place, confirm starts the route, back closes it.
 
 local mapSurface
+-- The D-pad and A work on the map as anywhere: they move between its buttons (the bar's
+-- next step, whole route, my position, Start navigation and close) and the marks on it,
+-- and press the one selected. The shoulders and triggers step through the route, X shows
+-- all of it, R3 and B close the map.
+local STEP = { prevTab = -1, nextTab = 1, prevSub = -1, nextSub = 1 }
 local function MapAction(id)
     local P = FG.MapPreview
-    if id == "left" or id == "right" then
+    if STEP[id] then
         local legs = P.Legs and P.Legs() or {}
         local n = math.max(1, #legs)
-        local at = P.Focused() or (id == "right" and 0 or n + 1)
-        local nextLeg = at + (id == "right" and 1 or -1)
+        local dir = STEP[id]
+        local at = P.Focused() or (dir > 0 and 0 or n + 1)
+        local nextLeg = at + dir
         if nextLeg < 1 or nextLeg > n then P.Fit() else P.Focus(nextLeg) end
         return true
-    elseif id == "up" then
+    elseif id == "context" then
         P.Fit()
         return true
-    elseif id == "down" then
-        P.ToPlayer()
-        return true
-    elseif id == "confirm" or id == "startNav" then
+    elseif id == "startNav" then
         local plan = FG.Planner.Current()
         if plan and plan.selected then FG.Planner.Start() end
         return true
@@ -481,9 +535,15 @@ FG.On("routemap:shown", function(shown)
     if shown == false then return MapHidden() end
     if mapSurface then return end
     mapSurface = { root = FG.RouteMap.Frame(), onAction = MapAction,
+                   -- Starts on the bar's Start navigation, else what is first on the map.
+                   first = function() return FG.MapPreview.FirstFocus and FG.MapPreview.FirstFocus() end,
                    -- Back to the window, the plan still there.
                    onBack = function() FG.RouteMap.Hide() end }
     Focus.Push(mapSurface)
+    -- The bar is put on the map in the same moment the map opens, after this: once it is
+    -- there, the focus starts on it.
+    local s = mapSurface
+    FG.After(0, function() if mapSurface == s and Top() == s then Focus.First() end end)
 end)
 
 -- Puts the focus on a frame a page chose (the first result after a search).

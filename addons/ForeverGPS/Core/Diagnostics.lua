@@ -186,6 +186,9 @@ function Diagnostics.Lines()
     out[#out + 1] = ("Prices: scan %s%s, searches asked %d answered %d missed %d"):format(scan.state,
         scan.why and (" (" .. scan.why .. ")") or "", search.asked, search.answered, search.missed)
     for _, line in ipairs(Diagnostics.ProfessionLines()) do out[#out + 1] = line end
+    if FG.Pad and FG.Pad.ReportLines then
+        for _, line in ipairs(FG.Pad.ReportLines()) do out[#out + 1] = line end
+    end
     out[#out + 1] = CacheLine()
     for _, line in ipairs(Diagnostics.GameLines()) do out[#out + 1] = line end
     for _, line in ipairs(Diagnostics.Timing()) do out[#out + 1] = line end

@@ -330,6 +330,8 @@ end
 
 function PadSettings.Build(ui)
     local P = Pad()
+    -- The game's own Gamepad UI: what stands aside while it is on.
+    ui.status(function() return P.GamepadUI() and L["PAD_GAMEPAD_UI_ON"] or "" end)
     ui.heading("PAD_H_LAYOUT")
     ui.choice(Choices(LAYOUTS), function() return P.Settings().mode end, function(value)
         P.Settings().mode = value

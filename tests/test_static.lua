@@ -86,7 +86,9 @@ for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyF
     -- (Blizzard_Settings_Shared/Keybindings), RegisterStateDriver (SecureStateDriver.lua),
     -- GetPhysicalScreenSize (Blizzard_Settings_Shared/Graphics).
     .. "C_GamePad SetOverrideBindingClick SetOverrideBinding ClearOverrideBindings GetBindingAction GetBindingText IsKeyDown "
-    .. "IsControlKeyDown IsAltKeyDown RegisterStateDriver GetPhysicalScreenSize"):gmatch("%S+") do GAME[name] = true end
+    .. "IsControlKeyDown IsAltKeyDown RegisterStateDriver GetPhysicalScreenSize "
+    -- The Forever client's Gamepad UI style (InputInterfaceStyleDocumentation.lua, 1.60.1.70938).
+    .. "C_InputInterfaceStyle"):gmatch("%S+") do GAME[name] = true end
 
 local OWN_GLOBALS = {}
 for name in ("ForeverGPS ForeverGPSDB ForeverGPSCharDB ForeverGPS_OnCompartmentClick SLASH_FOREVERGPS1 SLASH_FOREVERGPS2 "
@@ -214,7 +216,10 @@ function tests.everyGameApi_isOneUpstreamAlreadyUses()
     haystack[#haystack + 1] = "C_MerchantFrame.GetItemInfo C_Item.RequestLoadItemDataByID C_Item.GetItemInfo C_Item.GetItemCount "
         .. "C_Item.GetItemNameByID C_Container.GetItemCooldown C_Item.GetItemCooldown C_TradeSkillUI.IsTradeSkillReady"
     -- The controller (Core/Pad.lua), from GamePadDocumentation.lua of the same build line.
-    haystack[#haystack + 1] = "C_GamePad.IsEnabled"
+    haystack[#haystack + 1] = "C_GamePad.IsEnabled C_GamePad.GetActiveDeviceID C_GamePad.GetDeviceMappedState"
+    -- WoW Forever's own Gamepad UI (Core/Preflight.lua), from the Forever client's UI code,
+    -- build 1.60.1.70938 (Blizzard_SharedXML/Mainline/InputUtil.lua, InputInterfaceStyleDocumentation.lua).
+    haystack[#haystack + 1] = "C_InputInterfaceStyle.GetCurrentStyle"
     local all = table.concat(haystack, "\n")
     local checked = 0
     for _, file in ipairs(Sources()) do
@@ -231,7 +236,7 @@ function tests.everyEventListened_isOneTheClientFires()
     for name in ("ADDON_LOADED PLAYER_LOGIN QUEST_LOG_UPDATE QUEST_ACCEPTED QUEST_REMOVED QUEST_TURNED_IN UNIT_QUEST_LOG_CHANGED "
         .. "TAXIMAP_OPENED HEARTHSTONE_BOUND UI_SCALE_CHANGED DISPLAY_SIZE_CHANGED PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED "
         .. "GLOBAL_MOUSE_DOWN PLAYER_LEVEL_UP SKILL_LINES_CHANGED PLAYER_ENTERING_WORLD UPDATE_FACTION "
-        .. "AUCTION_HOUSE_SHOW AUCTION_HOUSE_CLOSED REPLICATE_ITEM_LIST_UPDATE COMMODITY_SEARCH_RESULTS_UPDATED ITEM_SEARCH_RESULTS_UPDATED GET_ITEM_INFO_RECEIVED GAME_PAD_ACTIVE_CHANGED GAME_PAD_CONNECTED GAME_PAD_DISCONNECTED PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED TRADE_SKILL_DATA_SOURCE_CHANGED TRADE_SKILL_CLOSE AUCTION_HOUSE_BROWSE_RESULTS_UPDATED BAG_UPDATE_DELAYED MERCHANT_SHOW TRAINER_SHOW TRADE_SKILL_SHOW "
+        .. "AUCTION_HOUSE_SHOW AUCTION_HOUSE_CLOSED REPLICATE_ITEM_LIST_UPDATE COMMODITY_SEARCH_RESULTS_UPDATED ITEM_SEARCH_RESULTS_UPDATED GET_ITEM_INFO_RECEIVED GAME_PAD_ACTIVE_CHANGED GAME_PAD_CONNECTED GAME_PAD_DISCONNECTED INPUT_DEVICE_INTERFACE_TRANSITION ADDON_ACTION_BLOCKED ADDON_ACTION_FORBIDDEN PLAYER_REGEN_DISABLED PLAYER_REGEN_ENABLED TRADE_SKILL_DATA_SOURCE_CHANGED TRADE_SKILL_CLOSE AUCTION_HOUSE_BROWSE_RESULTS_UPDATED BAG_UPDATE_DELAYED MERCHANT_SHOW TRAINER_SHOW TRADE_SKILL_SHOW "
         .. "TRADE_SKILL_LIST_UPDATE"):gmatch("%S+") do KNOWN[name] = true end
     for _, file in ipairs(Sources()) do
         for event in file.src:gmatch('FG%.OnEvent%("([%u_]+)"') do

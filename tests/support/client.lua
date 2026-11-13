@@ -852,6 +852,8 @@ function Client:BuildEnv(opts)
     env.ObjectiveTrackerFrame = env.CreateFrame("Frame", "ObjectiveTrackerFrame", self.root)
     -- The controller: bindings, protected calls in combat, the secure combat handler.
     require("support.gamepad").Install(self, env, UI)
+    -- WoW Forever's own Gamepad UI: what would taint it, recorded while it is on.
+    require("support.gamepadui").Install(self, env)
     return env
 end
 

@@ -42,6 +42,10 @@ local function GameMap() return WorldMapFrame end
 local function Surface()
     local own = FG.RouteMap
     if own and own.Shown() then return own.Canvas(), own.MapID(), false, own.Frame() end
+    -- Under the game's Gamepad UI, nothing is drawn on its world map: frames made under an
+    -- open Blizzard panel taint its gamepad navigation (docs/CONTROLLER.md). Our own map
+    -- still shows the journey.
+    if ForeverGPSPreflight.GamepadUI() then return nil end
     local map = GameMap()
     local canvas = map and map:IsShown() and map.ScrollContainer and map.ScrollContainer.Child
     if canvas then return canvas, map:GetMapID(), true, map.ScrollContainer end
@@ -697,6 +701,14 @@ function MapPreview.Close()
 end
 
 function MapPreview.Focused() return shown and shown.focus or nil end
+
+-- Where the controller starts on the map: the bar's Start navigation, else its close.
+function MapPreview.FirstFocus()
+    if not (banner and banner:IsVisible()) then return nil end
+    if banner.go:IsShown() then return banner.go end
+    return banner.close
+end
+function MapPreview._Banner() return banner end    -- tests
 function MapPreview.Showing() return shown ~= nil end
 
 local function Hook()

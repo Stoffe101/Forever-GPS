@@ -24,7 +24,9 @@ It is a controller mode for Forever-GPS's own window, not a combat controller ad
 | Steam Deck L5 / R5 | Page up and down |
 | Steam Deck R4 | Start navigation |
 
-On the route map: left and right step through the route, up shows all of it, down shows where you are, A starts the route, B or R3 closes the map and keeps the plan.
+On the route map: the D-pad moves between the bar's buttons (next map along the route, the whole route, where you are, Start navigation, close) and the marks on the map, and A presses the one selected. LB and RB (or LT and RT) step through the route, X shows all of it, B or R3 closes the map and keeps the plan. The selection starts on Start navigation.
+
+Left and right stay on the row you are on whenever there is something on it that way, and up and down keep to the column, the way television and console menus move ("beam" navigation). A test walks every page at 1920×1080 and 1280×800 pressing every direction from every control, about 4,600 presses, and fails on any control that cannot be reached or any move that leaves the row.
 
 On the keyboard: A types, X deletes, Y searches (or accepts), B cancels and puts the text back. A search accepted from the keyboard runs at once and the selection lands on its first result.
 
@@ -35,6 +37,54 @@ The first time a controller is used with the window open, a short introduction n
 ### If LT and RT are Shift and Ctrl
 
 The game's own controller settings can make LT, RT or other buttons act as Shift, Ctrl or Alt (`GamePadEmulateShift`, `GamePadEmulateCtrl`, `GamePadEmulateAlt`). Such a button does nothing alone, and its label says so, for example "LT (SHIFT)". Either give those actions other buttons, or use the button as a modifier: "LT + X" is a binding of its own.
+
+## The game's Gamepad UI
+
+WoW Forever has its own controller interface: Options, Gamepad, "Enable Gamepad UI". It is not ConsolePort or any addon: it is a set of Blizzard modules in the client, `Blizzard_Gamepad`, `Blizzard_GamepadActionBars`, `Blizzard_GamepadSharedUtility` (and `…Secure`), `Blizzard_GamepadSmartNavigation`, `Blizzard_GamepadSoftCursor` and `Blizzard_GamepadTargeting`, read in the Forever client's own UI code (build 1.60.1.70938, Gethe/wow-ui-source, branch `forever`).
+
+### Why addons get "blocked from an action only available to the Blizzard UI"
+
+What the evidence shows, with the uncertain parts marked:
+
+- **The function blocked** is `SetPreferredGamepadInteractTarget()`. The client's API documentation marks it `HasRestrictions = true`: only Blizzard's own code may call it. `Blizzard_GamepadActionBars/MainActionBarFrame.lua` calls it from `UpdateInteractIcons`, at every soft target, target, equipment and combat change.
+- **What it reads** is the Gamepad UI's binding stack (`InputBindingManager:IsOnlyCoreBindingSetActive()`). The same bookkeeping (`FrameControlsManager`, `SmartNavigation`) is written whenever a Blizzard menu, popup or panel is shown or hidden, and whenever a frame is made under an open panel (`SmartNavigation` post-hooks the global `CreateFrame`). It is written **inside whatever execution caused it**.
+- **So**: when addon code causes one of those (adds an entry to a Blizzard menu with `Menu.ModifyMenu`, opens a menu with `MenuUtil`, shows a `StaticPopup`, calls `ShowUIPanel`/`HideUIPanel`/`ToggleWorldMap`, opens the bags, makes a frame on the open world map), the bookkeeping is written tainted. From then on, every `UpdateInteractIcons` is blocked and blamed on that addon: the error repeats until the addon is disabled or the UI reloaded.
+- **Not new**: the gamepad code has not changed since build 70862 (7 November; a focus-handling tweak), and the same error is reported for Questie, EllesmereUI, RXPGuides, GatherLite, Polestar, Horizon Suite and others since September. It is a long-standing interaction between the Gamepad UI and addons, which also explains the same errors with bag and minimap addons.
+- **Not proved for one report**: without Karfuss's own BugSack stack or taint log, which Forever-GPS action his errors came from is not known. The candidates in 2.6 were all of the kinds above, and all now stand aside (below).
+
+### What Forever-GPS does while the Gamepad UI is on
+
+Detected with `C_InputInterfaceStyle.GetCurrentStyle()`, and followed live through `INPUT_DEVICE_INTERFACE_TRANSITION`, so turning it on or off needs no reload.
+
+| Stands aside | Instead |
+| --- | --- |
+| Forever-GPS's journey preview on the game's world map | Its own route map shows the journey (R3) |
+| EasyFind GPS's route line on the game's world map, EasyFind's dungeon entrance pins and its map search tab | The minimap, the HUD and the route map still show the way |
+| "Directions" in the game's quest log and tracker menus, "Make note" in unit menus | Directions from Forever-GPS's own quest pages |
+| EasyFind's own context menus built with the game's menu system | Their fallbacks |
+| Opening or closing the game's panels from addon code (quest log, world map, others) | The game's own buttons do it |
+| The one-time "old EasyFind folders" popup | A line in the chat |
+
+Forever-GPS's own window, its controller layer (override bindings only while its window is open, none in combat), its keyboard and its settings are unchanged: none of them writes anything the Gamepad UI reads. With keyboard and mouse, nothing at all changes.
+
+### When it still happens: what to send
+
+1. `/fgps pad`, then Ctrl+C: Gamepad UI state, controller, bindings Forever-GPS holds, the last 40 controller events, focus moves and every blocked action the game reported this session, with the function name. No character or realm names.
+2. BugSack's full entry, with its stack.
+3. Ideally the taint log: `/console taintLog 1` (or `11` for where taint began), `/reload`, reproduce, then send `World of Warcraft/_forever_/Logs/taint.log`. Turn it off afterwards with `/console taintLog 0`.
+
+### Narrowing it down in the game
+
+| | Setup | What it shows |
+| --- | --- | --- |
+| A | Gamepad UI on, every addon off | Blizzard's own baseline |
+| B | A + Forever-GPS 2.5 | Whether 2.5 already did it |
+| C | A + Forever-GPS 2.7 | This version |
+| D | C with Settings, Controller, input set to "Never" | Whether its controller layer matters |
+| E | C without Questie and TomTom | Whether they are part of it |
+| F | A + Questie alone | Questie's own (known) reports |
+| G | A + the bag addon that also errors | The same function? |
+| H | C with keyboard and mouse, Gamepad UI off | The same actions, without the Gamepad UI |
 
 ## Customize Controls
 
@@ -144,6 +194,8 @@ From Blizzard's UI source of build 12.1.5.70783, the line WoW Forever 1.60.1.707
 | `RegisterStateDriver`, `SecureHandlerStateTemplate` | `SecureStateDriver.lua`, `SecureHandlers.lua` | Clearing bindings in combat |
 | `GetPhysicalScreenSize` | the graphics settings | The handheld layout |
 | `IsKeyDown` | the key bindings UI | Buttons held as the window opens |
+| `C_InputInterfaceStyle.GetCurrentStyle`, `INPUT_DEVICE_INTERFACE_TRANSITION` | Forever `Blizzard_SharedXML/Mainline/InputUtil.lua`, `InputInterfaceStyleDocumentation.lua` | Whether the game's Gamepad UI is on |
+| `ADDON_ACTION_BLOCKED`, `ADDON_ACTION_FORBIDDEN` | events every client fires | Counted and named in `/fgps pad` |
 
 ### Not confirmed on Forever
 

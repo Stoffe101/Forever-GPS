@@ -431,6 +431,65 @@ ECONOMY_EDITS = [
 ]
 
 # (addon, file, old, new, how many times). {version} is that addon's own.
+# WoW Forever's Gamepad UI (docs/CONTROLLER.md, "The game's Gamepad UI"). Its focus and
+# binding bookkeeping (Blizzard_GamepadSharedUtility, Blizzard_GamepadSmartNavigation) runs
+# inside whatever execution shows a menu, a popup or a panel, or makes a frame under an open
+# panel. Done by addon code, that bookkeeping is written tainted, and Blizzard's restricted
+# SetPreferredGamepadInteractTarget() is then blocked at every target change, blamed on us.
+# While the Gamepad UI is on, each of these stands aside: no entry added to the game's menus,
+# no menu of our own built with the game's menu system, no panel opened or closed from our
+# code, nothing drawn on the game's world map. With keyboard and mouse nothing changes.
+GAMEPAD = "ForeverGPSPreflight.GamepadUI()"
+GAMEPAD_EDITS = [
+    # The map tab and everything it makes on the world map, as when the player turns it off.
+    ("EasyFind", "MapSearch/MapTab.lua",
+     "local function IsMapSearchEnabled()\n    return not (EasyFind and EasyFind.db and EasyFind.db.enableMapSearch == false)\nend",
+     "local function IsMapSearchEnabled()\n    if " + GAMEPAD + " then return false end\n"
+     "    return not (EasyFind and EasyFind.db and EasyFind.db.enableMapSearch == false)\nend", 1),
+    # Context menus made with the game's menu system: their fallbacks run instead.
+    ("EasyFind", "MapSearch/MapTab.lua",
+     "    if not (MenuUtil and MenuUtil.CreateContextMenu) then return false end",
+     "    if " + GAMEPAD + " or not (MenuUtil and MenuUtil.CreateContextMenu) then return false end", 2),
+    ("EasyFind_GPS", "GPS.lua",
+     "    if not (MenuUtil and MenuUtil.CreateContextMenu) then return false end",
+     "    if " + GAMEPAD + " or not (MenuUtil and MenuUtil.CreateContextMenu) then return false end", 1),
+    # Entries added to the game's own menus (Menu.ModifyMenu): the menu opens as the game's.
+    ("EasyFind_GPS", "QuestDirections.lua", "local function AddDirections(root, questID)\n",
+     "local function AddDirections(root, questID)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind", "Search/NoteMenus.lua", "local function AddMakeNote(_, root, contextData)\n",
+     "local function AddMakeNote(_, root, contextData)\n    if " + GAMEPAD + " then return end\n", 1),
+    # The game's panels, opened or closed from our code.
+    ("EasyFind_GPS", "GPS.lua",
+     "if WorldMapFrame and WorldMapFrame:IsShown() and HideUIPanel then HideUIPanel(WorldMapFrame) end",
+     "if not " + GAMEPAD + " and WorldMapFrame and WorldMapFrame:IsShown() and HideUIPanel then HideUIPanel(WorldMapFrame) end", 1),
+    ("EasyFind_GPS", "GPS.lua",
+     "if WorldMapFrame and WorldMapFrame:IsShown() and ToggleWorldMap then ToggleWorldMap() end",
+     "if not " + GAMEPAD + " and WorldMapFrame and WorldMapFrame:IsShown() and ToggleWorldMap then ToggleWorldMap() end", 1),
+    ("EasyFind_GPS", "QuestDirections.lua", "local function OpenLog(questID)\n",
+     "local function OpenLog(questID)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind_Questie", "Quests.lua", "local function OpenQuestLog(id)\n",
+     "local function OpenQuestLog(id)\n    if " + GAMEPAD + " then return end\n", 1),
+    ("EasyFind", "Search/Openers.lua", "local function SecureShowUIPanel(frame)\n",
+     "local function SecureShowUIPanel(frame)\n    if " + GAMEPAD + " then return false end\n", 1),
+    ("EasyFind", "MapSearch/MapTab.lua", "if ToggleWorldMap then ToggleWorldMap() end",
+     "if ToggleWorldMap and not " + GAMEPAD + " then ToggleWorldMap() end", 3),
+    ("EasyFind", "MapSearch/UINavigation.lua", "if not WorldMapFrame or not WorldMapFrame:IsShown() then",
+     "if (not WorldMapFrame or not WorldMapFrame:IsShown()) and not " + GAMEPAD + " then", 2),
+    ("EasyFind", "MapSearch/UINavigation.lua",
+     "if not (WorldMapFrame and WorldMapFrame:IsShown()) then ToggleWorldMap() end",
+     "if not (WorldMapFrame and WorldMapFrame:IsShown()) and not " + GAMEPAD + " then ToggleWorldMap() end", 1),
+    # Dungeon entrance pins, made on the world map as it shows.
+    ("EasyFind", "MapSearch/InstancePins.lua",
+     "local function Canvas()\n    local sc = WorldMapFrame and WorldMapFrame.ScrollContainer\n",
+     "local function Canvas()\n    if " + GAMEPAD + " then return nil end\n    local sc = WorldMapFrame and WorldMapFrame.ScrollContainer\n", 1),
+    # The route drawn on the game's world map: frames made under an open panel. The minimap,
+    # the HUD and Forever-GPS's own route map still show it.
+    ("EasyFind_GPS", "Preview.lua", "local function Canvas()\n    return WorldMapFrame",
+     "local function Canvas()\n    if " + GAMEPAD + " then return nil end\n    return WorldMapFrame", 1),
+    ("EasyFind_GPS", "Preview.lua", "    local canvas = Canvas()\n    return { x * canvas:GetWidth(), -y * canvas:GetHeight() }",
+     "    local canvas = Canvas()\n    if not canvas then return nil end\n    return { x * canvas:GetWidth(), -y * canvas:GetHeight() }", 1),
+]
+
 EDITS = [
     # Settled the moment it has its settings, before anything reads them, in a way that
     # cannot depend on which frame hears ADDON_LOADED first.
@@ -453,7 +512,7 @@ EDITS = [
     ("EasyFind", "Core/Extensions.lua", "local function Installed(addon) return C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon) end",
      'local function Installed(addon) return addon == "EasyFind_GPS" or addon == "EasyFind_Questie" '
      "or (C_AddOns.DoesAddOnExist(addon) and not OldCopy(addon)) end", 1),
-] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS + LAUNCHER_EDITS + ECONOMY_EDITS
+] + TAINT_EDITS + PLANNING_EDITS + CONTINUITY_EDITS + LAUNCHER_EDITS + ECONOMY_EDITS + GAMEPAD_EDITS
 
 # Its own table, not EasyFind's: it has an L of its own, among others.
 QUESTIE_HEADER = ("local _, ns = ...", "local _, shared = ...\nlocal ns = shared.QuestieExtension")

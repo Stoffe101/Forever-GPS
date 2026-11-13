@@ -178,12 +178,46 @@ function Pad.SmallScreen()
     return (h and h <= 900 and w and w <= 1600) and true or false
 end
 
+-- The last things that happened to the controller, for /fgps pad: events, focus moves and
+-- the actions the game blocked. Kinds, names of frames and times only.
+local journal = {}
+local JOURNAL_MAX = 40
+function Pad.Note(kind, text)
+    journal[#journal + 1] = ("%.1f %s %s"):format(GetTime(), kind, tostring(text or ""))
+    if #journal > JOURNAL_MAX then table.remove(journal, 1) end
+end
+function Pad.Journal() return journal end
+
+-- The game's own Gamepad UI is on (Core/Preflight.lua says why that matters).
+function Pad.GamepadUI() return ForeverGPSPreflight.GamepadUI() end
+
+local blocked = { all = 0, ours = 0 }
+function Pad.Blocked() return blocked end
+local function Blocked(kind)
+    return function(addon, fn)
+        blocked.all = blocked.all + 1
+        if addon == FG.ADDON then blocked.ours = blocked.ours + 1 end
+        Pad.Note(kind, tostring(addon) .. " " .. tostring(fn))
+    end
+end
+FG.OnEvent("ADDON_ACTION_BLOCKED", Blocked("blocked"))
+FG.OnEvent("ADDON_ACTION_FORBIDDEN", Blocked("forbidden"))
+FG.OnEvent("INPUT_DEVICE_INTERFACE_TRANSITION", function(new, old)
+    Pad.Note("interface", tostring(old) .. " to " .. tostring(new))
+    FG.Emit("pad:gamepadui", Pad.GamepadUI())
+end)
+
 FG.OnEvent("GAME_PAD_ACTIVE_CHANGED", function(active)
     inUse = active and true or false
+    Pad.Note("active", inUse)
     FG.Emit("pad:input", inUse)
 end)
-FG.OnEvent("GAME_PAD_CONNECTED", function() FG.Emit("pad:input", inUse) end)
+FG.OnEvent("GAME_PAD_CONNECTED", function()
+    Pad.Note("connected")
+    FG.Emit("pad:input", inUse)
+end)
 FG.OnEvent("GAME_PAD_DISCONNECTED", function()
+    Pad.Note("disconnected")
     inUse = false
     -- A capture waiting for a controller button ends with the controller.
     Pad.StopLearning()
@@ -462,6 +496,27 @@ local function ButtonFor(id)
     return b
 end
 
+-- The bindings we hold, by owner: what the report shows, and nothing else reads.
+local owned = {}
+local function Own(f, priority, chord, id)
+    SetOverrideBindingClick(f, priority, chord, ButtonFor(id):GetName())
+    owned[f] = owned[f] or {}
+    owned[f][chord] = id
+end
+local function Release(f)
+    ClearOverrideBindings(f)
+    owned[f] = nil
+end
+function Pad.Held()
+    local function List(f)
+        local out = {}
+        for chord, id in pairs(f and owned[f] or {}) do out[#out + 1] = chord .. "=" .. id end
+        table.sort(out)
+        return out
+    end
+    return List(owner), List(world)
+end
+
 -- Whether the player let the open-from-anywhere button work while playing. The consent is
 -- for one button: changing the button, switching profile or undoing never carries it to
 -- another, so no button the game uses is taken without being asked about.
@@ -487,9 +542,9 @@ function Pad.ApplyWorld()
         return false
     end
     Owner()
-    ClearOverrideBindings(world)
+    Release(world)
     if Pad.WorldConsented() then
-        SetOverrideBindingClick(world, false, Pad.Binding("toggle"), ButtonFor("toggle"):GetName())
+        Own(world, false, Pad.Binding("toggle"), "toggle")
     end
     return true
 end
@@ -503,7 +558,7 @@ local function Bind(chord, id)
         if watch then watch:Show() end
         return
     end
-    SetOverrideBindingClick(owner, true, chord, ButtonFor(id):GetName())
+    Own(owner, true, chord, id)
 end
 
 -- The left stick, when the player asks for it: past STICK_AT it moves the selection,
@@ -545,7 +600,7 @@ function Pad.Capture(on)
         return false
     end
     Owner()
-    ClearOverrideBindings(owner)
+    Release(owner)
     held = {}
     capturing = on and true or false
     pending = false
@@ -582,7 +637,7 @@ watch:SetScript("OnUpdate", function(self, elapsed)
         local _, key = Pad.Split(chord)
         if not IsKeyDown(key) then
             held[chord] = nil
-            if capturing then SetOverrideBindingClick(owner, true, chord, ButtonFor(id):GetName()) end
+            if capturing then Own(owner, true, chord, id) end
         end
     end
 end)
@@ -594,8 +649,8 @@ FG.OnEvent("PLAYER_REGEN_DISABLED", function()
     if capturing then pending = true end
     capturing = false
     if owner and not InCombatLockdown() then
-        ClearOverrideBindings(owner)
-        ClearOverrideBindings(world)
+        Release(owner)
+        Release(world)
     end
     held = {}
     if stick then
@@ -717,7 +772,7 @@ function Pad.Learn(id, done, timeout)
     -- The window's own bindings would take the press first: off while learning.
     if capturing then
         Owner()
-        ClearOverrideBindings(owner)
+        Release(owner)
     end
     learner:EnableKeyboard(true)
     learner:SetPropagateKeyboardInput(false)
@@ -744,3 +799,67 @@ FG.OnEvent("PLAYER_REGEN_DISABLED", function()
         if cb then cb(nil, "combat") end
     end
 end)
+
+-- ==== the report ============================================================
+-- /fgps pad, and the controller lines of /fgps report. Settings, states and names of our own
+-- frames: nothing about the character, the realm or the account.
+
+local OTHERS = { "ConsolePort", "EasyController", "DeckForever", "Questie", "TomTom", "ClassicUIForever" }
+
+local function Device()
+    if not (C_GamePad and C_GamePad.GetActiveDeviceID) then return "no C_GamePad" end
+    local ok, id = pcall(C_GamePad.GetActiveDeviceID)
+    if not ok or not id then return "none active" end
+    local state = C_GamePad.GetDeviceMappedState and select(2, pcall(C_GamePad.GetDeviceMappedState, id))
+    local style = type(state) == "table" and state.labelStyle
+    return ("device %s, labels %s"):format(tostring(id), tostring(style))
+end
+
+local function Present(name)
+    local value = _G
+    for part in name:gmatch("[^%.]+") do
+        value = type(value) == "table" and value[part] or nil
+    end
+    return value ~= nil
+end
+local NEEDED = { "C_GamePad.IsEnabled", "C_InputInterfaceStyle.GetCurrentStyle", "SetOverrideBindingClick", "ClearOverrideBindings",
+                 "RegisterStateDriver", "GetBindingAction", "GetBindingText", "IsKeyDown", "GetPhysicalScreenSize" }
+
+function Pad.ReportLines()
+    local s, out = Pad.Settings(), {}
+    local missing = {}
+    for _, name in ipairs(NEEDED) do if not Present(name) then missing[#missing + 1] = name end end
+    out[#out + 1] = ("Controller: enabled %s, in use %s, %s; the game's Gamepad UI %s"):format(tostring(Pad.Enabled()),
+        tostring(Pad.InUse()), Device(), Pad.GamepadUI() and "ON (Forever-GPS stands aside where it would taint it)" or "off")
+    out[#out + 1] = ("Controller settings: input %s, layout %s (%s), profile %s (%s), stick %s, open from anywhere %s"):format(
+        tostring(s.input), Pad.Layout(), tostring(s.mode), tostring(Pad.ProfileName()), tostring(Pad.Profile() and Pad.Profile().preset),
+        tostring(s.stick), Pad.WorldConsented() and ("allowed for " .. tostring(Pad.Binding("toggle"))) or "not allowed")
+    local window, anywhere = Pad.Held()
+    out[#out + 1] = ("Bindings held: window %d%s, open from anywhere %s; capturing %s, waiting for a press %s, in combat %s"):format(
+        #window, #window > 0 and (" (" .. table.concat(window, " ") .. ")") or "", #anywhere > 0 and table.concat(anywhere, " ") or "none",
+        tostring(Pad.Capturing()), tostring(Pad.Learning()), tostring(InCombatLockdown()))
+    local focus = FG.Focus and FG.Focus.Current()
+    out[#out + 1] = ("Focus: %s"):format(focus and (focus.GetName and focus:GetName() or focus.GetObjectType and focus:GetObjectType()) or "none")
+    out[#out + 1] = ("Blocked actions the game reported this session: %d, %d of them Forever-GPS's"):format(blocked.all, blocked.ours)
+    local others = {}
+    for _, name in ipairs(OTHERS) do
+        if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) then
+            local version = C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(name, "Version")
+            others[#others + 1] = name .. (version and (" " .. version) or "")
+        end
+    end
+    out[#out + 1] = "Addons loaded alongside: " .. (#others > 0 and table.concat(others, ", ") or "none of " .. table.concat(OTHERS, ", "))
+    out[#out + 1] = #missing == 0 and "Controller API: all present" or ("Controller API MISSING: " .. table.concat(missing, ", "))
+    return out
+end
+
+-- The whole controller report, to copy: the lines, then what happened lately.
+function Pad.Report()
+    local version, build = GetBuildInfo()
+    local out = { ("Forever-GPS %s controller report, client %s build %s"):format(tostring(FG.VERSION), tostring(version), tostring(build)) }
+    for _, line in ipairs(Pad.ReportLines()) do out[#out + 1] = line end
+    out[#out + 1] = ("Taint log: %s"):format(tostring(GetCVar and GetCVar("taintLog") or "off"))
+    out[#out + 1] = "Recent:"
+    for _, line in ipairs(journal) do out[#out + 1] = "  " .. line end
+    return table.concat(out, "\n")
+end

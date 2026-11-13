@@ -95,6 +95,7 @@ local COMMANDS = {
     share = Share,
     trip = function() FG.Window.Show("trip") end,
     report = function() FG.CopyBox.Show(FG.Diagnostics.Report()) end,
+    pad = function() FG.CopyBox.Show(FG.Pad.Report()) end,
     quests = FG.OpenQuests,
     stop = FG.StopNavigation,
     way = Way,
@@ -155,6 +156,9 @@ end
 local function OfferCleanup()
     local old = ForeverGPSPreflight.old
     if #old == 0 then return end
+    -- Under the game's Gamepad UI a popup shown from addon code taints its navigation: said in
+    -- the chat instead.
+    if ForeverGPSPreflight.GamepadUI() then return FG.Print(L["OLD_FOLDERS_CHAT"]) end
     StaticPopupDialogs["FOREVERGPS_OLD_FOLDERS"] = {
         text = L["OLD_FOLDERS_POPUP"], button1 = L["OLD_FOLDERS_DISABLE"], button2 = CANCEL,
         OnAccept = function()
