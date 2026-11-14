@@ -108,6 +108,17 @@ If the old folders are still enabled at login, Forever-GPS offers to turn them o
 
 Expect `[ok] Route engine ready` and a `Built on:` line naming EasyFind, EasyFind_GPS and EasyFind_Questie. `[broken] Old folders still enabled` means something was left behind.
 
+## The API branch, for HarvestMate Enhanced
+
+HarvestMate Enhanced 0.3.0 uses `ForeverGPS.API` version 2 (arrow hold, walks on the walking grid, the nearest service). It is on the branch `feature/public-api` (draft pull request 3), not in a release. Everything else is the same Forever-GPS 2.7.0.
+
+1. Check out that branch: `git fetch origin` and `git checkout feature/public-api`.
+2. `python tools/package.py`. It writes `dist/ForeverGPS-2.7.0-forever.zip` and checks it.
+3. Close the game and install it as in step 2 above, replacing the Forever-GPS folders (keep a copy of the old ones, as for any update).
+4. In the game: `/fgps diag` should say `Game API: all 28 present`. In HarvestMate Enhanced, `/hme diag` should say `(API v2)`, `walking grid API yes` and `arrow hold yes`.
+
+Back to the released version: install the release package the same way. HME notices the API is gone and falls back (map-only Guide me here, straight-line loops). Nothing either addon saved depends on the branch.
+
 ## Rolling back
 
 Move the folders in `ForeverGPS-backup-...` back into `Interface/AddOns`, replacing `ForeverGPS`. Nothing in `WTF` was changed, so 2.0 finds what it left, and ignores the settings it does not know. `dist/ForeverGPS-2.0.0-forever.zip` is the same thing as a package.

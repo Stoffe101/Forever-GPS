@@ -342,7 +342,8 @@ end
 
 function tests.diagnostics_knowsEveryDirectCall()
     local src = Read("addons/ForeverGPS/Core/Diagnostics.lua")
-    for _, name in ipairs({ "C_QuestLog.GetInfo", "C_QuestLog.GetQuestObjectives", "C_Map.GetBestMapForUnit" }) do
+    for _, name in ipairs({ "C_QuestLog.GetInfo", "C_QuestLog.GetQuestObjectives", "C_Map.GetBestMapForUnit",
+                            "C_Map.GetMapPosFromWorldPos", "CreateVector2D" }) do
         T.has(src, name, "/fgps diag probes it")
     end
 end

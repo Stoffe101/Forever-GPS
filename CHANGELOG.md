@@ -19,6 +19,13 @@ Testers using the game's built-in controller interface (Options, Gamepad, "Enabl
 
 - **EasyFind 5.3.0, EasyFind GPS 1.6.0, EasyFind Questie 1.3.0.** Their map fixes (opening the world map after a route no longer raises errors), WoW Forever portals that are not there no longer used, zeppelin docks named, lifts and the caves under Thunder Bluff walked properly, Directions from a group member's portrait, a quest's giver and ender in its tooltip, and more. Forever-GPS's own changes to them were merged three ways, and its taint protections kept where upstream does not have them yet.
 
+### ForeverGPS.API for other addons (branch `feature/public-api`, draft pull request 3)
+
+- **Version 1**: journeys by token (`NavigateTo`, `Status`, `IsActive`, `Current`, an ownership-safe `Release`, `EstimateSeconds`) and their events. [docs/API.md](docs/API.md)
+- **Version 2**, additive: another addon can hold Forever-GPS's arrows while the journey keeps running (never two arrows), walk its own legs on the walking grid in cancellable background batches (`LocalPaths`, read-only, the grid's settings untouched), and open a journey to the nearest mailbox, vendor, trainer and so on for the player to start.
+- `/fgps diag` also probes `C_Map.GetMapPosFromWorldPos` and `CreateVector2D`, which the walks use; Luacheck knows `CreateVector2D` as a client function (EasyFind, EasyFind GPS and WoW Forever-only addons call it).
+- Not tried in the game yet: [MANUAL_TESTING.md](docs/MANUAL_TESTING.md#18-forevergpsapi-v2-with-harvestmate-enhanced) section 18.
+
 ### Maintenance
 
 - **Upstream watch** (`tools/upstream_watch.py`, a workflow twice a day once on `main`): new EasyFind releases are merged, tested and packaged into a draft pull request automatically; Questie's releases are checked against what Forever-GPS reads; the reused MIT sources and the WoW Forever client's builds and API are watched. Nothing is merged, released or installed without approval. [docs/UPSTREAM.md](docs/UPSTREAM.md#watching-upstream)

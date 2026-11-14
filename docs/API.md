@@ -1,4 +1,4 @@
-# ForeverGPS.API (version 1)
+# ForeverGPS.API (versions 1 and 2)
 
 A small public surface for other addons (first user: HarvestMate Enhanced). Defined in `addons/ForeverGPS/Core/API.lua`; tested on the real route engine in `tests/test_api.lua`. Additive only: later versions add functions, never change these.
 
@@ -54,7 +54,7 @@ Read-only use of EasyFind GPS's walking grid for an addon's own local routes (a 
 |---|---|
 | `HasTerrain(mapID)` | whether the grid covers that map's continent |
 | `LocalPath(spec)` — `{ mapID, ax, ay, bx, by (0-1), maxPoints? (2-200, 64), detour? (1.2-6, 4) }` | one walk, searched at once (up to about a tenth of a second for a long one). `status`: `straight` (the line is walkable), `path` (`points` = `{ x1, y1, ... }` on `mapID`, ends included), `detour` (no walk within `detour` x the line), `none` (no walk on foot), `nodata`, `far` (ends more than `LOCAL_MAX_YARDS` = 1500 apart), `invalid` (`reason`). Also `yards`, `straight`, `drops` (falls above the safe height) and `settings`. |
-| `LocalPaths(spec, done)` — `{ mapID, legs = { {ax, ay, bx, by}, ... } (1-64), maxPoints?, detour?, budgetMs? (1-12) }` | a handle (`Cancel()`, `Status()`, `Progress()`), or nil and a reason. Walks the legs a few milliseconds a frame inside a coroutine that yields within searches; waits while Forever-GPS plans a route of its own and starts a search again if a plan ran across it (the grid's planning scratch is shared). `done(results, handle)` once all are walked; a cancelled batch never calls it. |
+| `LocalPaths(spec, done)` — `{ mapID, legs = { {ax, ay, bx, by}, ... } (1-64), maxPoints?, detour?, budgetMs? (1-12) }` | a handle (`Cancel()`, `Status()`, `Progress()`), or nil and a reason. Walks the legs a few milliseconds a frame inside a coroutine that yields within searches; waits while Forever-GPS plans a route of its own and starts a search again if a plan ran across it (the grid's planning scratch is shared). `done(results, handle)` once all are walked; a cancelled batch never calls it, queued or running. `budgetMs` defaults to the planner's own share (30% of a frame, 4-12 ms), meant for a route the player asked for; background work should ask for less (HarvestMate Enhanced asks for 3 and sends 16 legs a batch). |
 | `LocalBound(mapID, ax, ay, bx, by)` | the least a walk can cost, from the grid's landmarks, without a search; nil off the grid |
 
 Points are pulled straight (Douglas-Peucker) to `maxPoints`, keeping the turns that matter. Measured on the real grid (desktop Lua 5.4, `tools/terrain_fixture.lua` in HarvestMate Enhanced): real 99- and 100-leg gathering loops took about 40-60 ms per leg, the slowest leg about 0.13 s, which is why `LocalPaths` exists.

@@ -18,7 +18,7 @@ Then check the client and addons:
 /fgps diag
 ```
 
-Save that output. `/fgps report` gives the same as text to copy, with no character or realm name. Expected: client `1.60.1`, interface `16001`, `EasyFind internals: all present`, `Game API: all 18 present`, and `Questie data: ready` if Questie is enabled. If anything says MISSING, stop there and send that output first, since most of what follows depends on it.
+Save that output. `/fgps report` gives the same as text to copy, with no character or realm name. Expected: client `1.60.1`, interface `16001`, `EasyFind internals: all present`, `Game API: all 28 present`, and `Questie data: ready` if Questie is enabled. If anything says MISSING, stop there and send that output first, since most of what follows depends on it.
 
 These help if a route looks wrong:
 
@@ -279,7 +279,19 @@ The full list is in [CONTROLLER.md](CONTROLLER.md), "Real-device checklist". The
 4. [ ] Settings, Controller: change a button, Undo it.
 5. [ ] The game's own Key Bindings are unchanged.
 
-## 18. Living with it
+## 18. ForeverGPS.API v2 with HarvestMate Enhanced
+
+Only with the `feature/public-api` build (see [INSTALL.md](INSTALL.md#the-api-branch-for-harvestmate-enhanced)) and HarvestMate Enhanced 0.3.0. None of this has been tried in the game yet. HME's own list is its `docs/MANUAL_TESTING.md`, items 37-56; these are the Forever-GPS side.
+
+1. [ ] `/fgps diag`: `Game API: all 28 present` (the list now includes `C_Map.GetMapPosFromWorldPos` and `CreateVector2D`). In HME, `/hme diag`: `Forever-GPS: 2.7.0 (API v2); ... walking grid API yes; arrow hold yes`.
+2. [ ] Start a journey with Forever-GPS. In HME at a farm, press Guide me here: Forever-GPS's HUD arrow, EasyFind's character arrow, the TomTom waypoint and the beacon's edge arrow all go; the HUD keeps its steps; the journey keeps running. Give arrow back: they come back as you had them.
+3. [ ] With a hold standing, start a new journey yourself: Forever-GPS's arrow comes back at once (your newest choice leads). `/reload` with a hold: Forever-GPS's arrow is back after the reload.
+4. [ ] Let HME plan a 100-stop Mining loop in a hilly zone. Watch the frame rate while the legs are walked (about half a minute to a few minutes): no hitches; Forever-GPS's own route planning, started meanwhile, is not slowed noticeably and its route is unchanged; the walking grid's settings (roads, danger, drop limit) are unchanged afterwards.
+5. [ ] Enter combat while HME is walking legs: no new walking starts until the fight is over.
+6. [ ] HME's "bags nearly full" Do it: the journey to the nearest vendor opens, not started; you press Go. Never an enemy town's vendor.
+7. [ ] No new BugSack errors and no `ADDON_ACTION_BLOCKED` with `/console taintLog 1`.
+
+## 19. Living with it
 
 - [ ] Run around a city with a route active and watch your frame rate. No hitching on starting a route or typing a search.
 - [ ] `/fgps diag` memory line after an hour is reasonable.
