@@ -30,4 +30,7 @@ read_globals = {
     "IsKeyDown", "IsControlKeyDown", "IsAltKeyDown", "RegisterStateDriver", "GetPhysicalScreenSize",
     -- WoW Forever's own Gamepad UI style (Core/Preflight.lua).
     "C_InputInterfaceStyle",
+    -- The client's Vector2D constructor, used with C_Map.GetMapPosFromWorldPos (Core/Bridge.lua).
+    -- EasyFind and EasyFind GPS call it, and so do WoW Forever-only addons (interface 16001).
+    "CreateVector2D",
 }

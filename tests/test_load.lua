@@ -127,6 +127,22 @@ function tests.noPartOfTheFolder_asksAfterAnAddonThatIsGone()
     T.has(report, "Memory:", "and the one addon's memory")
 end
 
+function tests.diag_findsTheGameFunctionsItProbes()
+    -- A misspelt name in Diagnostics.API would show up here, not as a false "MISSING" in
+    -- the player's /fgps diag. The stand-in client lacks two functions the real one has
+    -- (art layer textures, flight costs); anything else missing is a mistake.
+    local c = Stack.new({})
+    c:Advance(2)
+    local line = c.FG.Diagnostics.Report():match("Game API MISSING: ([^\n]*)") or ""
+    local standInGaps = { ["C_Map.GetMapArtLayerTextures"] = true, TaxiNodeCost = true }
+    for name in line:gmatch("[^,%s]+") do
+        T.ok(standInGaps[name], name .. " is probed but not found")
+    end
+    for _, name in ipairs({ "C_Map.GetMapPosFromWorldPos", "CreateVector2D" }) do
+        T.no(line:find(name, 1, true), name .. " (API v2's walks) is found")
+    end
+end
+
 function tests.nothingListensForUpdatesThatAreNotOurs()
     local _, files = Client.TocLines("ForeverGPS")
     local joined = table.concat(files, " ")

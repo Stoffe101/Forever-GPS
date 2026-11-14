@@ -19,6 +19,8 @@ Diagnostics.API = {
     "C_QuestLog.GetInfo", "C_QuestLog.GetNumQuestLogEntries", "C_QuestLog.GetQuestObjectives", "C_QuestLog.IsComplete",
     "C_QuestLog.IsFailed", "C_Timer.After", "CreateFrame", "GetCursorPosition", "GetPlayerFacing", "UnitClass",
     "UnitFactionGroup", "UnitLevel", "UnitOnTaxi", "debugprofilestop",
+    -- API v2's walks give their points on the caller's map (Core/Bridge.lua, Bridge.MapPos).
+    "C_Map.GetMapPosFromWorldPos", "CreateVector2D",
 }
 
 local function Lookup(path)

@@ -74,3 +74,4 @@ UI/HUD.lua
 UI/Quick.lua
 UI/MinimapButton.lua
 Commands.lua
+Core/API.lua

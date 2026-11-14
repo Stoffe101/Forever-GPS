@@ -185,6 +185,23 @@ function Bridge.WorldPos(mapID, x, y)
     return g.WorldPos(mapID, x, y)
 end
 
+-- The walking grid (EasyFind GPS's Nav), or nil without it. Read-only use:
+-- API.LocalPath searches under whatever settings the grid holds now.
+function Bridge.Nav()
+    local ns = NS()
+    local Nav = ns and ns.GPSNav
+    if Nav and Nav.Path and Nav.Walk and Nav.Has then return Nav end
+    return nil
+end
+
+-- A world spot on continent ci as x, y (0-1) on mapID, or nil.
+function Bridge.MapPos(ci, wx, wy, mapID)
+    if not (C_Map and C_Map.GetMapPosFromWorldPos and CreateVector2D) then return nil end
+    local ok, _, pos = pcall(C_Map.GetMapPosFromWorldPos, ci, CreateVector2D(wx, wy), mapID)
+    if ok and pos then return pos:GetXY() end
+    return nil
+end
+
 function Bridge.PlayerStart()
     local g = GPS()
     return g and g.PlayerStart and g.PlayerStart() or nil
