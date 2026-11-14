@@ -75,7 +75,7 @@ for name in ("assert error ipairs math next pairs pcall print select string tabl
 -- The game API Forever-GPS reaches for. Each one is used by EasyFind, EasyFind GPS
 -- or an addon verified on interface 16001; tests below hold this list to that.
 local GAME = {}
-for name in ("C_AddOns C_Item C_Map C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
+for name in ("C_AddOns C_Item C_Map CreateVector2D C_QuestLog C_Spell C_Timer CreateFrame EasyFind GameTooltip GetAddOnMemoryUsage GetBuildInfo GetTime "
     .. "GetAddOnMetadata GetLocale GetPlayerFacing InCombatLockdown STANDARD_TEXT_FONT SlashCmdList UIParent "
     .. "UnitClass UnitFactionGroup UnitLevel UnitOnTaxi UpdateAddOnMemoryUsage WOW_PROJECT_ID debugprofilestop geterrorhandler "
     .. "issecretvalue WorldMapFrame GetCursorPosition GetCVar GetClassInfo GetProfessions GetProfessionInfo GetTaxiMapID TaxiNodeCost GetRealmName GetMinimapZoneText GetMerchantNumItems GetMerchantItemID UnitGUID UnitName strsplit GetNumTrainerServices GetTrainerServiceInfo GetTrainerServiceSkillReq GetTrainerServiceLevelReq GetTrainerServiceCost GetTrainerServiceStepIndex GetTrainerServiceSkillLine GetTrainerTradeskillRankValues IsTradeskillTrainer C_MerchantFrame C_Item C_AuctionHouse C_TradeSkillUI C_TaxiMap C_Container Enum IsShiftKeyDown Minimap CANCEL ReloadUI StaticPopupDialogs GetFramerate UnitName GetBindLocation time PlaySound SOUNDKIT "

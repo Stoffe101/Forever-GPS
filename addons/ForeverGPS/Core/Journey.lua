@@ -350,17 +350,22 @@ end)
 -- Exactly one arrow leads: the HUD's, EasyFind's at the character, TomTom's, or
 -- none. The route's beacon draws its own edge arrow when it thinks no arrow
 -- leads, so the HUD says it does.
+-- Another addon may hold the arrow (API.HoldArrow) while it guides the player
+-- itself: the journey runs on, only no arrow of ours points ("held").
+local function Held() return FG.API ~= nil and FG.API.ArrowHeld ~= nil and FG.API.ArrowHeld() end
+
 function Journey.ApplyArrow()
-    local mode = FG.db.arrow
-    if mode == "tomtom" and not FG.TomTom.Available() then mode = "hud" end
+    local mode = Journey.ArrowMode()
     Bridge.HoldCharacterArrow(mode ~= "character")
-    Bridge.ClaimGuiding(function() return FG.HUD ~= nil and FG.HUD.Guiding() end)
+    -- Held, the beacon must not draw an edge arrow either: another addon leads.
+    Bridge.ClaimGuiding(function() return Held() or (FG.HUD ~= nil and FG.HUD.Guiding()) end)
     FG.Emit("arrow:changed", mode)
 end
 
 FG.On("login", Journey.ApplyArrow)
 
 function Journey.ArrowMode()
+    if Held() then return "held" end
     local mode = FG.db.arrow
     if mode == "tomtom" and not FG.TomTom.Available() then return "hud" end
     return mode
