@@ -58,3 +58,9 @@ Read-only use of EasyFind GPS's walking grid for an addon's own local routes (a 
 | `LocalBound(mapID, ax, ay, bx, by)` | the least a walk can cost, from the grid's landmarks, without a search; nil off the grid |
 
 Points are pulled straight (Douglas-Peucker) to `maxPoints`, keeping the turns that matter. Measured on the real grid (desktop Lua 5.4, `tools/terrain_fixture.lua` in HarvestMate Enhanced): real 99- and 100-leg gathering loops took about 40-60 ms per leg, the slowest leg about 0.13 s, which is why `LocalPaths` exists.
+
+### The nearest service
+
+| Function | Returns |
+|---|---|
+| `NavigateToService(kind, spec?)` — `kind` = `mailbox`, `vendor`, `repair`, `inn`, `bank`, `auction` or `trainer` (`spec.profession` = "Skinning" ...) | true and the place's name, or false and a reason. Searches "nearest <kind>" with Forever-GPS's own search (enemy ground passed over) and opens that journey for the player to start with Go. A one-off trip: no token, and the caller's own guidance simply steps aside for it. |

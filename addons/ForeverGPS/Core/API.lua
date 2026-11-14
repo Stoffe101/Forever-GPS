@@ -585,3 +585,36 @@ function API.LocalPaths(spec, done)
     driver:SetScript("OnUpdate", Step)
     return handle
 end
+
+-- ==== version 2: the nearest service ========================================
+--   API.NavigateToService(kind, spec?) -> true, name | false, reason
+--       kind = "mailbox" | "vendor" | "repair" | "inn" | "bank" | "auction" |
+--       "trainer" (spec.profession = "Skinning" ...). Searches as "nearest
+--       <kind>" in Forever-GPS (enemy ground passed over) and opens that
+--       journey for the player to start with Go. A one-off trip: no token.
+API.SERVICES = { mailbox = "mailbox", vendor = "general goods", repair = "repair", inn = "innkeeper",
+                 bank = "bank", auction = "auction house" }
+
+function API.NavigateToService(kind, spec)
+    spec = type(spec) == "table" and spec or {}
+    local query = API.SERVICES[kind]
+    if kind == "trainer" and type(spec.profession) == "string" then
+        query = spec.profession:gsub("[^%a ]", ""):sub(1, 30) .. " trainer"
+    end
+    if not query then return false, "unknown service" end
+    if not Bridge.Ready() then return false, "Forever-GPS is not ready" end
+    local ok, results = pcall(FG.Search.Run, "nearest " .. query)
+    if not ok or type(results) ~= "table" then return false, "the search failed" end
+    local pick
+    for _, r in ipairs(results) do
+        if not r.hostile then
+            pick = r
+            break
+        end
+    end
+    if not pick then return false, "none found" end
+    if FG.Window and FG.Window.Show then FG.Try(FG.Window.Show, "search") end
+    Planner.Inspect(pick)
+    if FG.Window and FG.Window.ShowRoute then FG.Try(FG.Window.ShowRoute) end
+    return true, pick.name
+end

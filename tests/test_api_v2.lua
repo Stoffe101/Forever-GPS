@@ -247,4 +247,15 @@ function tests.localPaths_waitWhileAJourneyIsPlanned_andLeaveItsWalksAlone()
     T.eq(c.FG.API.Status(token), "active", "and the journey is unchanged")
 end
 
+function tests.theNearestService_isOpenedForThePlayerToStart()
+    local c = Start()
+    local ok, name = c.FG.API.NavigateToService("mailbox")
+    T.ok(ok, "found one: " .. tostring(name))
+    T.ok(Stack.Until(c, function() return c.FG.Planner.Current() and c.FG.Planner.Current().status == "ready" end, 30), "planned")
+    T.no(c.FG.Bridge.ActiveRoute(), "nothing starts until the player presses Go")
+    local bad, why = c.FG.API.NavigateToService("teleporter")
+    T.no(bad)
+    T.eq(why, "unknown service")
+end
+
 return tests
